@@ -1,0 +1,21 @@
+# Toolchain and task runner. `mise tasks` to list, `mise run <task>` to run.
+
+[tools]
+go = "1.26.5"
+golangci-lint = "2.12.2"
+
+[tasks."build"]
+description = "Build the work binary into the repository root"
+run = "go build -o work ./cmd/work"
+
+[tasks."install"]
+description = "Install work into the Go bin directory, where the shell shim finds it"
+run = "go install ./cmd/work"
+
+[tasks."test"]
+description = "Run the test suite"
+run = "go test ./..."
+
+[tasks."lint"]
+description = "Vet and lint the packages"
+run = ["go vet ./...", "golangci-lint run"]
