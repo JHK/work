@@ -3,18 +3,11 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"os"
+
+	"github.com/JHK/work-cli/internal/cli"
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "work:", err)
-		os.Exit(1)
-	}
-}
-
-func run(args []string) error {
-	return errors.New("not implemented")
+	os.Exit(cli.Execute())
 }

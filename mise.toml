@@ -9,8 +9,16 @@ description = "Build the work binary into the repository root"
 run = "go build -o work ./cmd/work"
 
 [tasks."install"]
-description = "Install work into the Go bin directory, where the shell shim finds it"
+description = "Install work into the Go bin directory, where the shell finds it on PATH"
 run = "go install ./cmd/work"
+
+[tasks."uninstall"]
+description = "Remove the work binary that install put in the Go bin directory"
+run = '''
+bin="$(go env GOBIN)"
+[ -n "$bin" ] || bin="$(go env GOPATH)/bin"
+rm -v -f "$bin/work"
+'''
 
 [tasks."test"]
 description = "Run the test suite"
