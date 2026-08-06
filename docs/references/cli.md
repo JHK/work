@@ -1,6 +1,6 @@
 # Command line
 
-One command, an optional identifier, and flags. `work --help` prints the flag list; what follows is what the flags do to the repository, which the help text does not say.
+One command, an optional identifier, and flags. `work --help` sketches the forms and lists the flags; what follows is what each invocation does to the repository, which the help text does not say.
 
 ## Identifiers
 

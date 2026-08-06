@@ -38,13 +38,17 @@ func command(version string, run func(o options, target string) error) *cobra.Co
 
 	cmd := &cobra.Command{
 		Use:   "work [<id>|<pr>|<url>]",
-		Short: "Enter a bead or pull request worktree, creating it if needed",
-		Long: `Turn a ticket, a pull request, or an open worktree into a git worktree
-with a coding-agent session inside it.
+		Short: "A smarter cd for git worktrees",
+		Long: `work is a smarter cd for git worktrees. It knows which worktrees a repository
+has open and which tickets and pull requests are waiting, and hands the terminal
+to what the one you pick opens on: your shell, or a command.
 
-Creating a worktree launches a session in it. Entering one that already
-exists drops into your shell. With no identifier, pick from the repository's
-worktrees and ready beads.`,
+With no identifier, choose among the repository's worktrees, its ready tickets
+and its open pull requests. That form needs fzf.
+
+Entering a worktree that already exists opens a shell in it and prints the lines
+that resume the sessions it carries. A target without one has its worktree
+created, its ticket claimed, and the launcher invoked in it.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
@@ -60,7 +64,7 @@ worktrees and ready beads.`,
 	}
 
 	f := cmd.Flags()
-	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the bead or launching a session")
+	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the ticket or launching a session")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session (low|medium|high|xhigh|max)")
 
