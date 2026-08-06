@@ -80,24 +80,26 @@ func TestLabels(t *testing.T) {
 	bead := func(id, title string, open bool) work.Candidate {
 		return work.Candidate{Target: work.Target{Kind: work.KindBead, ID: id, Name: id}, Label: title, Open: open}
 	}
-	pr := func(n string, open bool) work.Candidate {
-		return work.Candidate{Target: work.Target{Kind: work.KindPR, ID: n, Name: "pr-" + n}, Open: open}
+	pr := func(n, title string, open bool) work.Candidate {
+		return work.Candidate{Target: work.Target{Kind: work.KindPR, ID: n, Name: "pr-" + n}, Label: title, Open: open}
 	}
 
 	got := labels([]work.Candidate{
 		bead("bd-longer", "Other", true),
 		bead("bd-1", "Do a thing", false),
-		pr("7", true),
+		pr("7", "Review this", true),
 		// A plain worktree is named by its branch and says nothing more.
 		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
 		bead("bd-untitled-and-longest", "", false), // bd could not say
+		pr("9", "", false), // nor could gh
 	})
 	want := []string{
 		highlight + "⎇ ◆ bd-longer" + reset + "  ·  Other",
 		"  ◆ bd-1       ·  Do a thing",
-		highlight + "⎇ ⇄ pr-7     " + reset + "  ·  PR review",
+		highlight + "⎇ ⇄ pr-7     " + reset + "  ·  Review this",
 		highlight + "⎇ ◇ spike" + reset,
 		"  ◆ bd-untitled-and-longest",
+		"  ⇄ pr-9",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d rows; want %d", len(got), len(want))

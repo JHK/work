@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/JHK/work-cli/internal/beads"
+	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/sessions"
 )
@@ -69,7 +70,7 @@ type State struct {
 	Sessions    []sessions.Session
 	Bead        beads.Bead
 	SessionsErr error // the session history could not be read
-	TicketErr   error // bd or gh could not answer for this target
+	TicketErr   error // bd could not answer for this target
 }
 
 // worktreesDir is where every target's worktree lives, relative to the repo.
@@ -77,8 +78,8 @@ const worktreesDir = ".worktrees"
 
 var (
 	prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]+)(?:[/?#].*)?$`)
-	// The name becomes a directory under .worktrees and an argument to bd, gh and
-	// git, so it may not traverse, and may not open with a dash.
+	// The name becomes a directory under .worktrees and an argument to bd and git,
+	// so it may not traverse, and may not open with a dash.
 	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
@@ -168,7 +169,7 @@ func (t Target) matches(w git.Worktree) bool {
 // listing already settled, which entering it takes rather than ask again.
 type Candidate struct {
 	Target Target
-	Label  string // bead or PR title, empty when the tracker could not say
+	Label  string // bead or PR title, empty where no adapter named it
 	Open   bool   // a worktree for it already exists
 
 	path  string // where that worktree sits
@@ -176,48 +177,72 @@ type Candidate struct {
 }
 
 // Candidates lists what the repository offers to work on: every worktree git
-// knows, then the ready beads without one. A tracker that will not answer costs
-// the labels and the ready beads, never the worktrees.
+// knows, then the open pull requests and ready beads without one. An adapter
+// that will not answer costs its own rows and its own labels, never the
+// worktrees.
 func (e Env) Candidates() ([]Candidate, error) {
 	worktrees, err := git.Linked(e.Repo)
 	if err != nil {
 		return nil, err
 	}
-
-	// One query serves both the branch matching and the labels.
+	// The one listing serves both the branch matching and the labels.
 	known, _ := beads.All(e.Repo)
+	ready, _ := beads.Ready(e.Repo)
+	pulls, _ := forge.Open(e.Repo, git.OriginURL(e.Repo))
+	return candidates(worktrees, known, ready, pulls), nil
+}
+
+// candidates assembles the list from what the adapters answered, each of which
+// may have answered nothing.
+func candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []forge.PR) []Candidate {
 	ids := make([]string, len(known))
 	titles := make(map[string]string, len(known))
 	for i, b := range known {
 		ids[i] = b.ID
 		titles[b.ID] = b.Title
 	}
+	prTitles := make(map[string]string, len(pulls))
+	for _, p := range pulls {
+		prTitles[strconv.Itoa(p.Number)] = p.Title
+	}
 
-	out := make([]Candidate, 0, len(worktrees))
+	out := make([]Candidate, 0, len(worktrees)+len(pulls)+len(ready))
+	// Keyed on the name, which is what a target of any kind is retyped as, so one
+	// place to work is offered once however it was found.
 	open := make(map[string]bool, len(worktrees))
 	for _, w := range worktrees {
 		t := targetAt(w, ids)
 		c := Candidate{Target: t, Open: true, path: w.Path}
-		if t.Kind == KindBead {
-			open[t.ID] = true
+		open[t.Name] = true
+		switch t.Kind {
+		case KindBead:
 			c.Label = titles[t.ID]
+		case KindPR:
+			c.Label = prTitles[t.ID]
 		}
 		out = append(out, c)
 	}
 
-	ready, _ := beads.Ready(e.Repo)
-	for _, b := range ready {
-		if open[b.ID] {
+	for _, p := range pulls {
+		t := prTarget(strconv.Itoa(p.Number))
+		if open[t.Name] {
 			continue
 		}
+		out = append(out, Candidate{Target: t, Label: p.Title})
+	}
+
+	for _, b := range ready {
 		// A ready id names a bead outright, so it skips the PR heuristics in Resolve.
 		if !worktreeName.MatchString(b.ID) {
 			continue
 		}
 		t := Target{Kind: KindBead, ID: b.ID, Name: b.ID}
+		if open[t.Name] {
+			continue
+		}
 		out = append(out, Candidate{Target: t, Label: b.Title, ready: true})
 	}
-	return out, nil
+	return out
 }
 
 // locate finds the worktree a target already has, wherever it sits.

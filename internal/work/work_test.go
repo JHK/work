@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/JHK/work-cli/internal/beads"
+	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
 )
 
@@ -177,6 +179,54 @@ func TestInspectAtTakesTheListedWorktree(t *testing.T) {
 	// An empty path is a target without one, which is where a fresh worktree goes.
 	if s := e.inspectAt(target, ""); s.Exists || s.Path != filepath.Join(e.Repo, worktreesDir, "one") {
 		t.Errorf("inspectAt() = exists %v at %q, want a fresh path under %s", s.Exists, s.Path, worktreesDir)
+	}
+}
+
+// The picker's three sources meet in one list: a worktree is offered once,
+// under whatever title its own adapter gave it, and what has none is offered
+// fresh.
+func TestCandidates(t *testing.T) {
+	worktrees := []git.Worktree{
+		{Path: "/wt/one", Branch: "one-a-slug"},
+		{Path: "/wt/pr-7", Branch: "pr-7"},
+		{Path: "/wt/loose", Branch: "loose"},
+	}
+	// Every bead names a branch and titles a row; only the ready ones are offered
+	// fresh, and "one" is claimed already.
+	known := []beads.Bead{
+		{ID: "one", Title: "The first bead"},
+		{ID: "two", Title: "The second bead"},
+		{ID: "three", Title: "The third bead"},
+	}
+	ready := []beads.Bead{{ID: "one", Title: "The first bead"}, {ID: "two", Title: "The second bead"}}
+	pulls := []forge.PR{{Number: 7, Title: "Seventh pull request"}, {Number: 9, Title: "Ninth pull request"}}
+
+	want := []Candidate{
+		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true},
+		{Target: prTarget("7"), Label: "Seventh pull request", Open: true},
+		{Target: Target{Kind: KindPlain, ID: "/wt/loose", Name: "loose"}, Open: true},
+		{Target: prTarget("9"), Label: "Ninth pull request"},
+		{Target: Target{Kind: KindBead, ID: "two", Name: "two"}, Label: "The second bead", ready: true},
+	}
+	got := candidates(worktrees, known, ready, pulls)
+	if len(got) != len(want) {
+		t.Fatalf("candidates() = %+v, want %d rows", got, len(want))
+	}
+	for i := range want {
+		got[i].path = "" // where git put it is not what this test is about
+		if got[i] != want[i] {
+			t.Errorf("row %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+
+	// A forge that would not answer costs the pull request rows and their titles,
+	// nothing else.
+	got = candidates(worktrees, known, ready, nil)
+	if len(got) != 4 {
+		t.Fatalf("candidates() without gh = %+v, want the worktrees and the ready bead", got)
+	}
+	if pr := got[1]; pr.Target != prTarget("7") || pr.Label != "" || !pr.Open {
+		t.Errorf("pr row without gh = %+v, want an untitled open worktree", pr)
 	}
 }
 

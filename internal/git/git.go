@@ -91,9 +91,23 @@ func HasBranch(repo, branch string) bool {
 	return err == nil
 }
 
+// origin is the one remote work reads: a pull request is fetched from it, so it
+// is the repository whose pull requests are worth offering.
+const origin = "origin"
+
+// OriginURL reports where origin points, or "" where the repository has no such
+// remote.
+func OriginURL(repo string) string {
+	url, err := git(repo, "remote", "get-url", origin)
+	if err != nil {
+		return ""
+	}
+	return url
+}
+
 // Fetch fetches a single refspec from origin.
 func Fetch(repo, refspec string) error {
-	_, err := git(repo, "fetch", "origin", refspec)
+	_, err := git(repo, "fetch", origin, refspec)
 	return err
 }
 

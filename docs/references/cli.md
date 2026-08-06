@@ -10,15 +10,19 @@ One command, an optional identifier, and flags. `work --help` prints the flag li
 | `7`, `007` | pull request 7 |
 | `pr-7` | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
-| omitted | an fzf list of the repository's worktrees and its ready beads |
+| omitted | an fzf list of the repository's worktrees, open pull requests and ready beads |
 
-Leading dashes, path separators, `.` and `..` are refused: the identifier becomes a directory under `.worktrees/` and an argument to `bd`, `gh` and `git`.
+Leading dashes, path separators, `.` and `..` are refused: the identifier becomes a directory under `.worktrees/` and an argument to `bd` and `git`.
 
 A pull request number is read against the current repository, whatever host the URL names.
 
 ## What the picker offers
 
-Every worktree git reports, less the main checkout, then the ready beads without one. Each worktree is read off its branch, and one whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`. Without `bd` the worktrees still all list, unlabeled.
+Every worktree git reports, less the main checkout, then the open pull requests of `origin` and the ready beads without one. Each worktree is read off its branch, and one whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`.
+
+A row is titled by whichever tool names that kind: `bd` a bead, `gh pr list` a pull request, drafts included. gh is pinned to origin's URL: left to resolve a checkout with several remotes it favours `upstream`, and lists pull requests whose head the fetch from origin then cannot find.
+
+One tool answering costs nothing of the other, and an adapter that will not answer costs its own rows and its own titles: the worktrees list either way, unlabeled.
 
 ## What each invocation does
 

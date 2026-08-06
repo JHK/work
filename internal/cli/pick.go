@@ -29,7 +29,7 @@ func pick(env work.Env) (work.Candidate, error) {
 		return work.Candidate{}, err
 	}
 	if len(candidates) == 0 {
-		return work.Candidate{}, errors.New("no worktrees or ready beads")
+		return work.Candidate{}, errors.New("nothing to work on")
 	}
 
 	// The row index is the key, so nothing has to be parsed back out of the label.
@@ -66,7 +66,7 @@ func labels(candidates []work.Candidate) []string {
 	width := 0
 	for _, c := range candidates {
 		// An untitled row is not padded, so it does not set the column either.
-		if title(c) != "" {
+		if c.Label != "" {
 			width = max(width, len(c.Target.Name))
 		}
 	}
@@ -77,18 +77,9 @@ func labels(candidates []work.Candidate) []string {
 	return out
 }
 
-// title says what a row is about: a PR row says so itself, a bead row is named
-// by the tracker, which may not have answered, and a plain worktree has only
-// the branch its name already shows.
-func title(c work.Candidate) string {
-	if c.Target.Kind == work.KindPR {
-		return "PR review"
-	}
-	return c.Label
-}
-
 // label renders one candidate, making the ones with a worktree stand out
-// because re-entry is the common case.
+// because re-entry is the common case. A row is titled by whichever adapter
+// names that kind, and goes untitled where none answered.
 func label(c work.Candidate, width int) string {
 	mark, icon := " ", beadIcon
 	if c.Open {
@@ -101,7 +92,7 @@ func label(c work.Candidate, width int) string {
 		icon = plainIcon
 	}
 
-	name, about := c.Target.Name, title(c)
+	name, about := c.Target.Name, c.Label
 	if about != "" {
 		name = fmt.Sprintf("%-*s", width, name)
 	}
