@@ -13,9 +13,8 @@ func TestCommandFlags(t *testing.T) {
 		target string
 	}{
 		{"no identifier", []string{"--shell"}, options{shell: true}, ""},
-		{"flags after the identifier", []string{"bd-1", "--start"}, options{start: true}, "bd-1"},
-		{"a flag value is not an identifier", []string{"bd-1", "--start", "--model", "opus"}, options{start: true, model: "opus"}, "bd-1"},
-		{"joined value", []string{"--start", "--effort=high", "bd-1"}, options{start: true, effort: "high"}, "bd-1"},
+		{"a flag value is not an identifier", []string{"bd-1", "--model", "opus"}, options{model: "opus"}, "bd-1"},
+		{"joined value", []string{"--effort=high", "bd-1"}, options{effort: "high"}, "bd-1"},
 		{"flags before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
 	}
 	for _, tt := range tests {
@@ -41,9 +40,7 @@ func TestCommandRejects(t *testing.T) {
 		name string
 		args []string
 	}{
-		{"--start and --shell", []string{"bd-1", "--start", "--shell"}},
-		{"--model without --start", []string{"bd-1", "--model", "opus"}},
-		{"--effort without --start", []string{"bd-1", "--effort", "high"}},
+		{"--start is gone", []string{"bd-1", "--start"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 	}

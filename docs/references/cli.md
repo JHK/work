@@ -18,31 +18,23 @@ A pull request number is read against the current repository, whatever host the 
 
 ## What each invocation does
 
-Provisioning is idempotent, so any of these re-enters a worktree that already exists.
+Creating a worktree is the moment work on that target begins, so it also claims the bead and launches the session. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
 
-| Invocation | Vets | Creates the worktree | Claims the bead | Hands off to |
-|---|---|---|---|---|
-| `work <id>` | when it will claim | yes | yes | `$SHELL` |
-| `work <id> --start` | yes | yes | yes | `claude` on `/start <id>` |
-| `work <id> --shell` | no | yes | no | `$SHELL` |
-| `work <pr>` | not applicable | yes | not applicable | `$SHELL` |
-| `work` | as for the target picked | after confirmation | as for the target picked | as for the target picked |
+| Invocation | On a target with no worktree |
+|---|---|
+| `work <id>` | vet, create, claim, and launch `claude` on `/start <id>` |
+| `work <pr>` | create, and launch `claude` on `/code-review <pr>` |
+| `work <id> --shell` | create only; the bead is left as it is |
+| `work` | as for the target picked |
 
 Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a deferred, closed, epic, criteria-less or dependency-blocked bead is refused, and the message says which. It guards the claim, so the paths that do not claim do not vet.
 
-Confirmation guards a target reached through the picker, where backing out should leave the repository as it was. A named target is acted on as given.
-
 ## Flags
 
-| Flag | Effect |
-|---|---|
-| `--start` | vet, claim, and launch a session on `/start <id>`; beads only |
-| `--shell` | enter without claiming; mutually exclusive with `--start` |
-| `--model <m>` | passed to the launched session; requires `--start` |
-| `--effort <e>` | passed to the launched session as `low`, `medium`, `high`, `xhigh` or `max`; requires `--start` |
+`--model` and `--effort` are accepted on every invocation and reach the session as `claude --model <m> --effort <e>`. Where nothing is launched, on `--shell` and on re-entry, they are dropped without a word.
 
 ## Handoff
 
-`work` changes into the worktree and replaces itself with the session, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a declined confirmation or a dismissed picker exits 1 silently.
+`work` changes into the worktree and replaces itself with the session, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.
 
 The session command is built in `internal/work/handoff.go`, and the same builder renders the resume lines printed on entry.

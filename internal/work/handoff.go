@@ -46,15 +46,19 @@ type Launch struct {
 	Effort string
 }
 
-// StartLaunch is the session that works a target: named for the ticket, opened
-// on the skill that works it.
-func (s State) StartLaunch(model, effort string) Launch {
-	return Launch{
-		Name:   s.Target.ID + ": " + s.Title(),
-		Prompt: "/start " + s.Target.ID,
-		Model:  model,
-		Effort: effort,
+// SessionLaunch is the session a fresh worktree opens with: named for the
+// target, opened on the skill that works it.
+func (s State) SessionLaunch(model, effort string) Launch {
+	l := Launch{Model: model, Effort: effort}
+	switch s.Target.Kind {
+	case KindPR:
+		l.Name = s.Title()
+		l.Prompt = "/code-review " + s.Target.ID
+	default:
+		l.Name = s.Target.ID + ": " + s.Title()
+		l.Prompt = "/start " + s.Target.ID
 	}
+	return l
 }
 
 // Argv builds the command that starts the session.

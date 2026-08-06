@@ -54,9 +54,9 @@ func Open(dir string) (Env, error) {
 	return Env{Repo: repo, Sessions: sessions.Claude{}}, nil
 }
 
-// State is everything knowable about a target on entry. Every field is best
-// effort, and the errors stay apart so a caller can ask whether the adapter it
-// needs answered.
+// State is everything knowable about a target on entry, less what an existing
+// worktree makes moot. Every field is best effort, and the errors stay apart so
+// a caller can ask whether the adapter it needs answered.
 type State struct {
 	Target      Target
 	Exists      bool
@@ -220,7 +220,9 @@ func (e Env) Inspect(t Target) State {
 		}
 	}
 
-	if t.Kind == KindBead {
+	// A worktree that already exists is re-entered rather than created, and only
+	// creating it needs the ticket, so bd is left unasked on the common path.
+	if t.Kind == KindBead && !s.Exists {
 		b, err := beads.Show(e.Repo, t.ID)
 		if err != nil {
 			s.TicketErr = err

@@ -23,16 +23,17 @@ Each tool is reached for by one path, and only that path pays when it is missing
 | `git` | everything |
 | [`bd`](https://github.com/steveyegge/beads) | creating a bead's worktree, claiming it, and vetting it |
 | `fzf` | `work` with no argument |
-| `claude` | `--start` |
+| `claude` | the session a new worktree is handed to |
 | `mise` | trusting a new worktree's configs, so its first session starts clean |
 
 ## Use
 
 ```
-work                                          # pick from the repo's worktrees and ready beads
-work <id|pr|url>                              # a shell in the target's worktree, creating it if needed
-work <id> --start [--model m] [--effort e]    # claim the bead and launch a session on /start
-work <id> --shell                             # a shell for a look around; the bead stays as it is
+work                                       # pick from the repo's worktrees and ready beads
+work <id|pr|url> [--model m] [--effort e]  # the target's worktree, creating it if needed
+work <id> --shell                          # a shell for a look around; the bead stays as it is
 ```
+
+Creating the worktree launches a session in it, claiming the bead first. Re-entering one drops into your shell, with the lines that resume the sessions it already carries.
 
 Every flag and what it touches: [the command line](docs/references/cli.md). Every build and install task: [mise tasks](docs/references/mise-tasks.md).

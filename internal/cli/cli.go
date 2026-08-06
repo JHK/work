@@ -16,7 +16,6 @@ import (
 var errCancelled = errors.New("cancelled")
 
 type options struct {
-	start  bool
 	shell  bool
 	model  string
 	effort string
@@ -43,16 +42,14 @@ func command(run func(o options, target string) error) *cobra.Command {
 		Long: `Turn a ticket, a pull request, or an open worktree into a git worktree
 with a coding-agent session inside it.
 
-With no identifier, pick from the repository's worktrees and ready beads.
-Nothing is created until you confirm it.`,
+Creating a worktree launches a session in it. Entering one that already
+exists drops into your shell. With no identifier, pick from the repository's
+worktrees and ready beads.`,
 		Args: cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			if err := validate(o); err != nil {
-				return err
-			}
 			target := ""
 			if len(args) == 1 {
 				target = args[0]
@@ -62,18 +59,9 @@ Nothing is created until you confirm it.`,
 	}
 
 	f := cmd.Flags()
-	f.BoolVar(&o.start, "start", false, "vet the bead, claim it, and launch a session on /start")
-	f.BoolVar(&o.shell, "shell", false, "enter the worktree without claiming the bead")
+	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the bead or launching a session")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session (low|medium|high|xhigh|max)")
-	cmd.MarkFlagsMutuallyExclusive("start", "shell")
 
 	return cmd
-}
-
-func validate(o options) error {
-	if !o.start && (o.model != "" || o.effort != "") {
-		return errors.New("--model and --effort apply to --start")
-	}
-	return nil
 }

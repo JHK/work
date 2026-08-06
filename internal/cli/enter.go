@@ -18,8 +18,7 @@ func enter(o options, target string) error {
 	}
 
 	var t work.Target
-	browsed := target == ""
-	if browsed {
+	if target == "" {
 		t, err = pick(env)
 	} else {
 		t, err = work.Resolve(env.Repo, target)
@@ -27,11 +26,8 @@ func enter(o options, target string) error {
 	if err != nil {
 		return err
 	}
-	if o.start && t.Kind == work.KindPR {
-		return errors.New("--start works on beads, not PRs")
-	}
 
-	h, err := decide(env, env.Inspect(t), o, browsed)
+	h, err := decide(env, env.Inspect(t), o)
 	if err != nil {
 		return err
 	}
@@ -39,12 +35,12 @@ func enter(o options, target string) error {
 }
 
 // decide turns the inspected state into the handoff, provisioning and claiming
-// along the way. A browsed target is confirmed before anything is created; a
-// named one was specified fully enough to act on.
-func decide(env work.Env, s work.State, o options, browsed bool) (work.Handoff, error) {
-	// Claiming, and only claiming, marks a bead as being worked, so the vetting
-	// that guards it follows the claim rather than the flag that asked.
-	claiming := s.Target.Kind == work.KindBead && !o.shell && (o.start || !s.Exists)
+// along the way. Creating a worktree is the moment work on that target begins.
+func decide(env work.Env, s work.State, o options) (work.Handoff, error) {
+	launching := !s.Exists && !o.shell
+	// Claiming marks a bead as being worked, so the vetting that guards it runs
+	// before anything is created.
+	claiming := launching && s.Target.Kind == work.KindBead
 	if claiming {
 		if s.TicketErr != nil {
 			return work.Handoff{}, s.TicketErr
@@ -54,19 +50,8 @@ func decide(env work.Env, s work.State, o options, browsed bool) (work.Handoff, 
 		}
 	}
 
-	if !s.Exists {
-		branch, err := s.Branch()
-		if err != nil {
-			return work.Handoff{}, err
-		}
-		if browsed {
-			if err := confirm(fmt.Sprintf("create worktree %s on branch %s", s.Target.Name, branch)); err != nil {
-				return work.Handoff{}, err
-			}
-		}
-		if err := env.Provision(s); err != nil {
-			return work.Handoff{}, err
-		}
+	if err := env.Provision(s); err != nil {
+		return work.Handoff{}, err
 	}
 
 	if claiming {
@@ -76,8 +61,8 @@ func decide(env work.Env, s work.State, o options, browsed bool) (work.Handoff, 
 	}
 
 	h := work.Handoff{Dir: s.Target.Path}
-	if o.start {
-		h.Run = s.StartLaunch(o.model, o.effort).Argv()
+	if launching {
+		h.Run = s.SessionLaunch(o.model, o.effort).Argv()
 		return h, nil
 	}
 	report(s)

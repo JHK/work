@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/JHK/work-cli/internal/beads"
 )
 
 // execHandoff is the environment variable the re-exec helper below keys on.
@@ -64,6 +66,34 @@ func TestShell(t *testing.T) {
 	t.Setenv("SHELL", "")
 	if got := Shell(); len(got) != 1 || got[0] != "/bin/sh" {
 		t.Errorf("Shell() = %q, want the fallback", got)
+	}
+}
+
+func TestSessionLaunch(t *testing.T) {
+	bead, _ := Resolve("/repo", "bd-1")
+	pr, _ := Resolve("/repo", "7")
+	tests := []struct {
+		name  string
+		state State
+		want  Launch
+	}{
+		{
+			"a bead opens on the skill that works it",
+			State{Target: bead, Bead: beads.Bead{Title: "a title"}},
+			Launch{Name: "bd-1: a title", Prompt: "/start bd-1", Model: "opus", Effort: "high"},
+		},
+		{
+			"a pull request opens on a review",
+			State{Target: pr},
+			Launch{Name: "PR #7", Prompt: "/code-review 7", Model: "opus", Effort: "high"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.state.SessionLaunch("opus", "high"); got != tt.want {
+				t.Errorf("SessionLaunch() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 
