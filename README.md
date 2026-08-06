@@ -1,39 +1,47 @@
 # work
 
-`work` covers the *work* step of a worktree-per-ticket flow: capture, refine, **work**, review, land, close. It turns a ticket, a pull request, or an already open worktree into a place to work in: the worktree, made to exist and be usable, and a coding agent inside it, whether a fresh session, a resumed one, or just a shell. Finding that target is half the job, whether it is named outright or picked from the worktrees a repo has open and the sessions they carry.
+<!-- This file is the brief, not a description of the binary. It states the tool
+     `work` is meant to be, and the build is measured against it. Extend it when
+     the intent changes and close the delta in code; never edit it down to match
+     what ships. What ships is docs/references/. -->
 
-It is the boundary between the shell and the agent: the point where a ticket becomes a place with a branch, a checkout, and a session history.
+`work` is a smarter `cd` for git worktrees. It knows which worktrees a repository has open and which tickets and pull requests are waiting, so the place you meant to work is a few keystrokes away.
 
-That one step is the whole remit. `work` runs, hands the terminal to the session, and is gone, leaving the steps on either side to the tools that own them; anything it can do interactively it can also do from a flag, so a script reaches all of it too. [The flow it serves](docs/explanation/worktree-per-ticket.md) sets out where the rest of the steps live.
+Navigation is the whole remit. `work` provisions the worktree and hands the terminal to whatever it opens on: your shell, or a command. The second form makes it a launcher for [agentic work](docs/explanation/worktree-per-ticket.md), one keystroke from a ticket to an agent running in its own checkout.
 
 ## Install
+
+Build it from source. There is no package yet.
 
 ```
 mise run install
 ```
 
-Installing the binary is the whole setup. `work` provisions, then replaces itself with the session, so the shell it was launched from is waiting where you left it once the session ends, and stays valid after that worktree is merged away.
-
-## Requires
-
-Each tool is reached for by one path, and only that path pays when it is missing.
-
-| Tool | Needed for |
-|---|---|
-| `git` | everything |
-| [`bd`](https://github.com/steveyegge/beads) | creating a bead's worktree, claiming it, and vetting it |
-| `fzf` | `work` with no argument |
-| `claude` | the session a new worktree is handed to |
-| `mise` | trusting a new worktree's configs, so its first session starts clean |
+`git` is the only dependency. Other [tooling](docs/references/tools.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
 
 ## Use
 
 ```
-work                                       # pick from the repo's worktrees and ready beads
-work <id|pr|url> [--model m] [--effort e]  # the target's worktree, creating it if needed
-work <id> --shell                          # a shell for a look around; the bead stays as it is
+work
 ```
 
-Creating the worktree launches a session in it, claiming the bead first. Re-entering one drops into your shell, with the lines that resume the sessions it already carries.
+Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
-Every flag and what it touches: [the command line](docs/references/cli.md). Every build and install task: [mise tasks](docs/references/mise-tasks.md).
+- **With a worktree:** a shell in it, with the lines that resume the sessions it carries.
+- **Without one:** the worktree is created, the ticket claimed, and the configured launcher invoked in it.
+
+```
+work <name>
+```
+
+A worktree name, a ticket id or a pull request skips the chooser. See also [the command line](docs/references/cli.md).
+
+## Still in development
+
+The tool above is the target. What ships is locked to one instance of each integration, and [a missing one](docs/references/tools.md) fails its path rather than degrading it.
+
+- **The launcher is `claude`.** There is nothing to configure: the command, its flags, the skills a fresh worktree opens on and the place session history is read from are all fixed. A new worktree that cannot start it is left created and claimed with nothing to hand over to.
+- **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a name that is not a pull request resolves nowhere without it.
+- **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
+- **The shell is fish.** It is what `work` is built and used against, and the resume lines it prints are joined for pasting there and quoted for nothing else.
+- **The picker is `fzf`.** The no-argument form needs it.

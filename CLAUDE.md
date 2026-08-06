@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-Agent instructions for `work-cli`: a Go CLI that turns a ticket, a pull request, or an open worktree into a git worktree with a coding-agent session inside it. See [README.md](README.md).
+Agent instructions for `work-cli`: a Go CLI that turns a ticket, a pull request, or an open worktree into a git worktree to work in.
+
+[README.md](README.md) is the brief: it states the tool `work` is meant to be, not what the binary does. Extend it when the intent changes; never edit it down to match the code. What ships is [docs/references/](docs/references/AGENTS.md).
 
 ## Before acting
 

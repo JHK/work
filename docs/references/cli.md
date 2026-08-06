@@ -24,7 +24,7 @@ Every worktree git reports, less the main checkout, then the ready beads without
 
 A target's worktree is the one checked out on its branch — `pr-<n>` for a pull request, the bead id alone or ahead of a title slug for a bead — wherever git reports it. Only a new worktree needs a directory chosen for it, and that is `.worktrees/<name>`.
 
-Creating a worktree is the moment work on that target begins, so it also claims the bead and launches the session. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
+Creating a worktree is the moment work on that target begins, so it also claims the bead and invokes the launcher. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
 
 | Invocation | On a target with no worktree |
 |---|---|
@@ -37,12 +37,12 @@ Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a defe
 
 ## Flags
 
-`--model` and `--effort` are accepted on every invocation and reach the session as `claude --model <m> --effort <e>`. Where nothing is launched, on `--shell` and on re-entry, they are dropped without a word.
+`--model` and `--effort` are accepted on every invocation and reach the launcher as `claude --model <m> --effort <e>`. Where nothing is launched, on `--shell` and on re-entry, they are dropped without a word.
 
 `--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
 
 ## Handoff
 
-`work` changes into the worktree and replaces itself with the session, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.
+`work` changes into the worktree and replaces itself with the launcher, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.
 
-The session command is built in `internal/work/handoff.go`, and the same builder renders the resume lines printed on entry.
+The launcher command is built in `internal/work/handoff.go`, and the same builder renders the resume lines printed on entry.
