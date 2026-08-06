@@ -22,8 +22,8 @@ type options struct {
 }
 
 // Execute runs work and returns the process exit status.
-func Execute() int {
-	if err := command(enter).Execute(); err != nil {
+func Execute(version string) int {
+	if err := command(version, enter).Execute(); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -33,7 +33,7 @@ func Execute() int {
 }
 
 // command builds the command tree, calling run once the flags are valid.
-func command(run func(o options, target string) error) *cobra.Command {
+func command(version string, run func(o options, target string) error) *cobra.Command {
 	var o options
 
 	cmd := &cobra.Command{
@@ -45,7 +45,8 @@ with a coding-agent session inside it.
 Creating a worktree launches a session in it. Entering one that already
 exists drops into your shell. With no identifier, pick from the repository's
 worktrees and ready beads.`,
-		Args: cobra.MaximumNArgs(1),
+		Version: version,
+		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,

@@ -8,6 +8,9 @@ import (
 	"github.com/JHK/work-cli/internal/cli"
 )
 
+// version is stamped by the mise build tasks; a plain go build keeps the default.
+var version = "dev"
+
 func main() {
-	os.Exit(cli.Execute())
+	os.Exit(cli.Execute(version))
 }

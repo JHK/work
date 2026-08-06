@@ -12,6 +12,12 @@
 
 The toolchain versions pinned in `[tools]` are what CI and a fresh checkout resolve to.
 
+## Version stamping
+
+`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty`, so the binary reports the checkout it came from under [`work --version`](cli.md#flags). The value is read where the task runs: building inside a worktree describes that worktree, dirty marker included.
+
+Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails. The fallback matters: an empty version string makes cobra drop the `--version` flag entirely.
+
 ## Where the binary lands
 
 `install` and `uninstall` both resolve `$GOBIN`, falling back to `$GOPATH/bin`. Read the live value with `go env GOBIN`.

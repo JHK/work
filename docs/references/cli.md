@@ -33,6 +33,8 @@ Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a defe
 
 `--model` and `--effort` are accepted on every invocation and reach the session as `claude --model <m> --effort <e>`. Where nothing is launched, on `--shell` and on re-entry, they are dropped without a word.
 
+`--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
+
 ## Handoff
 
 `work` changes into the worktree and replaces itself with the session, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.

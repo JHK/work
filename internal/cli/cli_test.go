@@ -2,6 +2,7 @@ package cli
 
 import (
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/work"
@@ -34,6 +35,20 @@ func TestCommandFlags(t *testing.T) {
 				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
 			}
 		})
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	var out strings.Builder
+	err := runTo([]string{"--version"}, &out, func(options, string) error {
+		t.Error("entered a worktree despite --version")
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Execute(--version): %v", err)
+	}
+	if !strings.Contains(out.String(), stubVersion) {
+		t.Errorf("Execute(--version) printed %q; want the version %q", out.String(), stubVersion)
 	}
 }
 
@@ -91,10 +106,16 @@ func TestLabels(t *testing.T) {
 	}
 }
 
+const stubVersion = "v0.0.0-test"
+
 func run(args []string, f func(options, string) error) error {
-	cmd := command(f)
+	return runTo(args, io.Discard, f)
+}
+
+func runTo(args []string, out io.Writer, f func(options, string) error) error {
+	cmd := command(stubVersion, f)
 	cmd.SetArgs(args)
-	cmd.SetOut(io.Discard)
+	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)
 	return cmd.Execute()
 }

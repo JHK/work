@@ -4,13 +4,16 @@
 go = "1.26.5"
 golangci-lint = "2.12.2"
 
+[vars]
+ldflags = "-X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+
 [tasks."build"]
 description = "Build the work binary into the repository root"
-run = "go build -o work ./cmd/work"
+run = 'go build -ldflags "{{vars.ldflags}}" -o work ./cmd/work'
 
 [tasks."install"]
 description = "Install work into the Go bin directory, where the shell finds it on PATH"
-run = "go install ./cmd/work"
+run = 'go install -ldflags "{{vars.ldflags}}" ./cmd/work'
 
 [tasks."uninstall"]
 description = "Remove the work binary that install put in the Go bin directory"
