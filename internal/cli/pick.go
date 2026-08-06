@@ -14,6 +14,10 @@ import (
 const (
 	highlight = "\x1b[1;92m"
 	reset     = "\x1b[0m"
+
+	beadIcon = "◆"
+	prIcon   = "⇄"
+	openMark = "⎇"
 )
 
 // pick offers what the repository has to work on and returns the target chosen.
@@ -28,9 +32,9 @@ func pick(env work.Env) (work.Target, error) {
 	}
 
 	// The row index is the key, so nothing has to be parsed back out of the label.
-	rows := make([]string, len(candidates))
-	for i, c := range candidates {
-		rows[i] = fmt.Sprintf("%d\t%s", i, label(c))
+	rows := labels(candidates)
+	for i, l := range rows {
+		rows[i] = fmt.Sprintf("%d\t%s", i, l)
 	}
 
 	fzf := exec.Command("fzf", "--ansi", "--height", "40%", "--reverse",
@@ -55,15 +59,53 @@ func pick(env work.Env) (work.Target, error) {
 	return candidates[i].Target, nil
 }
 
-// label renders a candidate, making the ones with a worktree stand out because
-// re-entry is the common case.
-func label(c work.Candidate) string {
-	if !c.Open {
-		return "  " + c.Label
+// labels renders the rows, lining the titles up behind the widest name that has
+// one. A worktree name is ASCII by construction, so its length is its width.
+func labels(candidates []work.Candidate) []string {
+	width := 0
+	for _, c := range candidates {
+		// An untitled row is not padded, so it does not set the column either.
+		if title(c) != "" {
+			width = max(width, len(c.Target.Name))
+		}
 	}
-	about := c.Label
+	out := make([]string, len(candidates))
+	for i, c := range candidates {
+		out[i] = label(c, width)
+	}
+	return out
+}
+
+// title says what a row is about: a PR row says so itself, a bead row is named
+// by the tracker, which may not have answered.
+func title(c work.Candidate) string {
 	if c.Target.Kind == work.KindPR {
-		about = "PR review"
+		return "PR review"
 	}
-	return fmt.Sprintf("%s⎇ %s%s  ·  %s", highlight, c.Target.Name, reset, about)
+	return c.Label
+}
+
+// label renders one candidate, making the ones with a worktree stand out
+// because re-entry is the common case.
+func label(c work.Candidate, width int) string {
+	mark, icon := " ", beadIcon
+	if c.Open {
+		mark = openMark
+	}
+	if c.Target.Kind == work.KindPR {
+		icon = prIcon
+	}
+
+	name, about := c.Target.Name, title(c)
+	if about != "" {
+		name = fmt.Sprintf("%-*s", width, name)
+	}
+	row := mark + " " + icon + " " + name
+	if c.Open {
+		row = highlight + row + reset
+	}
+	if about != "" {
+		row += "  ·  " + about
+	}
+	return row
 }

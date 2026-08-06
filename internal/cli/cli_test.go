@@ -3,6 +3,8 @@ package cli
 import (
 	"io"
 	"testing"
+
+	"github.com/JHK/work-cli/internal/work"
 )
 
 func TestCommandFlags(t *testing.T) {
@@ -54,6 +56,38 @@ func TestCommandRejects(t *testing.T) {
 				t.Errorf("Execute(%q): want an error", tt.args)
 			}
 		})
+	}
+}
+
+// A row states what to retype and what kind of thing it is, and the names line
+// up whether or not a worktree exists.
+func TestLabels(t *testing.T) {
+	bead := func(id, title string, open bool) work.Candidate {
+		return work.Candidate{Target: work.Target{Kind: work.KindBead, ID: id, Name: id}, Label: title, Open: open}
+	}
+	pr := func(n string, open bool) work.Candidate {
+		return work.Candidate{Target: work.Target{Kind: work.KindPR, ID: n, Name: "pr-" + n}, Open: open}
+	}
+
+	got := labels([]work.Candidate{
+		bead("bd-longer", "Other", true),
+		bead("bd-1", "Do a thing", false),
+		pr("7", true),
+		bead("bd-untitled-and-longest", "", false), // bd could not say
+	})
+	want := []string{
+		highlight + "⎇ ◆ bd-longer" + reset + "  ·  Other",
+		"  ◆ bd-1       ·  Do a thing",
+		highlight + "⎇ ⇄ pr-7     " + reset + "  ·  PR review",
+		"  ◆ bd-untitled-and-longest",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d rows; want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("row %d = %q; want %q", i, got[i], want[i])
+		}
 	}
 }
 
