@@ -4,6 +4,7 @@
 package work
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -22,14 +23,16 @@ type Kind int
 const (
 	KindBead Kind = iota
 	KindPR
+	// KindPlain is a worktree whose branch names neither: it is offered as it is
+	// and entered with a shell. It is only ever discovered, never created.
+	KindPlain
 )
 
 // Target is one resolved place to work.
 type Target struct {
 	Kind Kind
-	ID   string // bead id, or the pull request number
-	Name string // worktree directory name
-	Path string // absolute worktree path
+	ID   string // bead id, pull request number, or, for a plain worktree, its path
+	Name string // what a row shows and the user retypes: the bead id, pr-<n>, or the branch
 }
 
 // Sessions lists the agent sessions a directory carries. The default
@@ -59,6 +62,7 @@ func Open(dir string) (Env, error) {
 // a caller can ask whether the adapter it needs answered.
 type State struct {
 	Target      Target
+	Path        string // where the worktree is, or where it would be created
 	Exists      bool
 	Sessions    []sessions.Session
 	Bead        beads.Bead
@@ -82,7 +86,7 @@ const prPrefix = "pr-"
 
 // Resolve maps an identifier to a target. A bare number or an
 // .../<owner>/<repo>/pull/<n> URL is a pull request; anything else is a bead id.
-func Resolve(repo, arg string) (Target, error) {
+func Resolve(arg string) (Target, error) {
 	if arg == "" {
 		return Target{}, errors.New("no target given")
 	}
@@ -102,32 +106,61 @@ func Resolve(repo, arg string) (Target, error) {
 		if err != nil || i == 0 {
 			return Target{}, fmt.Errorf("%q is not a pull request number", arg)
 		}
-		return prTarget(repo, strconv.FormatUint(i, 10)), nil
+		return prTarget(strconv.FormatUint(i, 10)), nil
 	}
 
 	if !worktreeName.MatchString(arg) {
 		return Target{}, fmt.Errorf("%q is not a usable worktree name", arg)
 	}
-	return Target{Kind: KindBead, ID: arg, Name: arg, Path: worktreePath(repo, arg)}, nil
+	return Target{Kind: KindBead, ID: arg, Name: arg}, nil
 }
 
-// TargetAt reads back the target a worktree directory stands for, inverting the
-// naming Resolve applies.
-func TargetAt(repo, path string) (Target, bool) {
-	dir := filepath.Join(repo, worktreesDir)
-	if filepath.Dir(filepath.Clean(path)) != dir {
-		return Target{}, false
+// targetAt reads the target a worktree stands for off the branch it has checked
+// out. ids are the bead ids bd knows; without them a bead's worktree is merely a
+// plain one, which still lists.
+func targetAt(w git.Worktree, ids []string) Target {
+	// Only a branch Resolve would name itself is a pull request, so that pr-007,
+	// which it canonicalises to pr-7, does not stand for a worktree elsewhere.
+	if t, err := Resolve(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
+		return t
 	}
-	name := filepath.Base(path)
-	if rest, ok := strings.CutPrefix(name, prPrefix); ok {
-		if _, err := strconv.ParseUint(rest, 10, 32); err == nil {
-			return prTarget(repo, rest), true
+	if id := beadID(w.Branch, ids); id != "" {
+		return Target{Kind: KindBead, ID: id, Name: id}
+	}
+	return Target{Kind: KindPlain, ID: w.Path, Name: cmp.Or(w.Branch, filepath.Base(w.Path))}
+}
+
+// beadID names the bead a branch belongs to: the longest known id owning it, so
+// that a branch of one-two's does not fall to one.
+func beadID(branch string, ids []string) string {
+	best := ""
+	for _, id := range ids {
+		if len(id) > len(best) && owns(id, branch) {
+			best = id
 		}
 	}
-	if !worktreeName.MatchString(name) {
-		return Target{}, false
+	return best
+}
+
+// owns reports whether a branch is a bead's. Ids and title slugs both contain
+// dashes, so the branch is matched against the id and its separator rather than
+// parsed apart.
+func owns(id, branch string) bool {
+	return branch == id || strings.HasPrefix(branch, id+"-")
+}
+
+// matches reports whether a worktree is the one this target stands for,
+// wherever it happens to sit. A ticket is keyed on the branch; a plain worktree,
+// having no ticket to be named by, is only itself.
+func (t Target) matches(w git.Worktree) bool {
+	switch t.Kind {
+	case KindPR:
+		return w.Branch == t.Name
+	case KindPlain:
+		return git.SameDir(w.Path, t.ID)
+	default:
+		return owns(t.ID, w.Branch)
 	}
-	return Target{Kind: KindBead, ID: name, Name: name, Path: worktreePath(repo, name)}, true
 }
 
 // Candidate is one place worth offering: a target, and how it reads.
@@ -137,26 +170,28 @@ type Candidate struct {
 	Open   bool   // a worktree for it already exists
 }
 
-// Candidates lists what the repository offers to work on: the targets that
-// already have worktrees, then the ready beads that do not. A tracker that will
-// not answer costs the titles and the ready beads, never the worktrees.
+// Candidates lists what the repository offers to work on: every worktree git
+// knows, then the ready beads without one. A tracker that will not answer costs
+// the labels and the ready beads, never the worktrees.
 func (e Env) Candidates() ([]Candidate, error) {
-	targets, err := e.Targets()
+	worktrees, err := git.Linked(e.Repo)
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]string, 0, len(targets))
-	for _, t := range targets {
-		if t.Kind == KindBead {
-			ids = append(ids, t.ID)
-		}
+	// One query serves both the branch matching and the labels.
+	known, _ := beads.All(e.Repo)
+	ids := make([]string, len(known))
+	titles := make(map[string]string, len(known))
+	for i, b := range known {
+		ids[i] = b.ID
+		titles[b.ID] = b.Title
 	}
-	titles, _ := beads.Titles(e.Repo, ids)
 
-	out := make([]Candidate, 0, len(targets))
-	open := make(map[string]bool, len(targets))
-	for _, t := range targets {
+	out := make([]Candidate, 0, len(worktrees))
+	open := make(map[string]bool, len(worktrees))
+	for _, w := range worktrees {
+		t := targetAt(w, ids)
 		c := Candidate{Target: t, Open: true}
 		if t.Kind == KindBead {
 			open[t.ID] = true
@@ -174,29 +209,28 @@ func (e Env) Candidates() ([]Candidate, error) {
 		if !worktreeName.MatchString(b.ID) {
 			continue
 		}
-		t := Target{Kind: KindBead, ID: b.ID, Name: b.ID, Path: worktreePath(e.Repo, b.ID)}
+		t := Target{Kind: KindBead, ID: b.ID, Name: b.ID}
 		out = append(out, Candidate{Target: t, Label: b.Title})
 	}
 	return out, nil
 }
 
-// Targets lists the targets the repository already has worktrees for.
-func (e Env) Targets() ([]Target, error) {
-	paths, err := git.Worktrees(e.Repo)
+// locate finds the worktree a target already has, wherever it sits.
+func (e Env) locate(t Target) (string, bool) {
+	worktrees, err := git.Linked(e.Repo)
 	if err != nil {
-		return nil, err
+		return "", false
 	}
-	var out []Target
-	for _, p := range paths {
-		if t, ok := TargetAt(e.Repo, p); ok {
-			out = append(out, t)
+	for _, w := range worktrees {
+		if t.matches(w) {
+			return w.Path, true
 		}
 	}
-	return out, nil
+	return "", false
 }
 
-func prTarget(repo, id string) Target {
-	return Target{Kind: KindPR, ID: id, Name: prPrefix + id, Path: worktreePath(repo, prPrefix+id)}
+func prTarget(id string) Target {
+	return Target{Kind: KindPR, ID: id, Name: prPrefix + id}
 }
 
 func worktreePath(repo, name string) string {
@@ -205,15 +239,15 @@ func worktreePath(repo, name string) string {
 
 // Inspect gathers the state of a target without changing anything.
 func (e Env) Inspect(t Target) State {
-	s := State{Target: t}
+	// Only creating a worktree needs a directory chosen for it; an existing one is
+	// entered where git says it is, .worktrees or not.
+	s := State{Target: t, Path: worktreePath(e.Repo, t.Name)}
 
-	// A directory git does not know as a worktree is a leftover, not a place to
-	// work: entering it would put the session on the main checkout's branch.
-	if git.IsWorktree(e.Repo, t.Path) {
-		s.Exists = true
+	if path, ok := e.locate(t); ok {
+		s.Exists, s.Path = true, path
 		if e.Sessions == nil {
 			s.SessionsErr = errors.New("no session adapter")
-		} else if list, err := e.Sessions.List(t.Path); err != nil {
+		} else if list, err := e.Sessions.List(path); err != nil {
 			s.SessionsErr = err
 		} else {
 			s.Sessions = list

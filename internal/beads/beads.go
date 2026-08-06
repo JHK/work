@@ -4,7 +4,6 @@ package beads
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/JHK/work-cli/internal/run"
 )
@@ -32,21 +31,10 @@ func Show(repo, id string) (Bead, error) {
 	return beads[0], nil
 }
 
-// Titles names each of the given beads in one query. Ids bd does not know are
-// absent from the result rather than an error.
-func Titles(repo string, ids []string) (map[string]string, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	beads, err := decode(bd(repo, "list", "--id", strings.Join(ids, ","), "--limit", "0", "--json"))
-	if err != nil {
-		return nil, err
-	}
-	titles := make(map[string]string, len(beads))
-	for _, b := range beads {
-		titles[b.ID] = b.Title
-	}
-	return titles, nil
+// All lists every bead the tracker knows, closed ones included: a worktree
+// outlives the status of the ticket it was opened for.
+func All(repo string) ([]Bead, error) {
+	return decode(bd(repo, "list", "--all", "--limit", "0", "--json"))
 }
 
 // Ready lists every bead whose dependencies are satisfied.

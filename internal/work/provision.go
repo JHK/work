@@ -31,6 +31,11 @@ func (e Env) Provision(s State) error {
 	if s.Exists {
 		return nil
 	}
+	// Nothing but the worktree itself said what a plain target was, so once it is
+	// gone there is nothing left to recreate.
+	if s.Target.Kind == KindPlain {
+		return fmt.Errorf("no worktree named %s", s.Target.Name)
+	}
 	branch, err := s.Branch()
 	if err != nil {
 		return err
@@ -45,23 +50,23 @@ func (e Env) Provision(s State) error {
 				return err
 			}
 		}
-		if err := git.AddWorktree(e.Repo, s.Target.Path, branch); err != nil {
+		if err := git.AddWorktree(e.Repo, s.Path, branch); err != nil {
 			return err
 		}
 	default:
-		if err := beads.CreateWorktree(e.Repo, s.Target.Path, branch); err != nil {
+		if err := beads.CreateWorktree(e.Repo, s.Path, branch); err != nil {
 			return err
 		}
 	}
 
-	mise.Trust(s.Target.Path)
+	mise.Trust(s.Path)
 	return nil
 }
 
 // Claim marks the bead as being worked.
 func (e Env) Claim(t Target) error {
 	if t.Kind != KindBead {
-		return fmt.Errorf("%s is a pull request, not a bead", t.ID)
+		return fmt.Errorf("%s is not a bead", t.Name)
 	}
 	return beads.Claim(e.Repo, t.ID)
 }

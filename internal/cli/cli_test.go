@@ -88,12 +88,15 @@ func TestLabels(t *testing.T) {
 		bead("bd-longer", "Other", true),
 		bead("bd-1", "Do a thing", false),
 		pr("7", true),
+		// A plain worktree is named by its branch and says nothing more.
+		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
 		bead("bd-untitled-and-longest", "", false), // bd could not say
 	})
 	want := []string{
 		highlight + "⎇ ◆ bd-longer" + reset + "  ·  Other",
 		"  ◆ bd-1       ·  Do a thing",
 		highlight + "⎇ ⇄ pr-7     " + reset + "  ·  PR review",
+		highlight + "⎇ ◇ spike" + reset,
 		"  ◆ bd-untitled-and-longest",
 	}
 	if len(got) != len(want) {

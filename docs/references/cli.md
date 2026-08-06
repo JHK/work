@@ -16,7 +16,13 @@ Leading dashes, path separators, `.` and `..` are refused: the identifier become
 
 A pull request number is read against the current repository, whatever host the URL names.
 
+## What the picker offers
+
+Every worktree git reports, less the main checkout, then the ready beads without one. Each worktree is read off its branch, and one whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`. Without `bd` the worktrees still all list, unlabeled.
+
 ## What each invocation does
+
+A target's worktree is the one checked out on its branch — `pr-<n>` for a pull request, the bead id alone or ahead of a title slug for a bead — wherever git reports it. Only a new worktree needs a directory chosen for it, and that is `.worktrees/<name>`.
 
 Creating a worktree is the moment work on that target begins, so it also claims the bead and launches the session. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
 

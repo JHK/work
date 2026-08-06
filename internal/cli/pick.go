@@ -15,9 +15,10 @@ const (
 	highlight = "\x1b[1;92m"
 	reset     = "\x1b[0m"
 
-	beadIcon = "◆"
-	prIcon   = "⇄"
-	openMark = "⎇"
+	beadIcon  = "◆"
+	prIcon    = "⇄"
+	plainIcon = "◇"
+	openMark  = "⎇"
 )
 
 // pick offers what the repository has to work on and returns the target chosen.
@@ -77,7 +78,8 @@ func labels(candidates []work.Candidate) []string {
 }
 
 // title says what a row is about: a PR row says so itself, a bead row is named
-// by the tracker, which may not have answered.
+// by the tracker, which may not have answered, and a plain worktree has only
+// the branch its name already shows.
 func title(c work.Candidate) string {
 	if c.Target.Kind == work.KindPR {
 		return "PR review"
@@ -92,8 +94,11 @@ func label(c work.Candidate, width int) string {
 	if c.Open {
 		mark = openMark
 	}
-	if c.Target.Kind == work.KindPR {
+	switch c.Target.Kind {
+	case work.KindPR:
 		icon = prIcon
+	case work.KindPlain:
+		icon = plainIcon
 	}
 
 	name, about := c.Target.Name, title(c)

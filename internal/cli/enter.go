@@ -21,7 +21,7 @@ func enter(o options, target string) error {
 	if target == "" {
 		t, err = pick(env)
 	} else {
-		t, err = work.Resolve(env.Repo, target)
+		t, err = work.Resolve(target)
 	}
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func decide(env work.Env, s work.State, o options) (work.Handoff, error) {
 		}
 	}
 
-	h := work.Handoff{Dir: s.Target.Path}
+	h := work.Handoff{Dir: s.Path}
 	if launching {
 		h.Run = s.SessionLaunch(o.model, o.effort).Argv()
 		return h, nil

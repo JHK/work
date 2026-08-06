@@ -8,7 +8,7 @@
 
 **Skill.** A set of instructions a coding agent loads on demand, invoked in a session as a slash command. The steps on either side of `work` are usually packaged this way, though which ones exist and what they are called is a matter of how you set your agent up. `work` hardcodes one name per kind of target: `/start <id>` for a bead, `/code-review <n>` for a pull request. Those are the only two it knows.
 
-**Worktree.** A second checkout of the same repository on its own branch, made with `git worktree`. One ticket gets one worktree under `.worktrees/<id>`.
+**Worktree.** A second checkout of the same repository on its own branch, made with `git worktree`. One ticket gets one worktree, created under `.worktrees/` and used wherever it sits.
 
 ## The loop
 
@@ -22,8 +22,16 @@ That is also where its job ends. Refining a ticket, opening a pull request, merg
 
 A session edits files, runs tests and holds a working tree in a particular state for as long as it lasts. Switching branches underneath it invalidates all of that, so parallel tickets need parallel checkouts rather than one checkout and a branch each.
 
-Once each ticket has a directory, the directory becomes the natural key for everything else. The branch is derived from the bead id and its title. The agent's transcripts are filed by working directory, so the worktree is also what makes prior sessions findable. Entering a ticket is therefore a single question: which directory, and what to run in it.
+## Why the branch is the key
+
+Each worktree checks out a branch named for its ticket: `pr-<n>` for a pull request, the bead id ahead of a slug of its title for a bead. That branch is what identifies the worktree afterwards, and `git worktree list` reports it alongside the path, so every worktree the repository has is discoverable and answers for its ticket wherever on disk it lives. Keying on the directory instead loses every worktree created by hand or moved since: a ticket whose worktree cannot be seen reads as fresh, and working it opens a second checkout of the same branch.
+
+Ids and title slugs both contain dashes, so a branch is recognised by the ids the tracker knows rather than parsed apart. A branch matching no ticket is still a worktree, offered under its branch name and entered with a shell. That keeps the tracker off the path that finds worktrees at all: when it will not answer, the labels and the ready tickets go, the worktrees stay.
+
+The directory keeps one job. The agent's transcripts are filed by working directory, so the path git reports is what makes a worktree's prior sessions findable.
 
 ## What it is scoped to
 
 `work` is bounded to one moment: it runs, hands the terminal to whatever it launched, and exits. Keeping sessions visible and switching between them wants a process that outlives the launch, which is a terminal multiplexer.
+
+Two worktrees whose branches both match one ticket are not disambiguated: one of them wins, and which is not defined.

@@ -27,30 +27,19 @@ func Root(dir string) (string, error) {
 	if filepath.Clean(gitDir) == filepath.Clean(commonDir) {
 		return git(dir, "rev-parse", "--path-format=absolute", "--show-toplevel")
 	}
-	paths, err := Worktrees(dir)
+	list, err := Worktrees(dir)
 	if err != nil {
 		return "", err
 	}
-	if len(paths) == 0 {
+	if len(list) == 0 {
 		return "", fmt.Errorf("git worktree list: no worktrees")
 	}
-	return paths[0], nil
+	return list[0].Path, nil
 }
 
-// IsWorktree reports whether path is a worktree git has registered, as opposed
-// to a directory that merely sits where one belongs.
-func IsWorktree(repo, path string) bool {
-	paths, err := Worktrees(repo)
-	if err != nil {
-		return false
-	}
-	want := resolve(path)
-	for _, p := range paths {
-		if resolve(p) == want {
-			return true
-		}
-	}
-	return false
+// SameDir reports whether two paths name the same directory.
+func SameDir(a, b string) bool {
+	return resolve(a) == resolve(b)
 }
 
 // resolve normalises a path for comparison; git reports worktrees with symlinks
@@ -62,20 +51,40 @@ func resolve(path string) string {
 	return filepath.Clean(path)
 }
 
-// Worktrees lists the absolute paths of every worktree the repository has, the
-// main checkout first.
-func Worktrees(repo string) ([]string, error) {
+// Worktree is one checkout git has registered: where it sits, and what it has
+// checked out there.
+type Worktree struct {
+	Path   string
+	Branch string // short name; empty when the worktree is detached
+}
+
+// Linked lists every worktree but the main checkout, which git reports first.
+func Linked(repo string) ([]Worktree, error) {
+	list, err := Worktrees(repo)
+	if err != nil {
+		return nil, err
+	}
+	if len(list) > 0 {
+		list = list[1:]
+	}
+	return list, nil
+}
+
+// Worktrees lists every worktree the repository has, the main checkout first.
+func Worktrees(repo string) ([]Worktree, error) {
 	out, err := git(repo, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
-	var paths []string
+	var list []Worktree
 	for line := range strings.SplitSeq(out, "\n") {
 		if p, ok := strings.CutPrefix(line, "worktree "); ok {
-			paths = append(paths, p)
+			list = append(list, Worktree{Path: p})
+		} else if ref, ok := strings.CutPrefix(line, "branch "); ok && len(list) > 0 {
+			list[len(list)-1].Branch = strings.TrimPrefix(ref, "refs/heads/")
 		}
 	}
-	return paths, nil
+	return list, nil
 }
 
 // HasBranch reports whether a local branch of that name exists.
