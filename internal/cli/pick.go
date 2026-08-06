@@ -34,8 +34,7 @@ func pick(env work.Env) (work.Target, error) {
 	}
 
 	fzf := exec.Command("fzf", "--ansi", "--height", "40%", "--reverse",
-		"--delimiter", "\t", "--with-nth", "2..", "--prompt", "work> ",
-		"--select-1", "--exit-0")
+		"--delimiter", "\t", "--with-nth", "2..", "--prompt", "work> ")
 	fzf.Stdin = strings.NewReader(strings.Join(rows, "\n") + "\n")
 	fzf.Stderr = os.Stderr
 	out, err := fzf.Output()
