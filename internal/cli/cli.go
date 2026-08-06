@@ -1,6 +1,6 @@
-// Package cli is work's headless front end: it turns flags into a decision and
-// reports what it found. It is one of two front ends over [work.Env];
-// everything it can trigger stays reachable without a screen.
+// Package cli is work's headless front end: it turns flags into one call on
+// [work.Env] and prints what came back. It is one of two front ends over that
+// core; everything it can trigger stays reachable without a screen.
 package cli
 
 import (

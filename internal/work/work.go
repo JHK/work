@@ -1,6 +1,7 @@
 // Package work is the core beneath every front end: it resolves an identifier
-// to a target, reports what that target's worktree already carries, provisions
-// what is missing, and hands the shell off to a session.
+// to a target, reports what that target's worktree already carries, and takes
+// entering one from vetting through provisioning and claiming to the handoff.
+// A front end supplies the options and presents the result; the policy is here.
 package work
 
 import (

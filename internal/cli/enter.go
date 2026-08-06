@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -9,8 +8,8 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
-// enter resolves the target, brings its worktree into being, and hands the
-// terminal to a session inside it.
+// enter resolves the target, asks work to bring its worktree into being, and
+// hands the terminal over to what came back.
 func enter(o options, target string) error {
 	env, err := work.Open(".")
 	if err != nil {
@@ -27,47 +26,14 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	h, err := decide(env, env.Inspect(t), o)
+	e, err := env.Enter(t, work.Options{Shell: o.shell, Model: o.model, Effort: o.effort})
 	if err != nil {
 		return err
 	}
-	return h.Exec()
-}
-
-// decide turns the inspected state into the handoff, provisioning and claiming
-// along the way. Creating a worktree is the moment work on that target begins.
-func decide(env work.Env, s work.State, o options) (work.Handoff, error) {
-	launching := !s.Exists && !o.shell
-	// Claiming marks a bead as being worked, so the vetting that guards it runs
-	// before anything is created.
-	claiming := launching && s.Target.Kind == work.KindBead
-	if claiming {
-		if s.TicketErr != nil {
-			return work.Handoff{}, s.TicketErr
-		}
-		if s.Reason != "" {
-			return work.Handoff{}, errors.New(s.Reason)
-		}
+	if !e.Launched {
+		report(e.State)
 	}
-
-	if err := env.Provision(s); err != nil {
-		return work.Handoff{}, err
-	}
-
-	if claiming {
-		if err := env.Claim(s.Target); err != nil {
-			return work.Handoff{}, err
-		}
-	}
-
-	h := work.Handoff{Dir: s.Path}
-	if launching {
-		h.Run = s.SessionLaunch(o.model, o.effort).Argv()
-		return h, nil
-	}
-	report(s)
-	h.Run = work.Shell()
-	return h, nil
+	return e.Handoff.Exec()
 }
 
 // report surfaces what the worktree already carries, so the shell you land in
