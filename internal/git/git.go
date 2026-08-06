@@ -3,7 +3,6 @@
 package git
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,26 +14,25 @@ import (
 // running work from inside a linked worktree still nests new worktrees under the
 // main checkout rather than under the current one.
 func Root(dir string) (string, error) {
-	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
-	gitDir, commonDir, _ := strings.Cut(out, "\n")
+	gitDir, rest, _ := strings.Cut(out, "\n")
+	commonDir, toplevel, _ := strings.Cut(rest, "\n")
+	commonDir = filepath.Clean(commonDir)
 
-	// The two differ only inside a linked worktree, where the main checkout is
-	// the first worktree git lists. Everywhere else --show-toplevel is right
-	// whatever layout the git directory has.
-	if filepath.Clean(gitDir) == filepath.Clean(commonDir) {
-		return git(dir, "rev-parse", "--path-format=absolute", "--show-toplevel")
+	// The two directories differ only inside a linked worktree. Everywhere else
+	// the top level is right whatever layout the git directory has.
+	if filepath.Clean(gitDir) == commonDir {
+		return toplevel, nil
 	}
-	list, err := Worktrees(dir)
-	if err != nil {
-		return "", err
+	// Inside one, the main checkout is where the common git directory sits: the
+	// rule git itself applies to report it as the first worktree of the list.
+	if filepath.Base(commonDir) == ".git" {
+		return filepath.Dir(commonDir), nil
 	}
-	if len(list) == 0 {
-		return "", fmt.Errorf("git worktree list: no worktrees")
-	}
-	return list[0].Path, nil
+	return commonDir, nil
 }
 
 // SameDir reports whether two paths name the same directory.
@@ -60,7 +58,7 @@ type Worktree struct {
 
 // Linked lists every worktree but the main checkout, which git reports first.
 func Linked(repo string) ([]Worktree, error) {
-	list, err := Worktrees(repo)
+	list, err := worktrees(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +68,8 @@ func Linked(repo string) ([]Worktree, error) {
 	return list, nil
 }
 
-// Worktrees lists every worktree the repository has, the main checkout first.
-func Worktrees(repo string) ([]Worktree, error) {
+// worktrees lists every worktree the repository has, the main checkout first.
+func worktrees(repo string) ([]Worktree, error) {
 	out, err := git(repo, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err

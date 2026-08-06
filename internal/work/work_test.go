@@ -149,6 +149,37 @@ func TestWorktreeDiscovery(t *testing.T) {
 	}
 }
 
+// Run from inside a linked worktree, work still nests new worktrees under the
+// main checkout.
+func TestOpenFromLinkedWorktree(t *testing.T) {
+	repo := initRepo(t)
+	wt := filepath.Join(repo, worktreesDir, "one-abc")
+	gitCmd(t, repo, "worktree", "add", "-b", "one-abc", wt)
+
+	e, err := Open(wt)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if !git.SameDir(e.Repo, repo) {
+		t.Errorf("Open(%q).Repo = %q, want %q", wt, e.Repo, repo)
+	}
+}
+
+// A worktree a listing already found is taken from it. The repository here is
+// not one, so a worktree still asked for would not be found at all.
+func TestInspectAtTakesTheListedWorktree(t *testing.T) {
+	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo")}
+	target := Target{Kind: KindBead, ID: "one", Name: "one"}
+
+	if s := e.inspectAt(target, "/elsewhere/wt"); !s.Exists || s.Path != "/elsewhere/wt" {
+		t.Errorf("inspectAt() = exists %v at %q, want the listed worktree", s.Exists, s.Path)
+	}
+	// An empty path is a target without one, which is where a fresh worktree goes.
+	if s := e.inspectAt(target, ""); s.Exists || s.Path != filepath.Join(e.Repo, worktreesDir, "one") {
+		t.Errorf("inspectAt() = exists %v at %q, want a fresh path under %s", s.Exists, s.Path, worktreesDir)
+	}
+}
+
 func initRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

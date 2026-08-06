@@ -21,15 +21,15 @@ const (
 	openMark  = "⎇"
 )
 
-// pick offers what the repository has to work on and returns the target chosen.
-// It stands in until the screen replaces it.
-func pick(env work.Env) (work.Target, error) {
+// pick offers what the repository has to work on and returns the candidate
+// chosen. It stands in until the screen replaces it.
+func pick(env work.Env) (work.Candidate, error) {
 	candidates, err := env.Candidates()
 	if err != nil {
-		return work.Target{}, err
+		return work.Candidate{}, err
 	}
 	if len(candidates) == 0 {
-		return work.Target{}, errors.New("no worktrees or ready beads")
+		return work.Candidate{}, errors.New("no worktrees or ready beads")
 	}
 
 	// The row index is the key, so nothing has to be parsed back out of the label.
@@ -48,16 +48,16 @@ func pick(env work.Env) (work.Target, error) {
 		// missing binary above all, is a failure the user has to be told about.
 		var exit *exec.ExitError
 		if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
-			return work.Target{}, errCancelled
+			return work.Candidate{}, errCancelled
 		}
-		return work.Target{}, fmt.Errorf("fzf: %w", err)
+		return work.Candidate{}, fmt.Errorf("fzf: %w", err)
 	}
 	field, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
 	i, err := strconv.Atoi(field)
 	if err != nil || i < 0 || i >= len(candidates) {
-		return work.Target{}, errCancelled
+		return work.Candidate{}, errCancelled
 	}
-	return candidates[i].Target, nil
+	return candidates[i], nil
 }
 
 // labels renders the rows, lining the titles up behind the widest name that has

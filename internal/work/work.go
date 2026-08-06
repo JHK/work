@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -67,9 +68,8 @@ type State struct {
 	Exists      bool
 	Sessions    []sessions.Session
 	Bead        beads.Bead
-	Reason      string // why the bead cannot be worked; "" if it can, or is unknown
-	SessionsErr error  // the session history could not be read
-	TicketErr   error  // bd or gh could not answer for this target
+	SessionsErr error // the session history could not be read
+	TicketErr   error // bd or gh could not answer for this target
 }
 
 // worktreesDir is where every target's worktree lives, relative to the repo.
@@ -164,11 +164,15 @@ func (t Target) matches(w git.Worktree) bool {
 	}
 }
 
-// Candidate is one place worth offering: a target, and how it reads.
+// Candidate is one place worth offering: a target, how it reads, and what the
+// listing already settled, which entering it takes rather than ask again.
 type Candidate struct {
 	Target Target
 	Label  string // bead or PR title, empty when the tracker could not say
 	Open   bool   // a worktree for it already exists
+
+	path  string // where that worktree sits
+	ready bool   // bd listed this bead as ready to work
 }
 
 // Candidates lists what the repository offers to work on: every worktree git
@@ -193,7 +197,7 @@ func (e Env) Candidates() ([]Candidate, error) {
 	open := make(map[string]bool, len(worktrees))
 	for _, w := range worktrees {
 		t := targetAt(w, ids)
-		c := Candidate{Target: t, Open: true}
+		c := Candidate{Target: t, Open: true, path: w.Path}
 		if t.Kind == KindBead {
 			open[t.ID] = true
 			c.Label = titles[t.ID]
@@ -211,7 +215,7 @@ func (e Env) Candidates() ([]Candidate, error) {
 			continue
 		}
 		t := Target{Kind: KindBead, ID: b.ID, Name: b.ID}
-		out = append(out, Candidate{Target: t, Label: b.Title})
+		out = append(out, Candidate{Target: t, Label: b.Title, ready: true})
 	}
 	return out, nil
 }
@@ -240,11 +244,18 @@ func worktreePath(repo, name string) string {
 
 // Inspect gathers the state of a target without changing anything.
 func (e Env) Inspect(t Target) State {
+	path, _ := e.locate(t)
+	return e.inspectAt(t, path)
+}
+
+// inspectAt is Inspect for a target whose worktree has already been found, so
+// that git is not asked again. An empty path is a target without one.
+func (e Env) inspectAt(t Target, path string) State {
 	// Only creating a worktree needs a directory chosen for it; an existing one is
 	// entered where git says it is, .worktrees or not.
 	s := State{Target: t, Path: worktreePath(e.Repo, t.Name)}
 
-	if path, ok := e.locate(t); ok {
+	if path != "" {
 		s.Exists, s.Path = true, path
 		if e.Sessions == nil {
 			s.SessionsErr = errors.New("no session adapter")
@@ -264,36 +275,28 @@ func (e Env) Inspect(t Target) State {
 			return s
 		}
 		s.Bead = b
-		s.Reason, err = e.vet(b)
-		if err != nil {
-			s.TicketErr = err
-		}
 	}
 	return s
 }
 
-// vet reports why the bead cannot be worked, or "" if it can. The ready set is
-// only consulted for open beads, so a status that already answers the question
-// costs no query.
-func (e Env) vet(b beads.Bead) (string, error) {
-	if b.Status != "open" {
-		return vetBead(b, nil), nil
-	}
-	list, err := beads.Ready(e.Repo)
-	if err != nil {
-		return "", err
-	}
-	ready := make(map[string]bool, len(list))
-	for _, r := range list {
-		ready[r.ID] = true
+// vet reports why the bead cannot be worked, or "" if it can. bd is asked only
+// for an open bead nothing has already vouched for: a status that answers the
+// question, and a listing that reported the bead ready, both cost no query.
+func (e Env) vet(b beads.Bead, ready bool) (string, error) {
+	if b.Status == "open" && !ready {
+		list, err := beads.Ready(e.Repo)
+		if err != nil {
+			return "", err
+		}
+		ready = slices.ContainsFunc(list, func(r beads.Bead) bool { return r.ID == b.ID })
 	}
 	return vetBead(b, ready), nil
 }
 
-// vet reports why the bead cannot be worked, or "" if it can. ready holds the
-// ids bd currently considers unblocked; it is consulted only for open beads, so
-// callers may leave it nil for any other status.
-func vetBead(b beads.Bead, ready map[string]bool) string {
+// vetBead reports why the bead cannot be worked, or "" if it can. ready says
+// whether bd currently considers it unblocked; it is consulted only for open
+// beads, so callers may pass false for any other status.
+func vetBead(b beads.Bead, ready bool) string {
 	switch {
 	case b.Status == "deferred":
 		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID)
@@ -307,7 +310,7 @@ func vetBead(b beads.Bead, ready map[string]bool) string {
 		return fmt.Sprintf("%s is %s, not workable", b.ID, b.Status)
 	case strings.TrimSpace(b.AcceptanceCriteria) == "":
 		return fmt.Sprintf("%s has no acceptance criteria; refine it first with /refine %s", b.ID, b.ID)
-	case b.Status == "open" && !ready[b.ID]:
+	case b.Status == "open" && !ready:
 		return fmt.Sprintf("%s is blocked by an open dependency", b.ID)
 	}
 	return ""

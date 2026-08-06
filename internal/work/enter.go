@@ -22,18 +22,32 @@ type Entry struct {
 // and claiming along the way. Creating a worktree is the moment work on that
 // target begins.
 func (e Env) Enter(t Target, o Options) (Entry, error) {
-	s := e.Inspect(t)
+	return e.enter(e.Inspect(t), false, o)
+}
 
+// EnterCandidate enters one of the candidates Candidates offered, sparing git
+// and bd the questions that listing already answered.
+func (e Env) EnterCandidate(c Candidate, o Options) (Entry, error) {
+	return e.enter(e.inspectAt(c.Target, c.path), c.ready, o)
+}
+
+// enter takes an inspected target the rest of the way. ready says whether bd
+// has already been heard to call the bead workable.
+func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	launching := !s.Exists && !o.Shell
 	// Claiming marks a bead as being worked, so the vetting that guards it runs
-	// before anything is created.
+	// before anything is created, and only where it is about to happen.
 	claiming := launching && s.Target.Kind == KindBead
 	if claiming {
 		if s.TicketErr != nil {
 			return Entry{}, s.TicketErr
 		}
-		if s.Reason != "" {
-			return Entry{}, errors.New(s.Reason)
+		reason, err := e.vet(s.Bead, ready)
+		if err != nil {
+			return Entry{}, err
+		}
+		if reason != "" {
+			return Entry{}, errors.New(reason)
 		}
 	}
 
