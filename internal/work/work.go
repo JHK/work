@@ -87,14 +87,22 @@ var (
 	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
-// Resolve maps an identifier to a target. A bare number, an
-// .../<owner>/<repo>/pull/<n> URL, or a name a pull request's branch pattern
-// could have produced is a pull request; anything else is a bead id.
+// Resolve maps an identifier to a target. A worktree already listed under the
+// name is that worktree, whatever the guesses below would make of the name.
 func (e Env) Resolve(arg string) (Target, error) {
 	if arg == "" {
 		return Target{}, errors.New("no target given")
 	}
+	if t, ok := e.worktreeNamed(arg); ok {
+		return t, nil
+	}
+	return e.guess(arg)
+}
 
+// guess reads an identifier no worktree answers to. A bare number, an
+// .../<owner>/<repo>/pull/<n> URL, or a name a pull request's branch pattern
+// could have produced is a pull request; anything else is a bead id.
+func (e Env) guess(arg string) (Target, error) {
 	n := ""
 	if _, err := strconv.ParseUint(arg, 10, 32); err == nil {
 		n = arg
@@ -123,15 +131,48 @@ func (e Env) Resolve(arg string) (Target, error) {
 // out. ids are the bead ids bd knows; without them a bead's worktree is merely a
 // plain one, which still lists.
 func (e Env) targetAt(w git.Worktree, ids []string) Target {
-	// Only a branch Resolve would name itself is a pull request, so that pr-007,
+	// Only a branch the guess would name itself is a pull request, so that pr-007,
 	// which it canonicalises to pr-7, does not stand for a worktree elsewhere.
-	if t, err := e.Resolve(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
+	if t, err := e.guess(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
 		return t
 	}
 	if id := e.beadID(w.Branch, ids); id != "" {
 		return Target{Kind: KindBead, ID: id, Name: id}
 	}
 	return Target{Kind: KindPlain, ID: w.Path, Name: cmp.Or(w.Branch, filepath.Base(w.Path))}
+}
+
+// worktreeNamed finds the worktree offered under this name, reading each one as
+// the listing does, so that what the picker and the completion show is entered
+// by retyping it.
+func (e Env) worktreeNamed(name string) (Target, bool) {
+	// Without a repository git would answer for whatever directory the process
+	// happens to be in.
+	if e.Repo == "" {
+		return Target{}, false
+	}
+	worktrees, err := git.Linked(e.Repo)
+	if err != nil || len(worktrees) == 0 {
+		return Target{}, false
+	}
+	ids := e.knownIDs()
+	for _, w := range worktrees {
+		if t := e.targetAt(w, ids); t.Name == name {
+			return t, true
+		}
+	}
+	return Target{}, false
+}
+
+// knownIDs is every bead id bd knows, and none where it would not answer: a
+// worktree of a bead nothing can name is merely a plain one.
+func (e Env) knownIDs() []string {
+	known, _ := beads.All(e.Repo)
+	ids := make([]string, len(known))
+	for i, b := range known {
+		ids[i] = b.ID
+	}
+	return ids
 }
 
 // beadID names the bead a branch belongs to: the longest known id owning it, so
@@ -246,12 +287,36 @@ func (e Env) locate(t Target) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	var found []git.Worktree
 	for _, w := range worktrees {
 		if e.matches(t, w) {
-			return w.Path, true
+			found = append(found, w)
 		}
 	}
-	return "", false
+	switch len(found) {
+	case 0:
+		return "", false
+	case 1:
+		return found[0].Path, true
+	}
+	return e.narrow(t, found, e.knownIDs()), true
+}
+
+// narrow picks between the worktrees one target matched. A ticket's id owns
+// every longer branch, so a branch a longer id owns is that other ticket's;
+// whatever survives is settled on the branch, never on git's listing order.
+func (e Env) narrow(t Target, found []git.Worktree, ids []string) string {
+	if t.Kind == KindBead {
+		own := slices.DeleteFunc(slices.Clone(found), func(w git.Worktree) bool {
+			return e.beadID(w.Branch, ids) != t.ID
+		})
+		if len(own) > 0 {
+			found = own
+		}
+	}
+	return slices.MinFunc(found, func(a, b git.Worktree) int {
+		return cmp.Or(cmp.Compare(len(a.Branch), len(b.Branch)), cmp.Compare(a.Branch, b.Branch))
+	}).Path
 }
 
 // prTarget names a pull request by the branch its worktree checks out, which is

@@ -91,6 +91,63 @@ func TestTargetAt(t *testing.T) {
 	}
 }
 
+// A name the listing shows enters the worktree it shows it for, whatever the
+// heuristics would otherwise read into that name.
+func TestResolveNamesAnOpenWorktree(t *testing.T) {
+	repo := initRepo(t)
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	// Named so that git lists the wrong worktree first: the old resolution took
+	// whichever branch the ticket pattern owned first.
+	made := map[string]string{}
+	for dir, branch := range map[string]string{
+		"aaa": "spike-2", "zzz": "spike", "digits": "1234", "slashed": "feature/x",
+	} {
+		path := filepath.Join(e.Repo, defaultDir, dir)
+		gitCmd(t, repo, "worktree", "add", "-b", branch, path)
+		made[branch] = path
+	}
+
+	for _, branch := range []string{"spike", "spike-2", "1234", "feature/x"} {
+		target, err := e.Resolve(branch)
+		if err != nil {
+			t.Errorf("Resolve(%q): %v", branch, err)
+			continue
+		}
+		if s := e.Inspect(target); !s.Exists || !git.SameDir(s.Path, made[branch]) {
+			t.Errorf("Resolve(%q) = %+v, entering %q; want the worktree at %q", branch, target, s.Path, made[branch])
+		}
+	}
+
+	// A name no worktree answers to resolves as it always did.
+	if got, err := e.Resolve("7"); err != nil || got != e.prTarget("7") {
+		t.Errorf("Resolve(7) = %+v, %v; want pull request 7", got, err)
+	}
+	if got, err := e.Resolve("one-abc"); err != nil || got.Kind != KindBead || got.ID != "one-abc" {
+		t.Errorf("Resolve(one-abc) = %+v, %v; want the bead", got, err)
+	}
+}
+
+// A ticket whose id owns several open branches takes the one that is really
+// its own, and never git's listing order.
+func TestNarrow(t *testing.T) {
+	var e Env
+	found := []git.Worktree{
+		{Path: "/wt/two", Branch: "one-two-a-slug"},
+		{Path: "/wt/one", Branch: "one-a-rather-longer-slug"},
+	}
+	target := Target{Kind: KindBead, ID: "one", Name: "one"}
+	if got := e.narrow(target, found, []string{"one", "one-two"}); got != "/wt/one" {
+		t.Errorf("narrow() = %q, want the branch one owns", got)
+	}
+	// Without the tracker to say which id owns what, the shortest branch settles it.
+	if got := e.narrow(target, found, nil); got != "/wt/two" {
+		t.Errorf("narrow() without ids = %q, want the shortest branch", got)
+	}
+}
+
 // A named target finds its worktree by branch, wherever that worktree sits.
 func TestMatches(t *testing.T) {
 	var e Env

@@ -6,7 +6,8 @@ One command, an optional identifier and flags, and `init` for the shell integrat
 
 | Argument | Resolves to |
 |---|---|
-| `bd-42`, any name matching `[A-Za-z0-9][A-Za-z0-9._-]*` | that bead |
+| `feature/x` | the worktree already open under that name, ahead of everything below |
+| `bd-42` | that bead, for any name matching `[A-Za-z0-9][A-Za-z0-9._-]*` |
 | `7`, `007` | pull request 7 |
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
