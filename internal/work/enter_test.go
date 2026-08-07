@@ -29,6 +29,7 @@ func TestEnterVetsEveryWay(t *testing.T) {
 		{"a session", Options{}},
 		{"a shell", Options{Shell: true}},
 		{"an editor", Options{Editor: true}},
+		{"a diff", Options{Diff: true}},
 		{"no claim", Options{NoClaim: true}},
 		{"a shell and no claim", Options{Shell: true, NoClaim: true}},
 	}
@@ -70,5 +71,31 @@ func TestEnterOpensOn(t *testing.T) {
 				t.Errorf("enter(%+v) runs %q; want %q", tt.opts, got.Handoff.Run, tt.want)
 			}
 		})
+	}
+}
+
+// The diff is against the point the worktree's branch forked from, so what has
+// landed on the main checkout since is not in it and the worktree's own work is,
+// committed and uncommitted alike.
+func TestEnterDiffsAgainstTheBase(t *testing.T) {
+	repo := initRepo(t)
+	base := gitCmd(t, repo, "rev-parse", "HEAD")
+	wt := filepath.Join(repo, defaultDir, "bd-1")
+	gitCmd(t, repo, "worktree", "add", "-b", "bd-1", wt)
+	gitCmd(t, wt, "commit", "--allow-empty", "-m", "the worktree's own work")
+	gitCmd(t, repo, "commit", "--allow-empty", "-m", "the main checkout has moved on")
+
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: wt, Exists: true}
+
+	got, err := e.enter(s, false, Options{Diff: true})
+	if err != nil {
+		t.Fatalf("enter with a diff: %v", err)
+	}
+	if want := []string{"git", "diff", base}; !slices.Equal(got.Handoff.Run, want) {
+		t.Errorf("enter with a diff runs %q; want %q", got.Handoff.Run, want)
 	}
 }

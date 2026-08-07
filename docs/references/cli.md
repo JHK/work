@@ -39,6 +39,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 | `work <pr>` | create, and launch |
 | `work <id> --shell` | vet, create, claim, and open a shell |
 | `work <id> --editor` | vet, create, claim, and open the editor |
+| `work <id> --diff` | vet, create, claim, and open the diff |
 | `work <id> --no-claim` | vet, create, and launch |
 | `work` | as for the target picked |
 
@@ -54,11 +55,14 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 |---|---|
 | `--model`, `--effort` | placed where the [command](configuration.md#commands) names them; one naming neither drops both silently |
 | `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
-| `--editor` | hands the worktree to [`open.editor`](configuration.md#keys); exclusive with `--shell` |
+| `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |
+| `--diff` | hands the worktree to [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
 | `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
 | `--version` | prints and exits, touching no repository |
 
-An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed.
+`--shell`, `--editor` and `--diff` exclude one another.
+
+An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
 
 The version reported is what [stamped the binary](mise-tasks.md#version-stamping), or `dev` when nothing did.
 

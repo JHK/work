@@ -11,7 +11,8 @@ func enter(o options, target string) error {
 	}
 
 	e, err := entry(env, target, work.Options{
-		Shell: o.shell, Editor: o.editor, NoClaim: o.noClaim, Model: o.model, Effort: o.effort,
+		Shell: o.shell, Editor: o.editor, Diff: o.diff,
+		NoClaim: o.noClaim, Model: o.model, Effort: o.effort,
 	})
 	if err != nil {
 		return err

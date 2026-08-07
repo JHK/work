@@ -35,6 +35,7 @@ type Launch struct {
 	Number string // the pull request number
 	Shell  string // $SHELL, or /bin/sh
 	Editor string // $VISUAL, else $EDITOR
+	Base   string // the commit the worktree's branch forked from
 }
 
 // StartTicket is the command a fresh ticket worktree opens on. An unset command
@@ -94,17 +95,19 @@ var defaultAgent = Agent{
 	),
 }
 
-// Open is what a worktree is handed over to when no session is started. The two
+// Open is what a worktree is handed over to when no session is started. The
 // keys owe each other nothing, so the table is named for the verb rather than
-// for what either reaches.
+// for what any of them reaches.
 type Open struct {
 	ShellCommand  Command `toml:"shell"`
 	EditorCommand Command `toml:"editor"`
+	DiffCommand   Command `toml:"diff"`
 }
 
 const (
 	shellKey  = "open.shell"
 	editorKey = "open.editor"
+	diffKey   = "open.diff"
 )
 
 // Shell is the command an existing worktree is entered with, and the one
@@ -118,6 +121,11 @@ func (o Open) Editor(l Launch) ([]string, error) {
 	return o.EditorCommand.or(defaultOpen.EditorCommand).render(l)
 }
 
+// Diff is the command --diff hands the worktree to.
+func (o Open) Diff(l Launch) ([]string, error) {
+	return o.DiffCommand.or(defaultOpen.DiffCommand).render(l)
+}
+
 func (o *Open) validate() (string, error) {
 	if err := o.ShellCommand.bind(shellValues); err != nil {
 		return shellKey, err
@@ -125,15 +133,20 @@ func (o *Open) validate() (string, error) {
 	if err := o.EditorCommand.bind(editorValues); err != nil {
 		return editorKey, err
 	}
+	if err := o.DiffCommand.bind(diffValues); err != nil {
+		return diffKey, err
+	}
 	return "", nil
 }
 
-// defaultOpen places what the environment named, which is where the default
-// comes from for both. Whatever the editor makes of the terminal it is handed is
-// its own business, so a terminal and a GUI editor are invoked alike.
+// defaultOpen places what the environment named for the two that read it from
+// there, and git for the diff. Whatever the editor makes of the terminal it is
+// handed is its own business, so a terminal and a GUI editor are invoked alike.
 var defaultOpen = Open{
 	ShellCommand:  mustCommand(shellValues, "{{.Shell}}"),
 	EditorCommand: mustCommand(editorValues, "{{.Editor}}", "{{.Dir}}"),
+	// Not the three-dot form, which would leave uncommitted work out.
+	DiffCommand: mustCommand(diffValues, "git", "diff", "{{.Base}}"),
 }
 
 // Command is a whole command line: one [text/template] per argv element,
@@ -161,6 +174,7 @@ var (
 	resumeSessionValues    = launchValues{resumeSessionKey, common}
 	shellValues            = launchValues{shellKey, slices.Concat(common, []string{"Shell"})}
 	editorValues           = launchValues{editorKey, slices.Concat(common, []string{"Editor"})}
+	diffValues             = launchValues{diffKey, slices.Concat(common, []string{"Base"})}
 )
 
 // data is what one render is given: the values the key has and no others, so a
@@ -169,7 +183,7 @@ func (v launchValues) data(l Launch) map[string]any {
 	data := map[string]any{
 		"Name": l.Name, "Dir": l.Dir, "Model": l.Model, "Effort": l.Effort,
 		"ID": l.ID, "Title": l.Title, "Number": l.Number,
-		"Shell": l.Shell, "Editor": l.Editor,
+		"Shell": l.Shell, "Editor": l.Editor, "Base": l.Base,
 	}
 	// Dropping rather than picking: a name here that Launch has no field for leaves
 	// the map short, which bind refuses, instead of rendering as <no value>.
@@ -192,7 +206,7 @@ func (v launchValues) list() string {
 // the arms an empty one would skip.
 var filledLaunch = Launch{
 	Name: "x", Dir: "x", Model: "x", Effort: "x", ID: "x", Title: "x", Number: "x",
-	Shell: "x", Editor: "x",
+	Shell: "x", Editor: "x", Base: "x",
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as

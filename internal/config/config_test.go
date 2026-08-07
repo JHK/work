@@ -190,11 +190,11 @@ func TestDefaultAgentCommands(t *testing.T) {
 	}
 }
 
-// A zero Open is the compiled-in commands: what the environment named, which is
-// where the default comes from for both.
+// A zero Open is the compiled-in commands: what the environment named for the
+// two that read it, and git for the diff.
 func TestDefaultOpenCommands(t *testing.T) {
 	var o Open
-	l := Launch{Name: "bd-42", Dir: "/w", Shell: "/usr/bin/fish", Editor: "gvim"}
+	l := Launch{Name: "bd-42", Dir: "/w", Shell: "/usr/bin/fish", Editor: "gvim", Base: "abc123"}
 
 	got, err := o.Shell(l)
 	if want := []string{"/usr/bin/fish"}; err != nil || !reflect.DeepEqual(got, want) {
@@ -203,6 +203,27 @@ func TestDefaultOpenCommands(t *testing.T) {
 	got, err = o.Editor(l)
 	if want := []string{"gvim", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
+	}
+	got, err = o.Diff(l)
+	if want := []string{"git", "diff", "abc123"}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
+	}
+}
+
+// A configured diff replaces the default whole, and places the base wherever the
+// tool it names wants it.
+func TestConfiguredDiffCommand(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	write(t, filepath.Join(repo, repoFile), "[open]\ndiff = [\"difft\", \"--\", \"{{.Base}}\", \"{{.Dir}}\"]\n")
+
+	c, err := Load(repo)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got, err := c.Open.Diff(Launch{Dir: "/w", Base: "abc123"})
+	if want := []string{"difft", "--", "abc123", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
 	}
 }
 
@@ -333,9 +354,11 @@ func TestLoadRefusals(t *testing.T) {
 		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
 		// Only the arm a target with a model reaches names it.
 		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
-		// Each of the two carries its own value alone, so neither can place the other's.
+		// Each of the three carries its own value alone, so none can place another's.
 		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
 		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},
+		{"the base named by the shell", "[open]\nshell = [\"git\", \"diff\", \"{{.Base}}\"]\n", shellKey},
+		{"the editor named by the diff", "[open]\ndiff = [\"{{.Editor}}\", \"{{.Base}}\"]\n", diffKey},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

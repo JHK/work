@@ -1,6 +1,7 @@
 package work
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -338,7 +339,9 @@ func initRepo(t *testing.T) string {
 	return dir
 }
 
-func gitCmd(t *testing.T, dir string, args ...string) {
+// gitCmd runs one git command and hands back its stdout, for the callers that
+// are asking git something rather than telling it something.
+func gitCmd(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
@@ -347,9 +350,13 @@ func gitCmd(t *testing.T, dir string, args ...string) {
 	cmd.Env = append(cmd.Environ(),
 		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
 		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, stderr.String())
 	}
+	return strings.TrimSpace(string(out))
 }
 
 func TestSlug(t *testing.T) {

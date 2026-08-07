@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/git"
 )
 
 // Handoff is the last thing work does: replace itself with a command running
@@ -45,6 +46,18 @@ func (e Env) Shell(s State, o Options) ([]string, error) {
 // editor has none worth opening someone's work in.
 func (e Env) Editor(s State, o Options) ([]string, error) {
 	return e.Config.Open.Editor(values(s, o))
+}
+
+// Diff renders the command the worktree's own work is shown with. The base is
+// read here rather than in values, being open.diff's value alone.
+func (e Env) Diff(s State, o Options) ([]string, error) {
+	l := values(s, o)
+	base, err := git.Base(s.Path)
+	if err != nil {
+		return nil, err
+	}
+	l.Base = base
+	return e.Config.Open.Diff(l)
 }
 
 // Launch renders the command a fresh worktree opens on, which the target's kind

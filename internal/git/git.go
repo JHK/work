@@ -35,6 +35,16 @@ func Root(dir string) (string, error) {
 	return commonDir, nil
 }
 
+// Base reports the commit the worktree at dir forked from: the merge-base of
+// what it has checked out and what the main checkout has. What has landed on the
+// main checkout since is on the far side of it, so a diff against it is the
+// worktree's own work and nothing else.
+func Base(dir string) (string, error) {
+	// git names the main checkout's head from any worktree of the repository,
+	// whether or not that checkout is on a branch.
+	return git(dir, "merge-base", "HEAD", "main-worktree/HEAD")
+}
+
 // SameDir reports whether two paths name the same directory.
 func SameDir(a, b string) bool {
 	return resolve(a) == resolve(b)

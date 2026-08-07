@@ -28,6 +28,7 @@ Values are validated after the merge and before anything is created.
 | `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
 | `open.shell` | [below](#commands) | the command an existing worktree is entered with, and the one `--shell` hands over to |
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
+| `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-per-ticket.md#why-the-branch-is-the-key).
 
@@ -58,6 +59,7 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Number` | `agent.start-pull-request` | the pull request number |
 | `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
+| `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
 `agent.resume-session` names no session: a [session](../explanation/worktree-per-ticket.md#the-vocabulary) is filed by the directory it ran in.
 
@@ -93,4 +95,5 @@ resume-session = [
 [open]
 shell = ["{{.Shell}}"]
 editor = ["{{.Editor}}", "{{.Dir}}"]
+diff = ["git", "diff", "{{.Base}}"]
 ```

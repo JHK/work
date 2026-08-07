@@ -25,6 +25,8 @@ func TestCommandFlags(t *testing.T) {
 		{"no claim", []string{"--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
 		{"a shell that does not claim", []string{"--shell", "--no-claim", "bd-1"}, options{shell: true, noClaim: true}, "bd-1"},
 		{"an editor that does not claim", []string{"--editor", "--no-claim", "bd-1"}, options{editor: true, noClaim: true}, "bd-1"},
+		{"a diff on a named target", []string{"--diff", "bd-1"}, options{diff: true}, "bd-1"},
+		{"a diff that does not claim", []string{"--diff", "--no-claim", "bd-1"}, options{diff: true, noClaim: true}, "bd-1"},
 		{"no claim from the picker", []string{"--no-claim"}, options{noClaim: true}, ""},
 	}
 	for _, tt := range tests {
@@ -66,6 +68,8 @@ func TestCommandRejects(t *testing.T) {
 	}{
 		{"--start is gone", []string{"bd-1", "--start"}},
 		{"a shell and an editor at once", []string{"bd-1", "--shell", "--editor"}},
+		{"a shell and a diff at once", []string{"bd-1", "--shell", "--diff"}},
+		{"an editor and a diff at once", []string{"bd-1", "--editor", "--diff"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 		{"init without a shell", []string{"init"}},
