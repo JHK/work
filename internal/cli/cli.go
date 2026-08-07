@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/JHK/work-cli/internal/work"
 )
 
 // errCancelled reports a choice the user declined to make. It exits non-zero
@@ -21,9 +24,13 @@ type options struct {
 	effort string
 }
 
+// efforts is what --effort offers, and writes its usage line, so a tab press
+// and --help cannot drift. Nothing checks the flag against it.
+var efforts = []string{"low", "medium", "high", "xhigh", "max"}
+
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
-	if err := command(version, enter).Execute(); err != nil {
+	if err := command(version, enter, listing).Execute(); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -32,8 +39,9 @@ func Execute(version string) int {
 	return 0
 }
 
-// command builds the command tree, calling run once the flags are valid.
-func command(version string, run func(o options, target string) error) *cobra.Command {
+// command builds the command tree, calling run once the flags are valid and
+// answering a tab press from list.
+func command(version string, run func(o options, target string) error, list func() ([]work.Candidate, error)) *cobra.Command {
 	var o options
 
 	cmd := &cobra.Command{
@@ -62,12 +70,24 @@ invoked in it.`,
 			}
 			return run(o, target)
 		},
+		ValidArgsFunction: suggest(list),
 	}
+	// One documented door to the shell integration: work init fish.
+	cmd.CompletionOptions.DisableDefaultCmd = true
+	// Every position cobra would otherwise answer with a file listing, the
+	// subcommands' arguments included, answers with nothing instead.
+	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
+	cmd.AddCommand(initCommand())
 
 	f := cmd.Flags()
 	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the ticket or launching a session")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
-	f.StringVar(&o.effort, "effort", "", "effort for the launched session (low|medium|high|xhigh|max)")
+	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
+
+	// The agent behind --model is about to be configurable, so a fixed list would
+	// rot. Registration fails only on a flag this function did not just declare.
+	_ = cmd.RegisterFlagCompletionFunc("model", cobra.NoFileCompletions)
+	_ = cmd.RegisterFlagCompletionFunc("effort", cobra.FixedCompletions(efforts, cobra.ShellCompDirectiveNoFileComp))
 
 	return cmd
 }

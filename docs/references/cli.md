@@ -1,6 +1,6 @@
 # Command line
 
-One command, an optional identifier, and flags. `work --help` sketches the forms and lists the flags; what follows is what each invocation does to the repository, which the help text does not say.
+One command, an optional identifier and flags, and `init` for the shell integration. `work --help` sketches the forms and lists the flags; what follows is what each invocation does to the repository, which the help text does not say.
 
 ## Identifiers
 
@@ -12,7 +12,7 @@ One command, an optional identifier, and flags. `work --help` sketches the forms
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
 | omitted | an fzf list of the repository's worktrees, open pull requests and ready beads |
 
-Leading dashes, path separators, `.` and `..` are refused: the identifier becomes a directory of its own and an argument to `bd` and `git`.
+Leading dashes, path separators, `.` and `..` are refused: the identifier becomes a directory of its own and an argument to `bd` and `git`. `init` and `help` are commands, so neither reaches the table at all.
 
 A pull request number is read against the current repository, whatever host the URL names.
 
@@ -44,6 +44,10 @@ Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a defe
 `--model` and `--effort` are accepted on every invocation and are passed to the [command](configuration.md#commands) that is launched. One placing neither drops both without a word, as `--shell` does.
 
 `--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
+
+## Shell integration
+
+`work init fish | source` in `config.fish` completes the identifier with what the picker offers.
 
 ## Handoff
 

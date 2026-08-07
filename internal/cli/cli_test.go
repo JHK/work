@@ -60,6 +60,9 @@ func TestCommandRejects(t *testing.T) {
 		{"--start is gone", []string{"bd-1", "--start"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
+		{"init without a shell", []string{"init"}},
+		{"init with a shell work does not print", []string{"init", "bash"}},
+		{"init with two shells", []string{"init", "fish", "zsh"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,7 +121,7 @@ func run(args []string, f func(options, string) error) error {
 }
 
 func runTo(args []string, out io.Writer, f func(options, string) error) error {
-	cmd := command(stubVersion, f)
+	cmd := command(stubVersion, f, stub(nil, nil))
 	cmd.SetArgs(args)
 	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)
