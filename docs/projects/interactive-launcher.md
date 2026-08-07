@@ -12,7 +12,7 @@
 
 Picking a target that has no worktree creates it and hands over without a second question, which is the fast path and stays one. Picking one that exists asks what to hand it to, because that is the question existence was standing in for.
 
-The actions are the [commands the configuration names](configuration.md): start, resume, shell, editor. The screen orders them and says which apply; it does not define what they run. Resume is one action however many conversations a worktree carries.
+The actions are the [commands the configuration names](../references/configuration.md): start, resume, shell, editor. The screen orders them and says which apply; it does not define what they run. Resume is one action however many conversations a worktree carries.
 
 The list leads with the most recently opened worktree and marks it, so a worktree opened moments ago in another terminal costs no typing to get back to.
 
