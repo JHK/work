@@ -27,7 +27,7 @@ Refused: leading dashes, path separators, `.` and `..`.
 - the open pull requests of `origin`
 - the ready beads without a pull request
 
-A worktree is read off its branch. One whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`.
+A worktree is read off its branch. One whose branch names neither a bead nor a pull request is offered under that branch.
 
 `bd` titles the bead rows, `gh pr list` the pull request rows, drafts included. gh is pinned to origin's URL. A [missing tool](tools.md) costs its own rows and its own titles.
 
@@ -43,7 +43,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 
 Creating a worktree claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over `$SHELL`, names the conversations it carries, and prints the line that returns to them.
+Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys), names the conversations it carries, and prints the line that returns to them.
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). The paths that do not claim do not vet.
 
@@ -51,12 +51,12 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 
 | Flag | Effect |
 |---|---|
-| `--model`, `--effort` | passed to the launched [command](configuration.md#commands), which `--shell` and `--editor` do not launch; a command placing neither drops both silently |
+| `--model`, `--effort` | placed where the [command](configuration.md#commands) names them; one naming neither drops both silently |
 | `--shell` | [create only](#what-each-invocation-does) |
-| `--editor` | runs `<editor> <dir>` on the worktree; exclusive with `--shell` |
+| `--editor` | hands the worktree to [`open.editor`](configuration.md#keys); exclusive with `--shell` |
 | `--version` | prints and exits, touching no repository |
 
-The editor is `$VISUAL`, else `$EDITOR`; with neither set the invocation is refused before anything is created or claimed.
+An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed.
 
 The version reported is what [stamped the binary](mise-tasks.md#version-stamping), or `dev` when nothing did.
 

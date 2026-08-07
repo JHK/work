@@ -31,7 +31,7 @@ work
 
 Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
-- **With a worktree:** a shell in it, naming the conversations it carries, with one line to return to them.
+- **With a worktree:** what you set it to open on, a shell by default, naming the conversations it carries, with one line to return to them.
 - **Without one:** the worktree is created, the ticket claimed, and the configured launcher invoked in it.
 
 ```

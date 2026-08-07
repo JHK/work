@@ -6,7 +6,7 @@ import "errors"
 // itself.
 type Options struct {
 	Shell  bool   // create the worktree without claiming the bead or launching a session
-	Editor bool   // open the worktree in an editor instead of a session or a shell
+	Editor bool   // hand the worktree to open.editor instead of a session or a shell
 	Model  string // model for the launched session
 	Effort string // effort for the launched session
 }
@@ -16,7 +16,7 @@ type Options struct {
 type Entry struct {
 	Handoff Handoff
 	State   State
-	Shell   bool // the handoff hands the terminal to the shell, rather than to a command
+	Shell   bool // the handoff is open.shell, which is what a worktree is landed in
 }
 
 // Enter takes a target from inspection to the handoff, vetting, provisioning
@@ -41,7 +41,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	var editor []string
 	if o.Editor {
 		var err error
-		if editor, err = Editor(s.Path); err != nil {
+		if editor, err = e.Editor(s, o); err != nil {
 			return Entry{}, err
 		}
 	}
@@ -88,7 +88,11 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		}
 		entry.Handoff.Run = run
 	default:
-		entry.Shell, entry.Handoff.Run = true, Shell()
+		run, err := e.Shell(s, o)
+		if err != nil {
+			return Entry{}, err
+		}
+		entry.Shell, entry.Handoff.Run = true, run
 	}
 	return entry, nil
 }

@@ -55,13 +55,13 @@ to what the one you pick opens on: your shell, or a command.
 With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
-Entering a worktree that already exists opens a shell in it, naming the
-conversations it carries, with one line to return to them. A target without one
-has its worktree created, its ticket claimed, and the configured launcher
-invoked in it.
+Entering a worktree that already exists runs open.shell in it, your shell by
+default, naming the conversations it carries with one line to return to them. A
+target without one has its worktree created, its ticket claimed, and the
+configured launcher invoked in it.
 
 --editor takes over from whichever of those two the target was headed for: an
-existing worktree opens in the editor rather than the shell, and one that does
+existing worktree opens in open.editor rather than open.shell, and one that does
 not exist yet is still vetted, created and claimed, then opened there rather
 than launched into a session.`,
 		Version: version,
@@ -87,7 +87,7 @@ than launched into a session.`,
 
 	f := cmd.Flags()
 	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the ticket or launching a session")
-	f.BoolVar(&o.editor, "editor", false, "open the worktree in $VISUAL, else $EDITOR, instead of a session or a shell")
+	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
 	cmd.MarkFlagsMutuallyExclusive("shell", "editor")

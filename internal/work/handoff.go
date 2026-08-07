@@ -34,22 +34,17 @@ func (h Handoff) Exec() error {
 	return syscall.Exec(bin, h.Run, os.Environ())
 }
 
-// Shell names the interactive shell to drop into.
-func Shell() []string {
-	return []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")}
+// Shell renders the command an existing worktree is entered with.
+func (e Env) Shell(s State, o Options) ([]string, error) {
+	return e.Config.Open.Shell(values(s, o))
 }
 
-// Editor names the editor to open the worktree in. An unset one is refused
-// rather than guessed at: a shell has a fallback every machine has, an editor
-// has none worth opening someone's work in.
-func Editor(dir string) ([]string, error) {
-	// Whatever the editor makes of the terminal it is handed is its own business,
-	// so a terminal and a GUI editor are invoked alike.
-	editor := cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR"))
-	if editor == "" {
-		return nil, errors.New("no editor to open: set $VISUAL or $EDITOR")
-	}
-	return []string{editor, dir}, nil
+// Editor renders the command the worktree is opened in. An editor the
+// environment does not name leaves the default command with nothing to run,
+// which is how it is refused: a shell has a fallback every machine has, an
+// editor has none worth opening someone's work in.
+func (e Env) Editor(s State, o Options) ([]string, error) {
+	return e.Config.Open.Editor(values(s, o))
 }
 
 // Launch renders the command a fresh worktree opens on, which the target's kind
@@ -70,7 +65,13 @@ func (e Env) Resume(s State, o Options) ([]string, error) {
 	return e.Config.Agent.ResumeSession(values(s, o))
 }
 
-// values are what every command renders with, whatever it is for.
+// values are what every command renders with, whatever it is for. The
+// environment is read here rather than per command, so which key may place what
+// it named is the settings' allowlist to say and nothing else's.
 func values(s State, o Options) config.Launch {
-	return config.Launch{Name: s.Target.Name, Dir: s.Path, Model: o.Model, Effort: o.Effort}
+	return config.Launch{
+		Name: s.Target.Name, Dir: s.Path, Model: o.Model, Effort: o.Effort,
+		Shell:  cmp.Or(os.Getenv("SHELL"), "/bin/sh"),
+		Editor: cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR")),
+	}
 }

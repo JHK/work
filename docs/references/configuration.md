@@ -26,6 +26,8 @@ Values are validated after the merge and before anything is created.
 | `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
 | `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
 | `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
+| `open.shell` | [below](#commands) | the command an existing worktree is entered with, and the one `--shell` hands over to |
+| `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-per-ticket.md#why-the-branch-is-the-key).
 
@@ -45,7 +47,7 @@ Refused at load:
 
 ## Commands
 
-An `[agent]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
+An `[agent]` or `[open]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
 
 | Value | Rendered by | Is |
 |---|---|---|
@@ -54,6 +56,8 @@ An `[agent]` value is the argv of a command run without a shell, one [Go templat
 | `.Model`, `.Effort` | every command | what `--model` and `--effort` were given, empty where they were not |
 | `.ID`, `.Title` | `agent.start-ticket` | the ticket id and its title |
 | `.Number` | `agent.start-pull-request` | the pull request number |
+| `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
+| `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 
 `agent.resume-session` names no session: a [session](../explanation/worktree-per-ticket.md#the-vocabulary) is filed by the directory it ran in.
 
@@ -62,7 +66,7 @@ Refused at load:
 - an empty list
 - a value the key does not have
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed.
+A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created.
 
 The defaults:
 
@@ -85,4 +89,8 @@ resume-session = [
   "{{with .Model}}--model={{.}}{{end}}",
   "{{with .Effort}}--effort={{.}}{{end}}",
 ]
+
+[open]
+shell = ["{{.Shell}}"]
+editor = ["{{.Editor}}", "{{.Dir}}"]
 ```

@@ -190,6 +190,22 @@ func TestDefaultAgentCommands(t *testing.T) {
 	}
 }
 
+// A zero Open is the compiled-in commands: what the environment named, which is
+// where the default comes from for both.
+func TestDefaultOpenCommands(t *testing.T) {
+	var o Open
+	l := Launch{Name: "bd-42", Dir: "/w", Shell: "/usr/bin/fish", Editor: "gvim"}
+
+	got, err := o.Shell(l)
+	if want := []string{"/usr/bin/fish"}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
+	}
+	got, err = o.Editor(l)
+	if want := []string{"gvim", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
+	}
+}
+
 // A command is the user's, whatever it launches, and nothing requires it to be
 // an agent: one naming no session value at all is a plain command line.
 func TestConfiguredAgentCommands(t *testing.T) {
@@ -317,6 +333,9 @@ func TestLoadRefusals(t *testing.T) {
 		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
 		// Only the arm a target with a model reaches names it.
 		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
+		// Each of the two carries its own value alone, so neither can place the other's.
+		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
+		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

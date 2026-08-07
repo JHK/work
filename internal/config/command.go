@@ -23,8 +23,8 @@ const (
 	resumeSessionKey    = "agent.resume-session"
 )
 
-// Launch is everything an agent command may be rendered with. Which of these a
-// key actually has is its launchValues; a template naming any other is refused.
+// Launch is everything a command may be rendered with. Which of these a key
+// actually has is its launchValues; a template naming any other is refused.
 type Launch struct {
 	Name   string // what the target is retyped as
 	Dir    string // the worktree, which the process has already changed into
@@ -33,6 +33,8 @@ type Launch struct {
 	ID     string // the ticket id
 	Title  string // the ticket title
 	Number string // the pull request number
+	Shell  string // $SHELL, or /bin/sh
+	Editor string // $VISUAL, else $EDITOR
 }
 
 // StartTicket is the command a fresh ticket worktree opens on. An unset command
@@ -92,6 +94,48 @@ var defaultAgent = Agent{
 	),
 }
 
+// Open is what a worktree is handed over to when no session is started. The two
+// keys owe each other nothing, so the table is named for the verb rather than
+// for what either reaches.
+type Open struct {
+	ShellCommand  Command `toml:"shell"`
+	EditorCommand Command `toml:"editor"`
+}
+
+const (
+	shellKey  = "open.shell"
+	editorKey = "open.editor"
+)
+
+// Shell is the command an existing worktree is entered with, and the one
+// --shell hands over to.
+func (o Open) Shell(l Launch) ([]string, error) {
+	return o.ShellCommand.or(defaultOpen.ShellCommand).render(l)
+}
+
+// Editor is the command --editor hands the worktree to.
+func (o Open) Editor(l Launch) ([]string, error) {
+	return o.EditorCommand.or(defaultOpen.EditorCommand).render(l)
+}
+
+func (o *Open) validate() (string, error) {
+	if err := o.ShellCommand.bind(shellValues); err != nil {
+		return shellKey, err
+	}
+	if err := o.EditorCommand.bind(editorValues); err != nil {
+		return editorKey, err
+	}
+	return "", nil
+}
+
+// defaultOpen places what the environment named, which is where the default
+// comes from for both. Whatever the editor makes of the terminal it is handed is
+// its own business, so a terminal and a GUI editor are invoked alike.
+var defaultOpen = Open{
+	ShellCommand:  mustCommand(shellValues, "{{.Shell}}"),
+	EditorCommand: mustCommand(editorValues, "{{.Editor}}", "{{.Dir}}"),
+}
+
 // Command is a whole command line: one [text/template] per argv element,
 // rendered with the values its key has. Which values those are is settled by
 // bind, once the key the command was read from says.
@@ -107,10 +151,16 @@ type launchValues struct {
 	names []string
 }
 
+// common are the values every command has, whatever it is for; a key's own
+// follow them.
+var common = []string{"Name", "Dir", "Model", "Effort"}
+
 var (
-	startTicketValues      = launchValues{startTicketKey, []string{"Name", "Dir", "Model", "Effort", "ID", "Title"}}
-	startPullRequestValues = launchValues{startPullRequestKey, []string{"Name", "Dir", "Model", "Effort", "Number"}}
-	resumeSessionValues    = launchValues{resumeSessionKey, []string{"Name", "Dir", "Model", "Effort"}}
+	startTicketValues      = launchValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
+	startPullRequestValues = launchValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
+	resumeSessionValues    = launchValues{resumeSessionKey, common}
+	shellValues            = launchValues{shellKey, slices.Concat(common, []string{"Shell"})}
+	editorValues           = launchValues{editorKey, slices.Concat(common, []string{"Editor"})}
 )
 
 // data is what one render is given: the values the key has and no others, so a
@@ -119,6 +169,7 @@ func (v launchValues) data(l Launch) map[string]any {
 	data := map[string]any{
 		"Name": l.Name, "Dir": l.Dir, "Model": l.Model, "Effort": l.Effort,
 		"ID": l.ID, "Title": l.Title, "Number": l.Number,
+		"Shell": l.Shell, "Editor": l.Editor,
 	}
 	// Dropping rather than picking: a name here that Launch has no field for leaves
 	// the map short, which bind refuses, instead of rendering as <no value>.
@@ -141,6 +192,7 @@ func (v launchValues) list() string {
 // the arms an empty one would skip.
 var filledLaunch = Launch{
 	Name: "x", Dir: "x", Model: "x", Effort: "x", ID: "x", Title: "x", Number: "x",
+	Shell: "x", Editor: "x",
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as

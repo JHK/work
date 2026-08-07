@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/JHK/work-cli/internal/beads"
+	"github.com/JHK/work-cli/internal/config"
 )
 
 // execHandoff is the environment variable the re-exec helper below keys on.
@@ -57,37 +58,76 @@ func TestHandoffExecRejects(t *testing.T) {
 	}
 }
 
+// The environment is where the default comes from: it reaches open.shell as a
+// value, not as a key it overrides.
 func TestShell(t *testing.T) {
+	var e Env
+	s := State{Path: "/w"}
+
 	t.Setenv("SHELL", "/usr/bin/fish")
-	if got := Shell(); len(got) != 1 || got[0] != "/usr/bin/fish" {
-		t.Errorf("Shell() = %q, want the login shell", got)
+	if got, err := e.Shell(s, Options{}); err != nil || !slices.Equal(got, []string{"/usr/bin/fish"}) {
+		t.Errorf("Shell() = %q, %v; want the login shell", got, err)
 	}
 
 	t.Setenv("SHELL", "")
-	if got := Shell(); len(got) != 1 || got[0] != "/bin/sh" {
-		t.Errorf("Shell() = %q, want the fallback", got)
+	if got, err := e.Shell(s, Options{}); err != nil || !slices.Equal(got, []string{"/bin/sh"}) {
+		t.Errorf("Shell() = %q, %v; want the fallback", got, err)
 	}
 }
 
 func TestEditor(t *testing.T) {
+	var e Env
+	s := State{Path: "/w"}
+
 	t.Setenv("EDITOR", "vi")
 	t.Setenv("VISUAL", "gvim")
-	got, err := Editor("/w")
+	got, err := e.Editor(s, Options{})
 	if err != nil || !slices.Equal(got, []string{"gvim", "/w"}) {
 		t.Errorf("Editor() = %q, %v; want $VISUAL on the worktree", got, err)
 	}
 
 	t.Setenv("VISUAL", "")
-	got, err = Editor("/w")
+	got, err = e.Editor(s, Options{})
 	if err != nil || !slices.Equal(got, []string{"vi", "/w"}) {
 		t.Errorf("Editor() = %q, %v; want $EDITOR on the worktree", got, err)
 	}
 
+	// The default command is left with nothing to run, and the refusal names the
+	// key that would have to say otherwise.
 	t.Setenv("EDITOR", "")
-	if _, err := Editor("/w"); err == nil {
+	if _, err := e.Editor(s, Options{}); err == nil {
 		t.Error("Editor() with neither set: want an error")
-	} else if !strings.Contains(err.Error(), "$VISUAL") || !strings.Contains(err.Error(), "$EDITOR") {
-		t.Errorf("Editor() = %v; want both variables named", err)
+	} else if !strings.Contains(err.Error(), "open.editor") {
+		t.Errorf("Editor() = %v; want it to name open.editor", err)
+	}
+}
+
+// A configured command is what the worktree is handed to, and the environment
+// is only the value its template places.
+func TestOpenCommandsComeFromTheConfig(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	body := "[open]\nshell = [\"{{.Shell}}\", \"--login\", \"{{.Name}}\"]\neditor = [\"{{.Editor}}\", \"--wait\", \"{{.Dir}}\"]\n"
+	if err := os.WriteFile(filepath.Join(repo, config.RepoFile), []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", config.RepoFile, err)
+	}
+	cfg, err := config.Load(repo)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	e := Env{Config: cfg}
+	s := State{Target: Target{Name: "bd-42"}, Path: "/w"}
+	t.Setenv("SHELL", "/usr/bin/fish")
+	t.Setenv("VISUAL", "gvim")
+
+	got, err := e.Shell(s, Options{})
+	if want := []string{"/usr/bin/fish", "--login", "bd-42"}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
+	}
+	got, err = e.Editor(s, Options{})
+	if want := []string{"gvim", "--wait", "/w"}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
 	}
 }
 

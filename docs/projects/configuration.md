@@ -8,10 +8,6 @@ The choices `work` makes on a person's behalf are defaults, not facts about the 
 
 This settles the keys, the file each belongs in, and how a value reaches the code, so the children wiring them do not each answer that.
 
-## Current state
-
-`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `[worktree]`, `[branch]` and `[agent]` wired to it. `[open]` is not: its commands are `Shell` and `Editor` in `internal/work/handoff.go`, which `--shell` and `--editor` choose between.
-
 ## The surface
 
 `[worktree]` and `[branch]` hold what a worktree is made of; `[agent]` and `[open]` hold commands.
