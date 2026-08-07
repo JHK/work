@@ -31,7 +31,7 @@ work
 
 Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
-- **With a worktree:** what you set it to open on, a shell by default, naming the conversations it carries, with one line to return to them.
+- **With a worktree:** what you set it to open on, a shell by default.
 - **Without one:** the worktree is created, the ticket claimed, and the configured launcher invoked in it.
 
 ```
@@ -46,7 +46,7 @@ What ships is locked to one instance of each integration, and [a missing one](do
 
 - **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a name that is not a pull request resolves nowhere without it.
 - **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
-- **The shell is fish.** `work init fish` is the only integration it prints, and the line that returns to a conversation is joined for pasting there and quoted for nothing else.
+- **The shell is fish.** `work init fish` is the only integration it prints.
 - **The picker is `fzf`.** The no-argument form needs it.
 
 ## License

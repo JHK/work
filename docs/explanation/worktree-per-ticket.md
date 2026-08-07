@@ -18,7 +18,7 @@ Capture, refine, **work**, review, land, close. An idea is filed cheaply as an u
 
 `work` runs in the shell, before the worktree may even exist. Creating one means work is starting, so it gets the launcher; entering one that exists means returning to work already under way, so it gets a shell. Asking for a shell outright overrides that.
 
-What earns its keep is what it surfaces: whether there is a worktree at all, which sessions it carries, and whether the ticket can be worked. Workability is a convention `work` encodes rather than invents, and a ticket that fails it is refused with the reason.
+What earns its keep is what it surfaces: whether there is a worktree at all, and whether the ticket can be worked. Workability is a convention `work` encodes rather than invents, and a ticket that fails it is refused with the reason.
 
 Refining a ticket, opening a pull request, merging a branch and closing the ticket are judgements made with the work in front of you, so they belong to you and your agent.
 

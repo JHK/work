@@ -12,12 +12,11 @@ type Options struct {
 	Effort  string // effort for the launched session
 }
 
-// Entry is what Enter arrived at: the handoff to run, and how it got there, so
-// a front end can report the parts it wants to show.
+// Entry is what Enter arrived at: the handoff to run, and the target it was
+// reached through, which a front end reads for what it wants to show.
 type Entry struct {
 	Handoff Handoff
 	State   State
-	Shell   bool // the handoff is open.shell, which is what a worktree is landed in
 }
 
 // Enter takes a target from inspection to the handoff, vetting, provisioning
@@ -95,7 +94,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		if err != nil {
 			return Entry{}, err
 		}
-		entry.Shell, entry.Handoff.Run = true, run
+		entry.Handoff.Run = run
 	}
 	return entry, nil
 }

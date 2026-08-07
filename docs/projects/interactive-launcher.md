@@ -6,7 +6,7 @@
 
 ## Current state
 
-`work` with no argument shells out to `fzf` from `internal/cli/pick.go`, which returns one candidate and nothing else. What happens next [follows from existence alone](../references/cli.md), and the sessions a worktree carries are printed as lines to paste, because there is nowhere to choose one.
+`work` with no argument shells out to `fzf` from `internal/cli/pick.go`, which returns one candidate and nothing else. What happens next [follows from existence alone](../references/cli.md), and a worktree that already exists is handed to the shell without a word, because there is nowhere to offer anything else.
 
 ## Desired end state
 

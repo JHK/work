@@ -69,9 +69,6 @@ func TestEnterOpensOn(t *testing.T) {
 			if !slices.Equal(got.Handoff.Run, tt.want) {
 				t.Errorf("enter(%+v) runs %q; want %q", tt.opts, got.Handoff.Run, tt.want)
 			}
-			if want := !tt.opts.Editor; got.Shell != want {
-				t.Errorf("enter(%+v).Shell = %v; want %v", tt.opts, got.Shell, want)
-			}
 		})
 	}
 }

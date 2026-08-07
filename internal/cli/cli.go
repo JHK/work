@@ -57,9 +57,9 @@ With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
 Entering a worktree that already exists runs open.shell in it, your shell by
-default, naming the conversations it carries with one line to return to them. A
-target without one has its worktree created and the configured launcher invoked
-in it. --shell and --editor name the command to open on instead.
+default. A target without one has its worktree created and the configured
+launcher invoked in it. --shell and --editor name the command to open on
+instead.
 
 Creating a worktree for a ticket vets that ticket and claims it, whatever the
 worktree then opens on. A ticket the vetting refuses is refused outright;

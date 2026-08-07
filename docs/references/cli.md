@@ -44,7 +44,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 
 Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys), names the conversations it carries, and prints the line that returns to them.
+Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys).
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
