@@ -52,7 +52,7 @@ Nothing is carried per worktree: `--model` and `--effort` go, and the configurat
 
 An argument that is not a session id is a search term: it prefills the picker's filter, and a term matching one conversation still needs Enter. An id no transcript carries is exit 1. Dismissing the picker with Esc is exit 1, empty or not. A prompt may follow `--continue` or `--resume`, and is submitted into the restored conversation.
 
-`--name` names a conversation being started and renames one being resumed, reaching the transcript as `custom-title` — both what the picker's row shows and what `internal/sessions` reports. A conversation named by neither `--name` nor `/name` falls back to the model's own title, then to its last prompt.
+`--name` names a conversation being started and renames one being resumed, reaching the transcript as `custom-title`, which is what the picker's row shows. A conversation named by neither `--name` nor `/name` falls back to the model's own title, then to its last prompt.
 
 A resume carries the model the conversation ran under. It does not carry the permission mode: `--permission-mode` is ignored alongside `--continue` and `--resume` both, and a conversation's own mode is not restored either.
 

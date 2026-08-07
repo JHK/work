@@ -3,6 +3,7 @@ package sessions
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,65 +33,21 @@ func TestListMissingBucket(t *testing.T) {
 	}
 }
 
-func TestListTitlesAndOrder(t *testing.T) {
+func TestListOrder(t *testing.T) {
 	home := t.TempDir()
 	dir := "/w/t"
 
-	write(t, home, dir, "custom", []string{
-		`{"type":"ai-title","aiTitle":"model's guess"}`,
-		`{"type":"custom-title","customTitle":"deliberate name"}`,
-		`{"type":"last-prompt","lastPrompt":"a prompt"}`,
-	}, time.Unix(300, 0))
-
-	write(t, home, dir, "ai", []string{
-		`{"type":"ai-title","aiTitle":"stale"}`,
-		`{"type":"last-prompt","lastPrompt":"a prompt"}`,
-		`{"type":"ai-title","aiTitle":"latest"}`,
-	}, time.Unix(200, 0))
-
-	write(t, home, dir, "prompt", []string{
-		`{"type":"user","message":"not a title event"}`,
-		`{"type":"last-prompt","lastPrompt":"` + strings.Repeat("x", 100) + `"}`,
-	}, time.Unix(100, 0))
-
-	write(t, home, dir, "bare", []string{`{"type":"user"}`}, time.Unix(50, 0))
+	write(t, home, dir, "oldest", []string{`{"type":"user"}`}, time.Unix(100, 0))
+	write(t, home, dir, "newest", []string{`{"type":"user"}`}, time.Unix(300, 0))
+	write(t, home, dir, "middle", []string{`{"type":"user"}`}, time.Unix(200, 0))
 
 	got, err := Claude{Home: home}.List(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Session{
-		{ID: "custom", Title: "deliberate name"},
-		{ID: "ai", Title: "latest"},
-		{ID: "prompt", Title: strings.Repeat("x", promptTitleLen)},
-		{ID: "bare", Title: "(untitled)"},
-	}
-	if len(got) != len(want) {
-		t.Fatalf("List() returned %d sessions, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i].ID != want[i].ID || got[i].Title != want[i].Title {
-			t.Errorf("session %d = %s/%q, want %s/%q", i, got[i].ID, got[i].Title, want[i].ID, want[i].Title)
-		}
-	}
-}
-
-// A transcript's message bodies dwarf its title events; skipping them must not
-// cost the events that follow.
-func TestListSkipsOversizedLines(t *testing.T) {
-	home := t.TempDir()
-	dir := "/w/t"
-	write(t, home, dir, "big", []string{
-		`{"type":"assistant","text":"` + strings.Repeat("x", 2*maxLine) + `"}`,
-		`{"type":"ai-title","aiTitle":"found anyway"}`,
-	}, time.Unix(100, 0))
-
-	got, err := Claude{Home: home}.List(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0].Title != "found anyway" {
-		t.Errorf("List() = %+v, want the title after the oversized line", got)
+	want := []Session{{ID: "newest"}, {ID: "middle"}, {ID: "oldest"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("List() = %+v, want %+v", got, want)
 	}
 }
 
@@ -102,13 +59,12 @@ func TestListHidesPrintMode(t *testing.T) {
 
 	write(t, home, dir, "printed", []string{
 		`{"type":"system","entrypoint":"sdk-cli"}`,
-		`{"type":"last-prompt","lastPrompt":"summarise this"}`,
+		`{"type":"user","message":"summarise this"}`,
 	}, time.Unix(200, 0))
 
 	// The key inside a message body is text, not this transcript's entrypoint.
 	write(t, home, dir, "interactive", []string{
 		`{"type":"user","entrypoint":"cli","message":"what is \"entrypoint\":\"sdk-cli\"?"}`,
-		`{"type":"ai-title","aiTitle":"a real conversation"}`,
 	}, time.Unix(100, 0))
 
 	got, err := Claude{Home: home}.List(dir)
