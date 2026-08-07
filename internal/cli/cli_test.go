@@ -16,8 +16,6 @@ func TestCommandFlags(t *testing.T) {
 		target string
 	}{
 		{"no identifier", []string{"--shell"}, options{shell: true}, ""},
-		{"a flag value is not an identifier", []string{"bd-1", "--model", "opus"}, options{model: "opus"}, "bd-1"},
-		{"joined value", []string{"--effort=high", "bd-1"}, options{effort: "high"}, "bd-1"},
 		{"flags before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
 		{"an editor with no identifier", []string{"--editor"}, options{editor: true}, ""},
 		{"an editor on a named target", []string{"--editor", "bd-1"}, options{editor: true}, "bd-1"},
@@ -69,6 +67,8 @@ func TestCommandRejects(t *testing.T) {
 		args []string
 	}{
 		{"--start is gone", []string{"bd-1", "--start"}},
+		{"--model is gone", []string{"bd-1", "--model", "opus"}},
+		{"--effort is gone", []string{"--effort=high", "bd-1"}},
 		{"a shell and an editor at once", []string{"bd-1", "--shell", "--editor"}},
 		{"a shell and a diff at once", []string{"bd-1", "--shell", "--diff"}},
 		{"an editor and a diff at once", []string{"bd-1", "--editor", "--diff"}},

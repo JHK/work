@@ -151,46 +151,31 @@ func TestDefaultAgentCommands(t *testing.T) {
 	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7", Session: "s1"}
 
 	tests := []struct {
-		name        string
-		got         func(Launch) ([]string, error)
-		want, tuned []string
+		name string
+		got  func(Launch) ([]string, error)
+		want []string
 	}{
 		{"start-ticket", a.StartTicket,
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-42: Port work to Go", "/start bd-42"},
-			[]string{"claude", "--permission-mode", "auto", "--name=bd-42: Port work to Go", "--model=opus", "--effort=high", "/start bd-42"},
 		},
 		{"start-pull-request", a.StartPullRequest,
 			[]string{"claude", "--name=PR #7"},
-			[]string{"claude", "--name=PR #7", "--model=opus", "--effort=high"},
 		},
-		// Neither of the session pair places a model or an effort, so --model and
-		// --effort reach neither.
 		{"start-session", a.StartSession,
-			[]string{"claude", "--permission-mode", "auto", "--name=bd-42"},
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-42"},
 		},
 		{"resume-session", a.ResumeSession,
-			[]string{"claude", "--resume", "s1"},
 			[]string{"claude", "--resume", "s1"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Unset, so the optional flags are dropped rather than passed on empty.
 			got, err := tt.got(l)
 			if err != nil {
 				t.Fatalf("%s: %v", tt.name, err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("%s = %q, want %q", tt.name, got, tt.want)
-			}
-
-			got, err = tt.got(withModel(l))
-			if err != nil {
-				t.Fatalf("%s: %v", tt.name, err)
-			}
-			if !reflect.DeepEqual(got, tt.tuned) {
-				t.Errorf("%s with a model = %q, want %q", tt.name, got, tt.tuned)
 			}
 		})
 	}
@@ -239,7 +224,7 @@ func TestConfiguredAgentCommands(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", home)
 	write(t, filepath.Join(home, userRelPath), `[agent]
-start-ticket = ["agent", "--session={{.Name}} in {{.Dir}}", "{{with .Model}}-m{{.}}{{end}}", "work {{.ID}}"]
+start-ticket = ["agent", "--session={{.Name}} in {{.Dir}}", "work {{.ID}}"]
 start-pull-request = ["make", "review"]
 resume-session = ["agent", "--continue"]
 `)
@@ -272,21 +257,21 @@ resume-session = ["agent", "--continue"]
 func TestAgentCommandRendersNothing(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), "[agent]\nresume-session = [\"{{.Model}}\", \"--continue\"]\n")
+	write(t, filepath.Join(home, userRelPath), "[agent]\nresume-session = [\"{{.Session}}\", \"--continue\"]\n")
 
 	c, err := Load(t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got, err := c.Agent.ResumeSession(withModel(Launch{})); err != nil {
-		t.Fatalf("ResumeSession with a model: %v", err)
-	} else if got[0] != "opus" {
-		t.Errorf("ResumeSession() = %q, want the model as the command", got)
+	if got, err := c.Agent.ResumeSession(Launch{Session: "s1"}); err != nil {
+		t.Fatalf("ResumeSession with a session: %v", err)
+	} else if got[0] != "s1" {
+		t.Errorf("ResumeSession() = %q, want the session as the command", got)
 	}
 
 	_, err = c.Agent.ResumeSession(Launch{})
 	if err == nil || !strings.Contains(err.Error(), resumeSessionKey) {
-		t.Errorf("ResumeSession() with no model = %v, want it to name %q", err, resumeSessionKey)
+		t.Errorf("ResumeSession() with no session = %v, want it to name %q", err, resumeSessionKey)
 	}
 }
 
@@ -311,11 +296,6 @@ func TestLoadLayersCommands(t *testing.T) {
 	if want := []string{"ours", "bd-42"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("StartTicket() = %q, want %q", got, want)
 	}
-}
-
-func withModel(l Launch) Launch {
-	l.Model, l.Effort = "opus", "high"
-	return l
 }
 
 // An unset Directory is the default, so an Env built without a loaded Config
@@ -358,8 +338,10 @@ func TestLoadRefusals(t *testing.T) {
 		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
 		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
 		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Branch}}\"]\n", resumeSessionKey},
-		// Only the arm a target with a model reaches names it.
-		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
+		// The two work once placed itself, and now has no more than any other name.
+		{"a model or an effort", "[agent]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", startTicketKey},
+		// Only the arm a target with a session reaches names it.
+		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
 		// Each of the three carries its own value alone, so none can place another's.
 		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
 		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},

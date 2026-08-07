@@ -5,13 +5,11 @@ import "errors"
 // Options are the choices a front end makes on the way in, beyond the target
 // itself.
 type Options struct {
-	Agent   bool   // hand the worktree to its agent, whatever it already carries
-	Shell   bool   // hand the worktree to open.shell instead of launching a session
-	Editor  bool   // hand the worktree to open.editor instead of a session or a shell
-	Diff    bool   // hand the worktree to open.diff instead of a session or a shell
-	NoClaim bool   // create the worktree without claiming the bead
-	Model   string // model for the launched session
-	Effort  string // effort for the launched session
+	Agent   bool // hand the worktree to its agent, whatever it already carries
+	Shell   bool // hand the worktree to open.shell instead of launching a session
+	Editor  bool // hand the worktree to open.editor instead of a session or a shell
+	Diff    bool // hand the worktree to open.diff instead of a session or a shell
+	NoClaim bool // create the worktree without claiming the bead
 }
 
 // Entry is what Enter arrived at: the handoff to run, and the target it was
@@ -43,7 +41,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	var editor []string
 	if o.Editor {
 		var err error
-		if editor, err = e.Editor(s, o); err != nil {
+		if editor, err = e.Editor(s); err != nil {
 			return Entry{}, err
 		}
 	}
@@ -98,7 +96,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	}
 	// Past the provisioning and the claim, so a command that will not render leaves
 	// the worktree made and the ticket claimed, as one that will not start does.
-	run, err := render(s, o)
+	run, err := render(s)
 	if err != nil {
 		return Entry{}, err
 	}

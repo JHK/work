@@ -12,7 +12,7 @@ func enter(o options, target string) error {
 
 	e, err := entry(env, target, work.Options{
 		Agent: o.agent, Shell: o.shell, Editor: o.editor, Diff: o.diff,
-		NoClaim: o.noClaim, Model: o.model, Effort: o.effort,
+		NoClaim: o.noClaim,
 	})
 	if err != nil {
 		return err

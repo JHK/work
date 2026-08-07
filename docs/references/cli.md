@@ -53,7 +53,6 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 
 | Flag | Effect |
 |---|---|
-| `--model`, `--effort` | placed where the [command](configuration.md#commands) names them; one naming neither drops both silently |
 | `--agent` | hands the worktree to its agent: a newly created one to [`agent.start-ticket` or `agent.start-pull-request`](configuration.md#keys), an existing one to what [the conversations it carries](#what-a-worktree-carries) name |
 | `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |

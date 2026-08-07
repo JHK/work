@@ -55,7 +55,6 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 |---|---|---|
 | `.Name` | every command | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |
 | `.Dir` | every command | the worktree, which the process has already changed into |
-| `.Model`, `.Effort` | every command | what `--model` and `--effort` were given, empty where they were not |
 | `.ID`, `.Title` | `agent.start-ticket` | the ticket id and its title |
 | `.Number` | `agent.start-pull-request` | the pull request number |
 | `.Session` | `agent.resume-session` | the conversation the worktree carries, empty where it carries several |
@@ -79,15 +78,9 @@ The defaults:
 start-ticket = [
   "claude", "--permission-mode", "auto",
   "--name={{.ID}}: {{.Title}}",
-  "{{with .Model}}--model={{.}}{{end}}",
-  "{{with .Effort}}--effort={{.}}{{end}}",
   "/start {{.ID}}",
 ]
-start-pull-request = [
-  "claude", "--name=PR #{{.Number}}",
-  "{{with .Model}}--model={{.}}{{end}}",
-  "{{with .Effort}}--effort={{.}}{{end}}",
-]
+start-pull-request = ["claude", "--name=PR #{{.Number}}"]
 start-session = ["claude", "--permission-mode", "auto", "--name={{.Name}}"]
 resume-session = ["claude", "--resume", "{{.Session}}"]
 

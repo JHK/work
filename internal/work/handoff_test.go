@@ -67,12 +67,12 @@ func TestShell(t *testing.T) {
 	s := State{Path: "/w"}
 
 	t.Setenv("SHELL", "/usr/bin/fish")
-	if got, err := e.Shell(s, Options{}); err != nil || !slices.Equal(got, []string{"/usr/bin/fish"}) {
+	if got, err := e.Shell(s); err != nil || !slices.Equal(got, []string{"/usr/bin/fish"}) {
 		t.Errorf("Shell() = %q, %v; want the login shell", got, err)
 	}
 
 	t.Setenv("SHELL", "")
-	if got, err := e.Shell(s, Options{}); err != nil || !slices.Equal(got, []string{"/bin/sh"}) {
+	if got, err := e.Shell(s); err != nil || !slices.Equal(got, []string{"/bin/sh"}) {
 		t.Errorf("Shell() = %q, %v; want the fallback", got, err)
 	}
 }
@@ -83,13 +83,13 @@ func TestEditor(t *testing.T) {
 
 	t.Setenv("EDITOR", "vi")
 	t.Setenv("VISUAL", "gvim")
-	got, err := e.Editor(s, Options{})
+	got, err := e.Editor(s)
 	if err != nil || !slices.Equal(got, []string{"gvim", "/w"}) {
 		t.Errorf("Editor() = %q, %v; want $VISUAL on the worktree", got, err)
 	}
 
 	t.Setenv("VISUAL", "")
-	got, err = e.Editor(s, Options{})
+	got, err = e.Editor(s)
 	if err != nil || !slices.Equal(got, []string{"vi", "/w"}) {
 		t.Errorf("Editor() = %q, %v; want $EDITOR on the worktree", got, err)
 	}
@@ -97,7 +97,7 @@ func TestEditor(t *testing.T) {
 	// The default command is left with nothing to run, and the refusal names the
 	// key that would have to say otherwise.
 	t.Setenv("EDITOR", "")
-	if _, err := e.Editor(s, Options{}); err == nil {
+	if _, err := e.Editor(s); err == nil {
 		t.Error("Editor() with neither set: want an error")
 	} else if !strings.Contains(err.Error(), "open.editor") {
 		t.Errorf("Editor() = %v; want it to name open.editor", err)
@@ -123,11 +123,11 @@ func TestOpenCommandsComeFromTheConfig(t *testing.T) {
 	t.Setenv("SHELL", "/usr/bin/fish")
 	t.Setenv("VISUAL", "gvim")
 
-	got, err := e.Shell(s, Options{})
+	got, err := e.Shell(s)
 	if want := []string{"/usr/bin/fish", "--login", "bd-42"}; err != nil || !slices.Equal(got, want) {
 		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
 	}
-	got, err = e.Editor(s, Options{})
+	got, err = e.Editor(s)
 	if want := []string{"gvim", "--wait", "/w"}; err != nil || !slices.Equal(got, want) {
 		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
 	}
@@ -142,31 +142,22 @@ func TestLaunch(t *testing.T) {
 	tests := []struct {
 		name  string
 		state State
-		opts  Options
 		want  []string
 	}{
 		{
 			"a ticket opens on the skill that works it",
 			State{Target: bead, Bead: beads.Bead{Title: "a title"}},
-			Options{},
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-1: a title", "/start bd-1"},
 		},
 		{
 			"a pull request opens on a bare named session",
 			State{Target: pr},
-			Options{},
 			[]string{"claude", "--name=PR #7"},
-		},
-		{
-			"model and effort are placed where the template names them",
-			State{Target: pr},
-			Options{Model: "opus", Effort: "high"},
-			[]string{"claude", "--name=PR #7", "--model=opus", "--effort=high"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := e.Launch(tt.state, tt.opts)
+			got, err := e.Launch(tt.state)
 			if err != nil {
 				t.Fatalf("Launch: %v", err)
 			}
@@ -195,7 +186,7 @@ func TestAgent(t *testing.T) {
 			e := Env{Conversations: stubConversations{list: tt.has}}
 			bead, _ := e.Resolve("bd-1")
 
-			got, err := e.Agent(State{Target: bead, Path: "/wt", Exists: true}, Options{})
+			got, err := e.Agent(State{Target: bead, Path: "/wt", Exists: true})
 			if err != nil {
 				t.Fatalf("Agent: %v", err)
 			}
@@ -209,7 +200,7 @@ func TestAgent(t *testing.T) {
 // An agent that cannot say what a worktree carries is not asked to guess.
 func TestAgentRefusesAnUnreadableWorktree(t *testing.T) {
 	e := Env{Conversations: stubConversations{err: errors.New("no transcript store")}}
-	if _, err := e.Agent(State{Path: "/wt", Exists: true}, Options{}); err == nil {
+	if _, err := e.Agent(State{Path: "/wt", Exists: true}); err == nil {
 		t.Error("Agent() with an unreadable store: want an error")
 	}
 }

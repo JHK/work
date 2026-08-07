@@ -64,30 +64,14 @@ func TestCompleteIdentifier(t *testing.T) {
 	}
 }
 
-// A flag value completes to what it accepts, and to nothing where the values
-// are not work's to know. Neither falls back to file names.
-func TestCompleteFlags(t *testing.T) {
-	out := complete(t, stub(nil, nil), "--effort", "")
-	for _, e := range efforts {
-		if !slices.Contains(rows(out), e) {
-			t.Errorf("completing --effort gave %q; want a %q row", out, e)
+// Completion offers the declared flags, so a flag work no longer declares is a
+// flag it no longer offers.
+func TestGoneFlags(t *testing.T) {
+	f := command(stubVersion, nil, stub(nil, nil)).Flags()
+	for _, name := range []string{"model", "effort"} {
+		if f.Lookup(name) != nil {
+			t.Errorf("--%s is still declared", name)
 		}
-	}
-	assertNoFileComp(t, out)
-
-	// The agent behind --model is about to be configurable, so nothing is offered.
-	out = complete(t, stub(nil, nil), "--model", "")
-	if len(rows(out)) != 0 {
-		t.Errorf("completing --model gave %q; want nothing", out)
-	}
-	assertNoFileComp(t, out)
-}
-
-// The flag states the values it completes, so neither list can drift.
-func TestEffortUsage(t *testing.T) {
-	usage := command(stubVersion, nil, stub(nil, nil)).Flags().Lookup("effort").Usage
-	if !strings.Contains(usage, strings.Join(efforts, "|")) {
-		t.Errorf("--effort usage %q does not state %q", usage, efforts)
 	}
 }
 

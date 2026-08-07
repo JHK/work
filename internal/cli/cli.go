@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,13 +23,7 @@ type options struct {
 	editor  bool
 	diff    bool
 	noClaim bool
-	model   string
-	effort  string
 }
-
-// efforts is what --effort offers, and writes its usage line, so a tab press
-// and --help cannot drift. Nothing checks the flag against it.
-var efforts = []string{"low", "medium", "high", "xhigh", "max"}
 
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
@@ -98,14 +91,7 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
-	f.StringVar(&o.model, "model", "", "model for the launched session")
-	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff")
-
-	// The agent behind --model is about to be configurable, so a fixed list would
-	// rot. Registration fails only on a flag this function did not just declare.
-	_ = cmd.RegisterFlagCompletionFunc("model", cobra.NoFileCompletions)
-	_ = cmd.RegisterFlagCompletionFunc("effort", cobra.FixedCompletions(efforts, cobra.ShellCompDirectiveNoFileComp))
 
 	return cmd
 }

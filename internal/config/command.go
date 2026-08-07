@@ -30,8 +30,6 @@ const (
 type Launch struct {
 	Name    string // what the target is retyped as
 	Dir     string // the worktree, which the process has already changed into
-	Model   string // what --model was given, empty when it was not
-	Effort  string // what --effort was given, empty when it was not
 	ID      string // the ticket id
 	Title   string // the ticket title
 	Number  string // the pull request number
@@ -90,19 +88,11 @@ var defaultAgent = Agent{
 	StartTicketCommand: mustCommand(startTicketValues,
 		"claude", "--permission-mode", "auto",
 		"--name={{.ID}}: {{.Title}}",
-		"{{with .Model}}--model={{.}}{{end}}",
-		"{{with .Effort}}--effort={{.}}{{end}}",
 		"/start {{.ID}}",
 	),
-	StartPullRequestCommand: mustCommand(startPullRequestValues,
-		"claude", "--name=PR #{{.Number}}",
-		"{{with .Model}}--model={{.}}{{end}}",
-		"{{with .Effort}}--effort={{.}}{{end}}",
-	),
+	StartPullRequestCommand: mustCommand(startPullRequestValues, "claude", "--name=PR #{{.Number}}"),
 	// Named after the worktree, so a conversation started here is that worktree in
-	// every later list. Neither of the two session commands places a model or an
-	// effort: a resumed conversation brings its own model back, and a fresh one
-	// takes the agent's default.
+	// every later list.
 	StartSessionCommand: mustCommand(startSessionValues,
 		"claude", "--permission-mode", "auto", "--name={{.Name}}",
 	),
@@ -183,7 +173,7 @@ type launchValues struct {
 
 // common are the values every command has, whatever it is for; a key's own
 // follow them.
-var common = []string{"Name", "Dir", "Model", "Effort"}
+var common = []string{"Name", "Dir"}
 
 var (
 	startTicketValues      = launchValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
@@ -199,7 +189,7 @@ var (
 // template naming another fails rather than quietly rendering nothing.
 func (v launchValues) data(l Launch) map[string]any {
 	data := map[string]any{
-		"Name": l.Name, "Dir": l.Dir, "Model": l.Model, "Effort": l.Effort,
+		"Name": l.Name, "Dir": l.Dir,
 		"ID": l.ID, "Title": l.Title, "Number": l.Number, "Session": l.Session,
 		"Shell": l.Shell, "Editor": l.Editor, "Base": l.Base,
 	}
@@ -223,7 +213,7 @@ func (v launchValues) list() string {
 // filledLaunch stands for a target carrying every value, so that binding renders
 // the arms an empty one would skip.
 var filledLaunch = Launch{
-	Name: "x", Dir: "x", Model: "x", Effort: "x", ID: "x", Title: "x", Number: "x",
+	Name: "x", Dir: "x", ID: "x", Title: "x", Number: "x",
 	Session: "x", Shell: "x", Editor: "x", Base: "x",
 }
 
