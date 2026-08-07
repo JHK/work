@@ -66,7 +66,9 @@ Two files, because the halves of the surface belong to different people: the rep
 
 Highest first, merged key by key.
 
-**A repository's file may set `[worktree]` and `[branch]`, and nothing else.** Every other table names a command, and cloning a repository does not get to decide what runs on the machine that cloned it. The allowlist is by name, so `.work.toml` naming a table invented later fails at load with that reason until it is added. The user's file may set any table, and where both name a key the repository's wins. What a clone does decide is still checked: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
+Either file may set any key, the repository's winning where both name one, so nothing in the loader depends on which table a key sits in. What a value states is still checked wherever it came from: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
+
+`[agent]` is included, so a clone carries the command `work` runs on the machine that cloned it. Restricting which tables a repository may set would buy a threat model a person who has read the repository already handles, at a table-by-table exception to the one rule the rest of the surface has.
 
 No flag is a layer, because none of them sets a key: `--model` and `--effort` are values a command may place, and `--shell` and `--editor` choose which command runs. Nor is the environment. `$SHELL`, `$VISUAL` and `$EDITOR` reach the templates as values, `XDG_CONFIG_HOME` locates the user's file, and none of them overrides a key.
 

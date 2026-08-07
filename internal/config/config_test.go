@@ -247,15 +247,26 @@ func TestAgentCommandRendersNothing(t *testing.T) {
 	}
 }
 
-// Cloning a repository does not decide what runs on the machine that cloned it.
-func TestLoadRefusesACommandFromTheRepository(t *testing.T) {
-	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), "[agent]\nstart-ticket = [\"curl\"]\n")
+// Every table layers the same way, commands included: the repository's file sets
+// one the user's also set, and wins.
+func TestLoadLayersCommands(t *testing.T) {
+	repo, home := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	write(t, filepath.Join(home, userRelPath), "[agent]\nstart-ticket = [\"mine\", \"--flag\", \"{{.ID}}\"]\n")
+	// Shorter than the user's, so a command layered element by element rather than
+	// replaced whole would leave the user's tail behind.
+	write(t, filepath.Join(repo, repoFile), "[agent]\nstart-ticket = [\"ours\", \"{{.ID}}\"]\n")
 
-	_, err := Load(repo)
-	if err == nil || !strings.Contains(err.Error(), "[agent]") {
-		t.Errorf("Load() = %v, want [agent] refused in %s", err, repoFile)
+	c, err := Load(repo)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got, err := c.Agent.StartTicket(Launch{ID: "bd-42"})
+	if err != nil {
+		t.Fatalf("StartTicket: %v", err)
+	}
+	if want := []string{"ours", "bd-42"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("StartTicket() = %q, want %q", got, want)
 	}
 }
 
@@ -272,6 +283,8 @@ func TestZeroWorktreeIsTheDefault(t *testing.T) {
 	}
 }
 
+// A value is refused for what it carries, not for the file it came from, so the
+// repository's file is judged by the same rules as the user's.
 func TestLoadRefusals(t *testing.T) {
 	tests := []struct{ name, body, want string }{
 		{"an unknown key", "[worktree]\ndirectry = \"trees\"\n", "unknown setting"},
@@ -295,6 +308,15 @@ func TestLoadRefusals(t *testing.T) {
 		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
+		{"an unknown command key", "[agent]\nstart = [\"claude\"]\n", "unknown setting"},
+		{"a command that is not a list", "[agent]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
+		{"a list of something other than strings", "[agent]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
+		{"a template that does not parse", "[agent]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
+		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
+		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
+		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
+		// Only the arm a target with a model reaches names it.
+		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -313,34 +335,15 @@ func TestLoadRefusals(t *testing.T) {
 	}
 }
 
-// The commands are the user's, so what they are refused for is judged in the
-// user's file.
-func TestLoadRefusesAgentCommands(t *testing.T) {
-	tests := []struct{ name, body, want string }{
-		{"an unknown key", "[agent]\nstart = [\"claude\"]\n", "unknown setting"},
-		{"a command that is not a list", "[agent]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
-		{"a list of something other than strings", "[agent]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
-		{"a template that does not parse", "[agent]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
-		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
-		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
-		// Only the arm a target with a model reaches names it.
-		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, home := t.TempDir(), t.TempDir()
-			t.Setenv("XDG_CONFIG_HOME", home)
-			write(t, filepath.Join(home, userRelPath), tt.body)
+// Each file is decoded on its own, so the refusals above are the user's too.
+func TestLoadRefusesTheUsersFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	write(t, filepath.Join(home, userRelPath), "[agent]\nstart = [\"claude\"]\n")
 
-			_, err := Load(repo)
-			if err == nil {
-				t.Fatalf("Load(%q) = no error, want one", tt.body)
-			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("Load(%q) = %v, want it to name %q", tt.body, err, tt.want)
-			}
-		})
+	_, err := Load(t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "unknown setting") {
+		t.Errorf("Load() = %v, want the user's unknown key refused", err)
 	}
 }
 

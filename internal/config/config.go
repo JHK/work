@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -64,11 +63,6 @@ func Default() Config {
 	}
 }
 
-// repoTables are the tables a repository's file may set. Every other one names a
-// command, and cloning a repository does not get to decide what runs on the
-// machine that cloned it.
-var repoTables = []string{"worktree", "branch"}
-
 // mustPattern binds a compiled-in default, which cannot be at fault.
 func mustPattern(text string, v values) Pattern {
 	p, err := parsePattern(text)
@@ -89,16 +83,12 @@ func Load(repo string) (Config, error) {
 	// Which file last set each key, so that refusing a value names the file that
 	// gave it rather than whichever layer was read last.
 	from := map[string]string{}
-	repoPath := filepath.Join(repo, RepoFile)
 	for _, path := range files(repo) {
 		md, err := decode(path, &c)
 		if err != nil {
 			return Config{}, err
 		}
 		for _, key := range md.Keys() {
-			if path == repoPath && !slices.Contains(repoTables, key[0]) {
-				return Config{}, fmt.Errorf("%s: [%s] is not a table a repository may set", path, key[0])
-			}
 			from[key.String()] = path
 		}
 	}

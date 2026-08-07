@@ -13,7 +13,6 @@ Refused at load, each naming the file it came from:
 
 - an unknown key
 - a key whose case does not match
-- a table other than `[worktree]` or `[branch]` in `.work.toml`
 
 Values are validated after the merge and before anything is created.
 
