@@ -19,10 +19,11 @@ import (
 var errCancelled = errors.New("cancelled")
 
 type options struct {
-	shell  bool
-	editor bool
-	model  string
-	effort string
+	shell   bool
+	editor  bool
+	noClaim bool
+	model   string
+	effort  string
 }
 
 // efforts is what --effort offers, and writes its usage line, so a tab press
@@ -57,13 +58,12 @@ and its open pull requests. That form needs fzf.
 
 Entering a worktree that already exists runs open.shell in it, your shell by
 default, naming the conversations it carries with one line to return to them. A
-target without one has its worktree created, its ticket claimed, and the
-configured launcher invoked in it.
+target without one has its worktree created and the configured launcher invoked
+in it. --shell and --editor name the command to open on instead.
 
---editor takes over from whichever of those two the target was headed for: an
-existing worktree opens in open.editor rather than open.shell, and one that does
-not exist yet is still vetted, created and claimed, then opened there rather
-than launched into a session.`,
+Creating a worktree for a ticket vets that ticket and claims it, whatever the
+worktree then opens on. A ticket the vetting refuses is refused outright;
+--no-claim declines the claim and nothing else.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
@@ -86,8 +86,9 @@ than launched into a session.`,
 	cmd.AddCommand(initCommand())
 
 	f := cmd.Flags()
-	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the ticket or launching a session")
+	f.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
 	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
+	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
 	cmd.MarkFlagsMutuallyExclusive("shell", "editor")

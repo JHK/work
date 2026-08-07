@@ -16,7 +16,7 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	opts := work.Options{Shell: o.shell, Editor: o.editor, Model: o.model, Effort: o.effort}
+	opts := work.Options{Shell: o.shell, Editor: o.editor, NoClaim: o.noClaim, Model: o.model, Effort: o.effort}
 	e, err := entry(env, target, opts)
 	if err != nil {
 		return err

@@ -5,10 +5,11 @@ import "errors"
 // Options are the choices a front end makes on the way in, beyond the target
 // itself.
 type Options struct {
-	Shell  bool   // create the worktree without claiming the bead or launching a session
-	Editor bool   // hand the worktree to open.editor instead of a session or a shell
-	Model  string // model for the launched session
-	Effort string // effort for the launched session
+	Shell   bool   // hand the worktree to open.shell instead of launching a session
+	Editor  bool   // hand the worktree to open.editor instead of a session or a shell
+	NoClaim bool   // create the worktree without claiming the bead
+	Model   string // model for the launched session
+	Effort  string // effort for the launched session
 }
 
 // Entry is what Enter arrived at: the handoff to run, and how it got there, so
@@ -46,13 +47,11 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		}
 	}
 
-	// Work on the target begins with its worktree, --shell excepted: the escape
-	// hatch creates one and does nothing else.
-	beginning := !s.Exists && !o.Shell
-	// Claiming marks a bead as being worked, so the vetting that guards it runs
-	// before anything is created, and only where it is about to happen.
-	claiming := beginning && s.Target.Kind == KindBead
-	if claiming {
+	// Work on a ticket begins with its worktree, whatever that worktree opens on,
+	// so the vetting runs wherever one is about to be created and no flag reaches
+	// past it. Only the claim it guards is declinable.
+	vetting := !s.Exists && s.Target.Kind == KindBead
+	if vetting {
 		if s.TicketErr != nil {
 			return Entry{}, s.TicketErr
 		}
@@ -69,17 +68,21 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		return Entry{}, err
 	}
 
-	if claiming {
+	if vetting && !o.NoClaim {
 		if err := e.Claim(s.Target); err != nil {
 			return Entry{}, err
 		}
 	}
 
+	// A worktree only just created opens on the launcher, unless --shell asked
+	// otherwise; everything else lands in the shell.
+	launching := !s.Exists && !o.Shell
+
 	entry := Entry{State: s, Handoff: Handoff{Dir: s.Path}}
 	switch {
 	case o.Editor:
 		entry.Handoff.Run = editor
-	case beginning:
+	case launching:
 		// Past the provisioning and the claim, so a command that will not render leaves
 		// the worktree made and the ticket claimed, as one that will not start does.
 		run, err := e.Launch(s, o)

@@ -21,6 +21,11 @@ func TestCommandFlags(t *testing.T) {
 		{"flags before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
 		{"an editor with no identifier", []string{"--editor"}, options{editor: true}, ""},
 		{"an editor on a named target", []string{"--editor", "bd-1"}, options{editor: true}, "bd-1"},
+		// --no-claim says nothing about which command opens, so it combines with each.
+		{"no claim", []string{"--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
+		{"a shell that does not claim", []string{"--shell", "--no-claim", "bd-1"}, options{shell: true, noClaim: true}, "bd-1"},
+		{"an editor that does not claim", []string{"--editor", "--no-claim", "bd-1"}, options{editor: true, noClaim: true}, "bd-1"},
+		{"no claim from the picker", []string{"--no-claim"}, options{noClaim: true}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

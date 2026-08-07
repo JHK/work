@@ -37,23 +37,25 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 |---|---|
 | `work <id>` | vet, create, claim, and launch |
 | `work <pr>` | create, and launch |
-| `work <id> --shell` | create only; the bead is left as it is |
+| `work <id> --shell` | vet, create, claim, and open a shell |
 | `work <id> --editor` | vet, create, claim, and open the editor |
+| `work <id> --no-claim` | vet, create, and launch |
 | `work` | as for the target picked |
 
-Creating a worktree claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
+Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
 Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys), names the conversations it carries, and prints the line that returns to them.
 
-Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). The paths that do not claim do not vet.
+Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
 ## Flags
 
 | Flag | Effect |
 |---|---|
 | `--model`, `--effort` | placed where the [command](configuration.md#commands) names them; one naming neither drops both silently |
-| `--shell` | [create only](#what-each-invocation-does) |
+| `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys); exclusive with `--shell` |
+| `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
 | `--version` | prints and exits, touching no repository |
 
 An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed.

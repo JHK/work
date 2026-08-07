@@ -72,7 +72,7 @@ No flag is a layer, because none of them sets a key: `--model` and `--effort` ar
 
 Each key is a whole command for one thing, so no template chooses between modes: `agent.resume-session` returns to a conversation and never has to also describe starting one. Only starting varies by target kind. Nothing requires the command to be an agent; a plain shell command simply leaves no conversation to return to.
 
-These commands are what an existing worktree offers and what a new one opens on. A [screen](interactive-launcher.md) picks between them, and `--shell` and `--editor`, exclusive with each other, name one from the command line. `open.shell` serves every existing worktree, [whatever its branch names](../explanation/worktree-per-ticket.md). `open.editor` on a new worktree still vets and claims; `--shell` keeps the escape hatch it has today and does neither.
+These commands are what an existing worktree offers and what a new one opens on. A [screen](interactive-launcher.md) picks between them, and `--shell` and `--editor`, exclusive with each other, name one from the command line. `open.shell` serves every existing worktree, [whatever its branch names](../explanation/worktree-per-ticket.md). Which command a new worktree opens on says nothing about its ticket: [creating one vets and claims](../references/cli.md#what-entering-does) whichever it is.
 
 ### Returning to a conversation
 
