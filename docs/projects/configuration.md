@@ -6,7 +6,7 @@
 
 The choices `work` makes on a person's behalf are defaults, not facts about the binary. A repository states where its worktrees go and how its branches are named; a person states what a worktree opens on.
 
-This settles the keys, whose file each belongs in, and how a value reaches the code, so the children wiring them do not each answer that again.
+This settles the keys, the file each belongs in, and how a value reaches the code, so the children wiring them do not each answer that.
 
 ## Current state
 
@@ -14,7 +14,7 @@ This settles the keys, whose file each belongs in, and how a value reaches the c
 
 ## The surface
 
-Four tables. Two hold what a worktree is made of; two hold commands.
+`[worktree]` and `[branch]` hold what a worktree is made of; `[agent]` and `[open]` hold commands.
 
 ```toml
 [worktree]
@@ -48,15 +48,15 @@ shell = ["{{.Shell}}"]
 editor = ["{{.Editor}}", "{{.Dir}}"]
 ```
 
-These render what the constants produce, with two deliberate departures. A pull request opens on a bare named session, dropping the auto permission mode and the `/code-review` prompt `SessionLaunch` sets today, because the reviewer chooses what to run. And resuming carries no session id, for the reason below.
+These render what the constants produce, less two departures. A pull request opens on a bare named session, dropping the auto permission mode and the `/code-review` prompt `SessionLaunch` sets today, because the reviewer chooses what to run. Resuming carries no session id, for [the reason below](#returning-to-a-conversation).
 
 *Ticket* is the [vocabulary](../explanation/worktree-per-ticket.md) the keys are named in; *bead* is the `bd` instance of it, and stays inside the code. `worktree.directory` is a path inside the repository, and only a new worktree needs one, since an existing one is entered where git reports it. `bd worktree create` adds a ticket worktree's path to the repository's `.gitignore`; a pull request's is made with `git worktree add`, which does not, so a configured directory has to be ignored by the repository itself.
 
-`[agent]` is named for what its commands reach rather than for what each does, because they have to agree: the agent that starts a conversation is the one that returns to it, so all three move together when the agent changes. `[open]`'s two owe each other nothing, so that table is named for the verb.
+`[agent]` is named for what its commands reach rather than for what each does, because they have to agree: the agent that starts a conversation is the one that returns to it, so they move together when the agent changes. `[open]`'s two owe each other nothing, so that table is named for the verb.
 
 ### Where the keys are read from
 
-Two files, because the two halves of the surface belong to different people. What a worktree is made of is the repository's, so it is checked in and everyone cloning gets it. What a worktree opens on is the user's, and follows them across repositories.
+Two files, because the halves of the surface belong to different people: the repository's is checked in and everyone cloning gets it, the user's follows them across repositories.
 
 | Layer | Location |
 |---|---|
@@ -64,9 +64,9 @@ Two files, because the two halves of the surface belong to different people. Wha
 | the user | `$XDG_CONFIG_HOME/work/config.toml`, `~/.config/work/config.toml` when unset |
 | defaults | compiled in |
 
-Highest first, merged key by key: a file that sets one key leaves the rest to the layer below it.
+Highest first, merged key by key.
 
-**A repository's file may set `[worktree]` and `[branch]`, and nothing else.** Every other table names a command, and cloning a repository does not get to decide what runs on the machine that cloned it. The allowlist is by name, so a table invented later is refused until it is added; `.work.toml` naming any other table fails at load with that reason. The user's file may set any table, and where both name a key the repository's wins. The two keys a clone does decide are still checked: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
+**A repository's file may set `[worktree]` and `[branch]`, and nothing else.** Every other table names a command, and cloning a repository does not get to decide what runs on the machine that cloned it. The allowlist is by name, so `.work.toml` naming a table invented later fails at load with that reason until it is added. The user's file may set any table, and where both name a key the repository's wins. What a clone does decide is still checked: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
 
 No flag is a layer, because none of them sets a key: `--model` and `--effort` are values a command may place, and `--shell` and `--editor` choose which command runs. Nor is the environment. `$SHELL`, `$VISUAL` and `$EDITOR` reach the templates as values, `XDG_CONFIG_HOME` locates the user's file, and none of them overrides a key.
 
@@ -74,11 +74,11 @@ No flag is a layer, because none of them sets a key: `--model` and `--effort` ar
 
 Each key is a whole command for one thing, so no template chooses between modes: `agent.resume-session` returns to a conversation and never has to also describe starting one. Only starting varies by target kind. Nothing requires the command to be an agent; a plain shell command simply leaves no conversation to return to.
 
-The four commands are what an existing worktree offers and what a new one opens on. A [screen](interactive-launcher.md) picks between them, and `--shell` and `--editor`, exclusive with each other, name one from the command line. `open.shell` serves every existing worktree, [whatever its branch names](../explanation/worktree-per-ticket.md). `open.editor` on a new worktree still vets and claims; `--shell` keeps the escape hatch it has today and does neither.
+These commands are what an existing worktree offers and what a new one opens on. A [screen](interactive-launcher.md) picks between them, and `--shell` and `--editor`, exclusive with each other, name one from the command line. `open.shell` serves every existing worktree, [whatever its branch names](../explanation/worktree-per-ticket.md). `open.editor` on a new worktree still vets and claims; `--shell` keeps the escape hatch it has today and does neither.
 
 ### Returning to a conversation
 
-`agent.resume-session` needs no identifier. A session is filed by the directory it ran in, so `claude --continue` resumes the conversation the worktree holds, and `claude --resume` is the agent's own picker for older ones. No session identifier reaches this surface or the person reading it.
+`agent.resume-session` needs no identifier. A session is filed by the directory it ran in, so `claude --continue` resumes the conversation the worktree holds, and `claude --resume` is the agent's own picker for older ones.
 
 What a worktree carries is still named on entry, from `internal/sessions`, and that reading is not a setting.
 
@@ -98,13 +98,13 @@ What a worktree carries is still named on entry, from `internal/sessions`, and t
 | `.Shell` | `open.shell` | `$SHELL`, or `/bin/sh` |
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR` |
 
-Two kinds of target carry no title. A pull request's is `gh`'s to give and only [the picker asks it](../references/cli.md); an existing worktree's would cost a `bd` call on the path that deliberately makes none.
+A pull request's title is `gh`'s to give and only [the picker asks it](../references/cli.md); an existing worktree's would cost a `bd` call on the path that deliberately makes none.
 
 ### What the branch template costs
 
 The branch is the one setting read back, because a target's worktree is [the one checked out on its branch](../explanation/worktree-per-ticket.md), wherever git reports it.
 
-A ticket's branch is attributed by rendering `branch.ticket` for each id `bd` knows, with every other value matched as a wildcard and `{{with}}` matching either of its arms. `feature/{{.ID}}-{{.Slug}}` attributes `feature/bd-42-anything` to `bd-42`, so a prefix costs nothing and a ticket retitled after its worktree exists still finds it. The longest matching id still wins, so `bd-1` does not claim `bd-12`'s branch.
+A ticket's branch is attributed by rendering `branch.ticket` for each id `bd` knows, with every other value matched as a wildcard and `{{with}}` matching either of its arms. `feature/{{.ID}}-{{.Slug}}` attributes `feature/bd-42-anything` to `bd-42`, so a prefix costs nothing and a ticket retitled after its worktree exists still finds it. The longest matching id wins, so `bd-1` does not claim `bd-12`'s branch.
 
 Nothing lists pull requests on that path, so `branch.pull-request` is matched with `.Number` captured as digits instead, and a capture that does not render back to the branch it came from is no match: `pr-007` stands for no worktree, since `Resolve` canonicalises it to `pr-7`, whose worktree is elsewhere. That rendered branch doubles as the name a person retypes.
 
@@ -112,11 +112,11 @@ A template that does not name its kind's identifier attributes nothing and is re
 
 ### The loader
 
-`work.Open` reads both files into a config struct that `work.Env` carries, so a front end passes on options alone. A key the struct does not know is refused by name rather than ignored, which a typo otherwise is.
+`work.Open` reads both files into a config struct that `work.Env` carries, so a front end passes on options alone. A key the struct does not know is refused by name, so a typo does not silently do nothing.
 
 Decoding is `github.com/BurntSushi/toml`, whose `MetaData.Undecoded` gives that refusal and which requires no further module. Rejected:
 
-- **viper**, which answers discovery, layering and env vars out of the box, but links twelve modules for eight keys read once, against cobra as this module's only direct dependency.
+- **viper**, which answers discovery, layering and env vars out of the box, but drags in a module tree of its own for keys read once, against cobra as this module's only direct dependency.
 - **JSON**, which needs no dependency at all, but takes no comments in a file people hand-edit.
 
 ## Out of scope

@@ -2,7 +2,7 @@
 
 ## Intent
 
-`work` is [bounded to one moment](../explanation/worktree-per-ticket.md): it resolves a target, hands the terminal over and exits. The screen is what a person meets in that moment. It is also where the choice of what to hand over belongs, and that choice is made for them by whether the worktree happens to exist.
+`work` is [bounded to one moment](../explanation/worktree-per-ticket.md): it resolves a target, hands the terminal over and exits. The screen is what a person meets in that moment, and where the choice of what to hand over belongs.
 
 ## Current state
 

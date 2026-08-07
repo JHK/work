@@ -6,7 +6,7 @@ Agent instructions for `work-cli`: a Go CLI that turns a ticket, a pull request,
 
 ## Before acting
 
-Documentation under [docs/](docs/) is the canonical source for this repo. Consult it before running commands, editing files, or answering questions about how things work.
+Documentation under [docs/](docs/) is canonical: consult it before running commands, editing files, or answering questions about how things work.
 
 Routing by question type:
 
@@ -19,4 +19,4 @@ Routing by question type:
 | "What is the plan for X?" | [docs/projects/](docs/projects/AGENTS.md) |
 | "Why is X shaped this way?" | [docs/explanation/](docs/explanation/AGENTS.md) |
 
-Each subfolder's `AGENTS.md` states what its type is for and how to judge relevance. Open that first, then the files it sends you to. Do not pre-load them all.
+Open the subfolder's `AGENTS.md` first, then skim the folder's filenames and title lines and open only what the question needs. Never pre-load a folder.
