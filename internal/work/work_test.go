@@ -16,7 +16,10 @@ import (
 // defaultDir is where worktrees go with nothing configured.
 var defaultDir = config.Default().Worktree.Directory
 
+// An Env carrying no settings answers for the compiled-in defaults, which is
+// what the tests with no repository to read settings from want.
 func TestResolve(t *testing.T) {
+	var e Env
 	tests := []struct {
 		arg  string
 		kind Kind
@@ -31,7 +34,7 @@ func TestResolve(t *testing.T) {
 		{"007", KindPR, "7", "pr-7"},
 	}
 	for _, tt := range tests {
-		got, err := Resolve(tt.arg)
+		got, err := e.Resolve(tt.arg)
 		if err != nil {
 			t.Fatalf("Resolve(%q): %v", tt.arg, err)
 		}
@@ -43,7 +46,7 @@ func TestResolve(t *testing.T) {
 	// An identifier becomes a directory name and a refspec; anything that would
 	// traverse, or that git would reject, has to be refused up front.
 	for _, arg := range []string{"", "..", "../../etc", "a/b", "/", ".", "-5", "--yes", "docs/pull/99-notes.md"} {
-		if got, err := Resolve(arg); err == nil {
+		if got, err := e.Resolve(arg); err == nil {
 			t.Errorf("Resolve(%q) = %+v, want an error", arg, got)
 		}
 	}
@@ -52,6 +55,7 @@ func TestResolve(t *testing.T) {
 // A worktree is read off the branch it has checked out, whatever directory it
 // sits in.
 func TestTargetAt(t *testing.T) {
+	var e Env
 	ids := []string{"one", "one-two", "1234"}
 	tests := []struct {
 		name   string
@@ -73,7 +77,7 @@ func TestTargetAt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := targetAt(git.Worktree{Path: "/wt", Branch: tt.branch}, ids)
+			got := e.targetAt(git.Worktree{Path: "/wt", Branch: tt.branch}, ids)
 			want := Target{Kind: tt.kind, ID: tt.id, Name: tt.label}
 			if got != want {
 				t.Errorf("targetAt(%q) = %+v, want %+v", tt.branch, got, want)
@@ -82,13 +86,14 @@ func TestTargetAt(t *testing.T) {
 	}
 
 	// Without the tracker every worktree still lists, as a plain one.
-	if got := targetAt(git.Worktree{Path: "/wt", Branch: "one"}, nil); got.Kind != KindPlain {
+	if got := e.targetAt(git.Worktree{Path: "/wt", Branch: "one"}, nil); got.Kind != KindPlain {
 		t.Errorf("targetAt without ids = %+v, want a plain worktree", got)
 	}
 }
 
 // A named target finds its worktree by branch, wherever that worktree sits.
 func TestMatches(t *testing.T) {
+	var e Env
 	tests := []struct {
 		arg, branch string
 		want        bool
@@ -102,22 +107,22 @@ func TestMatches(t *testing.T) {
 		{"7", "pr-70", false},
 	}
 	for _, tt := range tests {
-		target, err := Resolve(tt.arg)
+		target, err := e.Resolve(tt.arg)
 		if err != nil {
 			t.Fatalf("Resolve(%q): %v", tt.arg, err)
 		}
 		w := git.Worktree{Path: "/elsewhere/wt", Branch: tt.branch}
-		if got := target.matches(w); got != tt.want {
+		if got := e.matches(target, w); got != tt.want {
 			t.Errorf("Resolve(%q).matches(%q) = %v, want %v", tt.arg, tt.branch, got, tt.want)
 		}
 	}
 
 	// A plain worktree is only itself, so the path is what identifies it.
-	plain := targetAt(git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}, nil)
-	if !plain.matches(git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}) {
+	plain := e.targetAt(git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}, nil)
+	if !e.matches(plain, git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}) {
 		t.Error("a plain target does not match its own worktree")
 	}
-	if plain.matches(git.Worktree{Path: "/other/wt", Branch: "some-branch"}) {
+	if e.matches(plain, git.Worktree{Path: "/other/wt", Branch: "some-branch"}) {
 		t.Error("a plain target matches another worktree on the same branch")
 	}
 }
@@ -140,7 +145,7 @@ func TestWorktreeDiscovery(t *testing.T) {
 		t.Fatalf("Linked = %+v, want only %q", list, outside)
 	}
 
-	target, err := Resolve("one-oxc")
+	target, err := e.Resolve("one-oxc")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -221,6 +226,7 @@ func TestInspectAtTakesTheListedWorktree(t *testing.T) {
 // under whatever title its own adapter gave it, and what has none is offered
 // fresh.
 func TestCandidates(t *testing.T) {
+	var e Env
 	worktrees := []git.Worktree{
 		{Path: "/wt/one", Branch: "one-a-slug"},
 		{Path: "/wt/pr-7", Branch: "pr-7"},
@@ -238,12 +244,12 @@ func TestCandidates(t *testing.T) {
 
 	want := []Candidate{
 		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true},
-		{Target: prTarget("7"), Label: "Seventh pull request", Open: true},
+		{Target: e.prTarget("7"), Label: "Seventh pull request", Open: true},
 		{Target: Target{Kind: KindPlain, ID: "/wt/loose", Name: "loose"}, Open: true},
-		{Target: prTarget("9"), Label: "Ninth pull request"},
+		{Target: e.prTarget("9"), Label: "Ninth pull request"},
 		{Target: Target{Kind: KindBead, ID: "two", Name: "two"}, Label: "The second bead", ready: true},
 	}
-	got := candidates(worktrees, known, ready, pulls)
+	got := e.candidates(worktrees, known, ready, pulls)
 	if len(got) != len(want) {
 		t.Fatalf("candidates() = %+v, want %d rows", got, len(want))
 	}
@@ -256,11 +262,11 @@ func TestCandidates(t *testing.T) {
 
 	// A forge that would not answer costs the pull request rows and their titles,
 	// nothing else.
-	got = candidates(worktrees, known, ready, nil)
+	got = e.candidates(worktrees, known, ready, nil)
 	if len(got) != 4 {
 		t.Fatalf("candidates() without gh = %+v, want the worktrees and the ready bead", got)
 	}
-	if pr := got[1]; pr.Target != prTarget("7") || pr.Label != "" || !pr.Open {
+	if pr := got[1]; pr.Target != e.prTarget("7") || pr.Label != "" || !pr.Open {
 		t.Errorf("pr row without gh = %+v, want an untitled open worktree", pr)
 	}
 }
@@ -308,15 +314,58 @@ func TestSlug(t *testing.T) {
 }
 
 func TestBranch(t *testing.T) {
-	pr, _ := Resolve("7")
-	if got, err := (State{Target: pr}).Branch(); err != nil || got != "pr-7" {
+	var e Env
+	pr, _ := e.Resolve("7")
+	if got, err := e.Branch(State{Target: pr}); err != nil || got != "pr-7" {
 		t.Errorf("PR branch = %q, %v", got, err)
 	}
 
-	bead, _ := Resolve("bd-42")
+	bead, _ := e.Resolve("bd-42")
 	s := State{Target: bead}
 	s.Bead.Title = "Port work to Go"
-	if got, err := s.Branch(); err != nil || got != "bd-42-port-work-to-go" {
+	if got, err := e.Branch(s); err != nil || got != "bd-42-port-work-to-go" {
 		t.Errorf("bead branch = %q, %v", got, err)
+	}
+}
+
+// A configured pattern names the branch a new worktree checks out, and finds
+// that worktree again: the id is matched where the pattern puts it, so a prefix
+// costs nothing and a ticket retitled since is still the branch's owner.
+func TestConfiguredBranchPattern(t *testing.T) {
+	repo := initRepo(t)
+	body := "[branch]\nticket = \"feature/{{.ID}}-{{.Slug}}\"\npull-request = \"review/{{.Number}}\"\n"
+	if err := os.WriteFile(filepath.Join(repo, config.RepoFile), []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", config.RepoFile, err)
+	}
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	target := Target{Kind: KindBead, ID: "one-abc", Name: "one-abc"}
+	s := State{Target: target}
+	s.Bead.Title = "A new title"
+	if got, err := e.Branch(s); err != nil || got != "feature/one-abc-a-new-title" {
+		t.Errorf("bead branch = %q, %v; want the configured pattern's", got, err)
+	}
+
+	// Made when the bead was titled otherwise, and found all the same.
+	wt := filepath.Join(repo, defaultDir, "one-abc")
+	gitCmd(t, repo, "worktree", "add", "-b", "feature/one-abc-an-older-title", wt)
+	if got := e.Inspect(target); !got.Exists || !git.SameDir(got.Path, wt) {
+		t.Errorf("Inspect() = exists %v at %q, want the worktree at %q", got.Exists, got.Path, wt)
+	}
+	// And the picker reads the same worktree back off its branch.
+	if got := e.targetAt(git.Worktree{Path: wt, Branch: "feature/one-abc-an-older-title"}, []string{"one-abc"}); got != target {
+		t.Errorf("targetAt() = %+v, want %+v", got, target)
+	}
+
+	// A pull request's branch is the name it is retyped as.
+	pr, err := e.Resolve("7")
+	if err != nil || pr.Name != "review/7" {
+		t.Fatalf("Resolve(7) = %+v, %v; want the configured name", pr, err)
+	}
+	if got, err := e.Resolve("review/7"); err != nil || got != pr {
+		t.Errorf("Resolve(review/7) = %+v, %v; want %+v", got, err, pr)
 	}
 }

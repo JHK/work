@@ -8,7 +8,7 @@ One command, an optional identifier, and flags. `work --help` sketches the forms
 |---|---|
 | `bd-42`, any name matching `[A-Za-z0-9][A-Za-z0-9._-]*` | that bead |
 | `7`, `007` | pull request 7 |
-| `pr-7` | pull request 7, so a worktree name can be retyped |
+| [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
 | omitted | an fzf list of the repository's worktrees, open pull requests and ready beads |
 
@@ -26,7 +26,7 @@ One tool answering costs nothing of the other, and an adapter that will not answ
 
 ## What each invocation does
 
-A target's worktree is the one checked out on its branch, wherever git reports it. That branch is `pr-<n>` for a pull request, and for a bead the id alone or ahead of a title slug. Only a new worktree needs a directory chosen for it, and [the configuration](configuration.md) decides which.
+A target's worktree is the one checked out on its branch, wherever git reports it. That branch is `pr-<n>` for a pull request, and for a bead the id alone or ahead of a title slug ([configurable](configuration.md)). Only a new worktree needs a directory chosen for it, and the configuration decides which.
 
 Creating a worktree is the moment work on that target begins, so it also claims the bead and invokes the launcher. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
 

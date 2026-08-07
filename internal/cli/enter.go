@@ -36,7 +36,7 @@ func entry(env work.Env, target string, o work.Options) (work.Entry, error) {
 		}
 		return env.EnterCandidate(c, o)
 	}
-	t, err := work.Resolve(target)
+	t, err := env.Resolve(target)
 	if err != nil {
 		return work.Entry{}, err
 	}

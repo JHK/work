@@ -10,12 +10,10 @@ This settles the keys, whose file each belongs in, and how a value reaches the c
 
 ## Current state
 
-`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `worktree.directory` the one key wired to it. Every other choice is a Go constant.
+`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `[worktree]` and `[branch]` wired to it. Every command is still a Go constant.
 
 | Choice | Where it is fixed |
 |---|---|
-| a ticket's branch | `State.Branch` in `internal/work/provision.go` |
-| a pull request's branch | `prPrefix`, through `Target.Name` in `internal/work/work.go` |
 | the agent argv, fresh and resumed | `Launch.Argv` in `internal/work/handoff.go` |
 | the shell an existing worktree is entered with | `Shell` in `internal/work/handoff.go` |
 

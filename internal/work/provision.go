@@ -10,19 +10,17 @@ import (
 	"github.com/JHK/work-cli/internal/mise"
 )
 
-// Branch names the branch a target's worktree checks out. For a bead that is
-// the id and a slug of its title, which is only knowable once bd has answered.
-func (s State) Branch() (string, error) {
+// Branch names the branch a target's worktree checks out, from the pattern its
+// kind is configured with. A pull request's is the name it already carries; a
+// bead's takes a slug of its title, which is only knowable once bd has answered.
+func (e Env) Branch(s State) (string, error) {
 	if s.Target.Kind == KindPR {
 		return s.Target.Name, nil
 	}
 	if s.TicketErr != nil {
 		return "", s.TicketErr
 	}
-	if name := slug(s.Bead.Title); name != "" {
-		return s.Target.ID + "-" + name, nil
-	}
-	return s.Target.ID, nil
+	return e.Config.Branch.Ticket(s.Target.ID, slug(s.Bead.Title)), nil
 }
 
 // Provision makes the worktree exist and be usable. It is idempotent: an
@@ -36,7 +34,7 @@ func (e Env) Provision(s State) error {
 	if s.Target.Kind == KindPlain {
 		return fmt.Errorf("no worktree named %s", s.Target.Name)
 	}
-	branch, err := s.Branch()
+	branch, err := e.Branch(s)
 	if err != nil {
 		return err
 	}

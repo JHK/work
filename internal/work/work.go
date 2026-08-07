@@ -87,12 +87,10 @@ var (
 	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
-// prPrefix marks a worktree as holding a pull request rather than a bead.
-const prPrefix = "pr-"
-
-// Resolve maps an identifier to a target. A bare number or an
-// .../<owner>/<repo>/pull/<n> URL is a pull request; anything else is a bead id.
-func Resolve(arg string) (Target, error) {
+// Resolve maps an identifier to a target. A bare number, an
+// .../<owner>/<repo>/pull/<n> URL, or a name a pull request's branch pattern
+// could have produced is a pull request; anything else is a bead id.
+func (e Env) Resolve(arg string) (Target, error) {
 	if arg == "" {
 		return Target{}, errors.New("no target given")
 	}
@@ -102,9 +100,9 @@ func Resolve(arg string) (Target, error) {
 		n = arg
 	} else if m := prURL.FindStringSubmatch(arg); m != nil {
 		n = m[1]
-	} else if rest, ok := strings.CutPrefix(arg, prPrefix); ok {
+	} else if number, ok := e.Config.Branch.NumberIn(arg); ok {
 		// The worktree's own name, so that what the picker shows can be retyped.
-		n = rest
+		n = number
 	}
 	if n != "" {
 		// Canonicalise, so that 7 and 007 name one worktree and one refspec.
@@ -112,7 +110,7 @@ func Resolve(arg string) (Target, error) {
 		if err != nil || i == 0 {
 			return Target{}, fmt.Errorf("%q is not a pull request number", arg)
 		}
-		return prTarget(strconv.FormatUint(i, 10)), nil
+		return e.prTarget(strconv.FormatUint(i, 10)), nil
 	}
 
 	if !worktreeName.MatchString(arg) {
@@ -124,13 +122,13 @@ func Resolve(arg string) (Target, error) {
 // targetAt reads the target a worktree stands for off the branch it has checked
 // out. ids are the bead ids bd knows; without them a bead's worktree is merely a
 // plain one, which still lists.
-func targetAt(w git.Worktree, ids []string) Target {
+func (e Env) targetAt(w git.Worktree, ids []string) Target {
 	// Only a branch Resolve would name itself is a pull request, so that pr-007,
 	// which it canonicalises to pr-7, does not stand for a worktree elsewhere.
-	if t, err := Resolve(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
+	if t, err := e.Resolve(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
 		return t
 	}
-	if id := beadID(w.Branch, ids); id != "" {
+	if id := e.beadID(w.Branch, ids); id != "" {
 		return Target{Kind: KindBead, ID: id, Name: id}
 	}
 	return Target{Kind: KindPlain, ID: w.Path, Name: cmp.Or(w.Branch, filepath.Base(w.Path))}
@@ -138,34 +136,27 @@ func targetAt(w git.Worktree, ids []string) Target {
 
 // beadID names the bead a branch belongs to: the longest known id owning it, so
 // that a branch of one-two's does not fall to one.
-func beadID(branch string, ids []string) string {
+func (e Env) beadID(branch string, ids []string) string {
 	best := ""
 	for _, id := range ids {
-		if len(id) > len(best) && owns(id, branch) {
+		if len(id) > len(best) && e.Config.Branch.Owns(id, branch) {
 			best = id
 		}
 	}
 	return best
 }
 
-// owns reports whether a branch is a bead's. Ids and title slugs both contain
-// dashes, so the branch is matched against the id and its separator rather than
-// parsed apart.
-func owns(id, branch string) bool {
-	return branch == id || strings.HasPrefix(branch, id+"-")
-}
-
 // matches reports whether a worktree is the one this target stands for,
 // wherever it happens to sit. A ticket is keyed on the branch; a plain worktree,
 // having no ticket to be named by, is only itself.
-func (t Target) matches(w git.Worktree) bool {
+func (e Env) matches(t Target, w git.Worktree) bool {
 	switch t.Kind {
 	case KindPR:
 		return w.Branch == t.Name
 	case KindPlain:
 		return git.SameDir(w.Path, t.ID)
 	default:
-		return owns(t.ID, w.Branch)
+		return e.Config.Branch.Owns(t.ID, w.Branch)
 	}
 }
 
@@ -193,12 +184,12 @@ func (e Env) Candidates() ([]Candidate, error) {
 	known, _ := beads.All(e.Repo)
 	ready, _ := beads.Ready(e.Repo)
 	pulls, _ := forge.Open(e.Repo, git.OriginURL(e.Repo))
-	return candidates(worktrees, known, ready, pulls), nil
+	return e.candidates(worktrees, known, ready, pulls), nil
 }
 
 // candidates assembles the list from what the adapters answered, each of which
 // may have answered nothing.
-func candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []forge.PR) []Candidate {
+func (e Env) candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []forge.PR) []Candidate {
 	ids := make([]string, len(known))
 	titles := make(map[string]string, len(known))
 	for i, b := range known {
@@ -215,7 +206,7 @@ func candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []for
 	// place to work is offered once however it was found.
 	open := make(map[string]bool, len(worktrees))
 	for _, w := range worktrees {
-		t := targetAt(w, ids)
+		t := e.targetAt(w, ids)
 		c := Candidate{Target: t, Open: true, path: w.Path}
 		open[t.Name] = true
 		switch t.Kind {
@@ -228,7 +219,7 @@ func candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []for
 	}
 
 	for _, p := range pulls {
-		t := prTarget(strconv.Itoa(p.Number))
+		t := e.prTarget(strconv.Itoa(p.Number))
 		if open[t.Name] {
 			continue
 		}
@@ -256,15 +247,17 @@ func (e Env) locate(t Target) (string, bool) {
 		return "", false
 	}
 	for _, w := range worktrees {
-		if t.matches(w) {
+		if e.matches(t, w) {
 			return w.Path, true
 		}
 	}
 	return "", false
 }
 
-func prTarget(id string) Target {
-	return Target{Kind: KindPR, ID: id, Name: prPrefix + id}
+// prTarget names a pull request by the branch its worktree checks out, which is
+// what a row shows and what the user retypes.
+func (e Env) prTarget(id string) Target {
+	return Target{Kind: KindPR, ID: id, Name: e.Config.Branch.PullRequest(id)}
 }
 
 func (e Env) worktreePath(name string) string {

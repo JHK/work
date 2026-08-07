@@ -70,8 +70,9 @@ func TestShell(t *testing.T) {
 }
 
 func TestSessionLaunch(t *testing.T) {
-	bead, _ := Resolve("bd-1")
-	pr, _ := Resolve("7")
+	var e Env
+	bead, _ := e.Resolve("bd-1")
+	pr, _ := e.Resolve("7")
 	tests := []struct {
 		name  string
 		state State

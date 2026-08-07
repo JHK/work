@@ -17,6 +17,7 @@ import (
 // Config is every setting work reads, one field per table.
 type Config struct {
 	Worktree Worktree
+	Branch   Branch
 }
 
 type Worktree struct {
@@ -24,8 +25,13 @@ type Worktree struct {
 }
 
 const (
-	defaultDirectory = ".worktrees"
-	dirKey           = "worktree.directory"
+	defaultDirectory   = ".worktrees"
+	defaultTicket      = "{{.ID}}{{with .Slug}}-{{.}}{{end}}"
+	defaultPullRequest = "pr-{{.Number}}"
+
+	dirKey         = "worktree.directory"
+	ticketKey      = "branch.ticket"
+	pullRequestKey = "branch.pull-request"
 )
 
 // Dir is where a worktree is created, relative to the repository root. An unset
@@ -41,9 +47,27 @@ func (w Worktree) Dir() string {
 // clone gets them. The user's are userFile.
 const RepoFile = ".work.toml"
 
+// defaults are the compiled-in patterns, bound once.
+var defaults = Branch{
+	TicketPattern:      mustPattern(defaultTicket, ticketValues),
+	PullRequestPattern: mustPattern(defaultPullRequest, pullRequestValues),
+}
+
 // Default is what an unset key falls back to.
 func Default() Config {
-	return Config{Worktree: Worktree{Directory: defaultDirectory}}
+	return Config{Worktree: Worktree{Directory: defaultDirectory}, Branch: defaults}
+}
+
+// mustPattern binds a compiled-in default, which cannot be at fault.
+func mustPattern(text string, v values) Pattern {
+	p, err := parsePattern(text)
+	if err == nil {
+		err = p.bind(v)
+	}
+	if err != nil {
+		panic(fmt.Sprintf("config: default pattern %q %v", text, err))
+	}
+	return p
 }
 
 // Load merges the user's file and then the repository's over the defaults, key
@@ -118,8 +142,16 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 	return md, nil
 }
 
-// validate names the key work cannot use the value of, and why.
-func (c Config) validate(repo string) (string, error) {
+// validate names the key work cannot use the value of, and why. It also settles
+// what each branch pattern renders into, which is where a pattern is judged.
+func (c *Config) validate(repo string) (string, error) {
+	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
+		return ticketKey, err
+	}
+	if err := c.Branch.PullRequestPattern.bind(pullRequestValues); err != nil {
+		return pullRequestKey, err
+	}
+
 	dir := c.Worktree.Directory
 	// A worktree needs a directory of its own inside the repository, so that one
 	// entry can tell git to ignore every worktree at once.
