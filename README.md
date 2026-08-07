@@ -45,3 +45,7 @@ The tool above is the target. What ships is locked to one instance of each integ
 - **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
 - **The shell is fish.** It is what `work` is built and used against, and the resume lines it prints are joined for pasting there and quoted for nothing else.
 - **The picker is `fzf`.** The no-argument form needs it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
