@@ -14,7 +14,7 @@ The actions are agent, shell, editor, diff and ask, each one a boolean flag. The
 
 Configuration answers the second question standing, once per moment: one key for the worktree just created, another for the one already there. The first is agent, the second is ask.
 
-Agent is a single action however many conversations a worktree carries, and does the right thing for what it finds there: none starts one, one continues it, several are offered as a list.
+Agent is a single action however many conversations a worktree carries, and does the right thing for what it finds there: none starts one, one continues it, several are offered as a list. Finding them is the screen's own, in the shape it wants; nothing below it lists them.
 
 Nothing is carried per worktree: `--model` and `--effort` go, and the configuration names a model and an effort where either is wanted at all.
 

@@ -1,5 +1,5 @@
 // Package work is the core beneath every front end: it resolves an identifier
-// to a target, reports what that target's worktree already carries, and takes
+// to a target, reports whether that target already has a worktree, and takes
 // entering one from vetting through provisioning and claiming to the handoff.
 // A front end supplies the options and presents the result; the policy is here.
 package work
@@ -18,7 +18,6 @@ import (
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
-	"github.com/JHK/work-cli/internal/sessions"
 )
 
 // Kind distinguishes the namespaces an identifier can land in.
@@ -39,22 +38,13 @@ type Target struct {
 	Name string // what a row shows and the user retypes: the bead id, pr-<n>, or the branch
 }
 
-// Sessions lists the agent sessions a directory carries. The default
-// implementation reads Claude Code's undocumented transcript layout.
-type Sessions interface {
-	List(dir string) ([]sessions.Session, error)
-}
-
-// Env holds the repository work operates on, the settings it reads, and the
-// adapters it reaches through.
+// Env holds the repository work operates on and the settings it reads.
 type Env struct {
-	Repo     string
-	Config   config.Config
-	Sessions Sessions
+	Repo   string
+	Config config.Config
 }
 
-// Open finds the repository containing dir, reads its settings, and wires the
-// default adapters.
+// Open finds the repository containing dir and reads its settings.
 func Open(dir string) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
@@ -64,20 +54,17 @@ func Open(dir string) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Config: cfg, Sessions: sessions.Claude{}}, nil
+	return Env{Repo: repo, Config: cfg}, nil
 }
 
 // State is everything knowable about a target on entry, less what an existing
-// worktree makes moot. Every field is best effort, and the errors stay apart so
-// a caller can ask whether the adapter it needs answered.
+// worktree makes moot.
 type State struct {
-	Target      Target
-	Path        string // where the worktree is, or where it would be created
-	Exists      bool
-	Sessions    []sessions.Session
-	Bead        beads.Bead
-	SessionsErr error // the session history could not be read
-	TicketErr   error // bd could not answer for this target
+	Target    Target
+	Path      string // where the worktree is, or where it would be created
+	Exists    bool
+	Bead      beads.Bead
+	TicketErr error // bd could not answer for this target
 }
 
 var (
@@ -344,13 +331,6 @@ func (e Env) inspectAt(t Target, path string) State {
 
 	if path != "" {
 		s.Exists, s.Path = true, path
-		if e.Sessions == nil {
-			s.SessionsErr = errors.New("no session adapter")
-		} else if list, err := e.Sessions.List(path); err != nil {
-			s.SessionsErr = err
-		} else {
-			s.Sessions = list
-		}
 	}
 
 	// A worktree that already exists is re-entered rather than created, and only

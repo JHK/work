@@ -12,6 +12,4 @@
 | `fzf` | `work` with no argument | the picker fails | `internal/cli/pick.go` |
 | `mise` | `mise trust` in a new worktree | the worktree's first session prompts about its configs | `internal/mise/` |
 
-Listing what a worktree carries reaches for nothing: `internal/sessions` reads Claude Code's transcripts under `~/.claude` directly.
-
 Building the binary needs the Go toolchain, which [mise tasks](mise-tasks.md) provision.
