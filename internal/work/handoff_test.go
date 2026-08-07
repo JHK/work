@@ -1,6 +1,7 @@
 package work
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/sessions"
 )
 
 // execHandoff is the environment variable the re-exec helper below keys on.
@@ -175,18 +177,46 @@ func TestLaunch(t *testing.T) {
 	}
 }
 
-// Returning to a conversation names no session: the agent is run in the
-// worktree, and a session is filed by the directory it ran in.
-func TestResume(t *testing.T) {
-	var e Env
-	bead, _ := e.Resolve("bd-1")
-
-	got, err := e.Resume(State{Target: bead}, Options{})
-	if err != nil {
-		t.Fatalf("Resume: %v", err)
+// What a worktree already carries decides, and no session id is ever asked of a
+// person: the one conversation is named outright, and several reach the agent's
+// own list by naming none.
+func TestAgent(t *testing.T) {
+	tests := []struct {
+		name string
+		has  []sessions.Session
+		want []string
+	}{
+		{"none starts one", nil, []string{"claude", "--permission-mode", "auto", "--name=bd-1"}},
+		{"one is returned to", []sessions.Session{{ID: "s1"}}, []string{"claude", "--resume", "s1"}},
+		{"several reach the list", []sessions.Session{{ID: "s1"}, {ID: "s2"}}, []string{"claude", "--resume"}},
 	}
-	want := []string{"claude", "--permission-mode", "auto", "--continue"}
-	if !slices.Equal(got, want) {
-		t.Errorf("Resume() = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Env{Conversations: stubConversations{list: tt.has}}
+			bead, _ := e.Resolve("bd-1")
+
+			got, err := e.Agent(State{Target: bead, Path: "/wt", Exists: true}, Options{})
+			if err != nil {
+				t.Fatalf("Agent: %v", err)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Agent() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
+
+// An agent that cannot say what a worktree carries is not asked to guess.
+func TestAgentRefusesAnUnreadableWorktree(t *testing.T) {
+	e := Env{Conversations: stubConversations{err: errors.New("no transcript store")}}
+	if _, err := e.Agent(State{Path: "/wt", Exists: true}, Options{}); err == nil {
+		t.Error("Agent() with an unreadable store: want an error")
+	}
+}
+
+type stubConversations struct {
+	list []sessions.Session
+	err  error
+}
+
+func (s stubConversations) List(string) ([]sessions.Session, error) { return s.list, s.err }

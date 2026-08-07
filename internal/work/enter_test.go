@@ -8,6 +8,7 @@ import (
 
 	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/sessions"
 )
 
 // The vetting guards the claim, so it runs wherever a ticket's worktree is
@@ -27,6 +28,7 @@ func TestEnterVetsEveryWay(t *testing.T) {
 		opts Options
 	}{
 		{"a session", Options{}},
+		{"an agent", Options{Agent: true}},
 		{"a shell", Options{Shell: true}},
 		{"an editor", Options{Editor: true}},
 		{"a diff", Options{Diff: true}},
@@ -48,7 +50,10 @@ func TestEnterVetsEveryWay(t *testing.T) {
 func TestEnterOpensOn(t *testing.T) {
 	t.Setenv("SHELL", "/usr/bin/fish")
 	t.Setenv("VISUAL", "vi")
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
+	e := Env{
+		Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default(),
+		Conversations: stubConversations{list: []sessions.Session{{ID: "s1"}}},
+	}
 	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
 
 	tests := []struct {
@@ -60,6 +65,7 @@ func TestEnterOpensOn(t *testing.T) {
 		{"asked for outright", Options{Shell: true}, []string{"/usr/bin/fish"}},
 		{"no claim changes nothing", Options{NoClaim: true}, []string{"/usr/bin/fish"}},
 		{"an editor", Options{Editor: true}, []string{"vi", "/wt"}},
+		{"the agent, on what the worktree carries", Options{Agent: true}, []string{"claude", "--resume", "s1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

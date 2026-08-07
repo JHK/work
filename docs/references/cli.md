@@ -45,7 +45,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 
 Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys).
+Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over [`open.shell`](configuration.md#keys), or what the flag named.
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
@@ -54,13 +54,26 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | Flag | Effect |
 |---|---|
 | `--model`, `--effort` | placed where the [command](configuration.md#commands) names them; one naming neither drops both silently |
+| `--agent` | hands the worktree to its agent: a newly created one to [`agent.start-ticket` or `agent.start-pull-request`](configuration.md#keys), an existing one to what [the conversations it carries](#what-a-worktree-carries) name |
 | `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |
 | `--diff` | hands the worktree to [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
 | `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
 | `--version` | prints and exits, touching no repository |
 
-`--shell`, `--editor` and `--diff` exclude one another.
+`--agent`, `--shell`, `--editor` and `--diff` exclude one another.
+
+### What a worktree carries
+
+`--agent` counts the conversations the agent has recorded for the worktree's directory and hands over accordingly:
+
+| Conversations | Handed to |
+|---|---|
+| none | [`agent.start-session`](configuration.md#keys) |
+| one | [`agent.resume-session`](configuration.md#keys) naming it, so nothing is asked |
+| several | `agent.resume-session` naming none, which is the agent's own list |
+
+The count is `claude`'s transcript store, read by `internal/sessions/`. A transcript `claude -p` wrote is not a conversation to return to and does not count.
 
 An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
 

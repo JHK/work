@@ -25,6 +25,7 @@ Values are validated after the merge and before anything is created.
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
 | `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
 | `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
+| `agent.start-session` | [below](#commands) | the command a worktree carrying no conversation opens on |
 | `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
 | `open.shell` | [below](#commands) | the command an existing worktree is entered with, and the one `--shell` hands over to |
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
@@ -57,11 +58,12 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Model`, `.Effort` | every command | what `--model` and `--effort` were given, empty where they were not |
 | `.ID`, `.Title` | `agent.start-ticket` | the ticket id and its title |
 | `.Number` | `agent.start-pull-request` | the pull request number |
+| `.Session` | `agent.resume-session` | the conversation the worktree carries, empty where it carries several |
 | `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 | `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
-`agent.resume-session` names no session: a [session](../explanation/worktree-per-ticket.md#the-vocabulary) is filed by the directory it ran in.
+An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](../explanation/worktree-per-ticket.md#the-vocabulary) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
 
@@ -86,11 +88,8 @@ start-pull-request = [
   "{{with .Model}}--model={{.}}{{end}}",
   "{{with .Effort}}--effort={{.}}{{end}}",
 ]
-resume-session = [
-  "claude", "--permission-mode", "auto", "--continue",
-  "{{with .Model}}--model={{.}}{{end}}",
-  "{{with .Effort}}--effort={{.}}{{end}}",
-]
+start-session = ["claude", "--permission-mode", "auto", "--name={{.Name}}"]
+resume-session = ["claude", "--resume", "{{.Session}}"]
 
 [open]
 shell = ["{{.Shell}}"]

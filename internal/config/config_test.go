@@ -148,7 +148,7 @@ func TestConfiguredBranchesMatch(t *testing.T) {
 // Config still names something to run.
 func TestDefaultAgentCommands(t *testing.T) {
 	var a Agent
-	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7"}
+	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7", Session: "s1"}
 
 	tests := []struct {
 		name        string
@@ -163,9 +163,15 @@ func TestDefaultAgentCommands(t *testing.T) {
 			[]string{"claude", "--name=PR #7"},
 			[]string{"claude", "--name=PR #7", "--model=opus", "--effort=high"},
 		},
+		// Neither of the session pair places a model or an effort, so --model and
+		// --effort reach neither.
+		{"start-session", a.StartSession,
+			[]string{"claude", "--permission-mode", "auto", "--name=bd-42"},
+			[]string{"claude", "--permission-mode", "auto", "--name=bd-42"},
+		},
 		{"resume-session", a.ResumeSession,
-			[]string{"claude", "--permission-mode", "auto", "--continue"},
-			[]string{"claude", "--permission-mode", "auto", "--continue", "--model=opus", "--effort=high"},
+			[]string{"claude", "--resume", "s1"},
+			[]string{"claude", "--resume", "s1"},
 		},
 	}
 	for _, tt := range tests {
@@ -351,9 +357,9 @@ func TestLoadRefusals(t *testing.T) {
 		{"a template that does not parse", "[agent]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
 		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
 		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
+		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Branch}}\"]\n", resumeSessionKey},
 		// Only the arm a target with a model reaches names it.
-		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
+		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
 		// Each of the three carries its own value alone, so none can place another's.
 		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
 		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},

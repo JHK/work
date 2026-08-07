@@ -18,6 +18,7 @@ import (
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
+	"github.com/JHK/work-cli/internal/sessions"
 )
 
 // Kind distinguishes the namespaces an identifier can land in.
@@ -38,13 +39,16 @@ type Target struct {
 	Name string // what a row shows and the user retypes: the bead id, pr-<n>, or the branch
 }
 
-// Env holds the repository work operates on and the settings it reads.
+// Env holds the repository work operates on, the settings it reads, and the
+// agent it asks what a worktree already carries.
 type Env struct {
-	Repo   string
-	Config config.Config
+	Repo          string
+	Config        config.Config
+	Conversations sessions.Conversations
 }
 
-// Open finds the repository containing dir and reads its settings.
+// Open finds the repository containing dir, reads its settings, and names the
+// agent behind them.
 func Open(dir string) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
@@ -54,7 +58,7 @@ func Open(dir string) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Config: cfg}, nil
+	return Env{Repo: repo, Config: cfg, Conversations: sessions.Claude{}}, nil
 }
 
 // State is everything knowable about a target on entry, less what an existing

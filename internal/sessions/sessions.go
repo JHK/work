@@ -1,6 +1,7 @@
-// Package sessions reads the Claude Code session history a worktree carries. It
-// rests entirely on undocumented internals: the path-mangling scheme behind
-// [bucket], and the event types inside the JSONL transcripts.
+// Package sessions defines what work asks an agent about a worktree, and
+// answers it for Claude Code. [Claude] rests entirely on undocumented
+// internals: the path-mangling scheme behind [bucket], and the event types
+// inside the JSONL transcripts.
 package sessions
 
 import (
@@ -22,6 +23,14 @@ type Session struct {
 	ID       string
 	Title    string
 	Modified time.Time
+}
+
+// Conversations is what work needs of an agent beyond a command to run: which
+// conversations a worktree carries, newest first. Only what the agent would
+// return to counts, so an implementation leaves out whatever its own picker
+// hides.
+type Conversations interface {
+	List(dir string) ([]Session, error)
 }
 
 // Claude reads the transcripts Claude Code writes under Home.
@@ -59,9 +68,13 @@ func (c Claude) List(dir string) ([]Session, error) {
 		if err != nil {
 			continue
 		}
+		title, listed := transcript(filepath.Join(b, e.Name()), info.Size())
+		if !listed {
+			continue
+		}
 		out = append(out, Session{
 			ID:       strings.TrimSuffix(e.Name(), ".jsonl"),
-			Title:    title(filepath.Join(b, e.Name())),
+			Title:    title,
 			Modified: info.ModTime(),
 		})
 	}
@@ -119,6 +132,7 @@ type event struct {
 	CustomTitle string `json:"customTitle"`
 	AITitle     string `json:"aiTitle"`
 	LastPrompt  string `json:"lastPrompt"`
+	Entrypoint  string `json:"entrypoint"`
 }
 
 // tailLen is how much of a transcript's end is worth reading. Title events are
@@ -126,39 +140,71 @@ type event struct {
 // the end while the bulk of the file is message bodies.
 const tailLen = 256 << 10
 
-// title picks the best name a transcript offers. A name from `claude --name` or
-// /name is deliberate, so it outranks the model's own title; a bare prompt is
-// the last resort.
-func title(path string) string {
+// transcript reads a file's title and whether it is a conversation to return to
+// at all: one that cannot be read, or that `claude -p` wrote, is not.
+func transcript(path string, size int64) (string, bool) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "(untitled)"
+		return "", false
 	}
 	defer func() { _ = f.Close() }()
 
-	var size int64
-	if info, err := f.Stat(); err == nil {
-		size = info.Size()
+	if printMode(io.NewSectionReader(f, 0, headLen)) {
+		return "", false
 	}
-	if t := titleIn(tail(f, size)); t != "" {
+	return title(f, size), true
+}
+
+// printEntrypoint marks a transcript `claude -p` wrote. The picker does not
+// offer one, so a worktree carrying nothing else carries nothing.
+const printEntrypoint = "sdk-cli"
+
+// headLen is how much of a transcript's start is worth reading. Every message
+// event carries the entrypoint, and the metadata ahead of the first one runs to
+// a few kilobytes.
+const headLen = 64 << 10
+
+// printMode reports whether the transcript came from print mode, which is the
+// entrypoint its events name.
+func printMode(r io.Reader) bool {
+	for line := range lines(r) {
+		// A message body may quote the key, so the parsed value decides, not the text.
+		if !strings.Contains(line, `"entrypoint"`) {
+			continue
+		}
+		var e event
+		if json.Unmarshal([]byte(line), &e) != nil || e.Entrypoint == "" {
+			continue
+		}
+		return e.Entrypoint == printEntrypoint
+	}
+	return false
+}
+
+// title picks the best name a transcript offers. A name from `claude --name` or
+// /name is deliberate, so it outranks the model's own title; a bare prompt is
+// the last resort.
+func title(r io.ReaderAt, size int64) string {
+	if t := titleIn(tail(r, size)); t != "" {
 		return t
 	}
 	// Nothing in the tail: either the transcript is untitled, or one line spans
 	// the whole window.
 	if size > tailLen {
-		if t := titleIn(io.NewSectionReader(f, 0, size)); t != "" {
+		if t := titleIn(io.NewSectionReader(r, 0, size)); t != "" {
 			return t
 		}
 	}
 	return "(untitled)"
 }
 
-// tail reads f from the line boundary nearest the last tailLen bytes.
-func tail(f *os.File, size int64) io.Reader {
+// tail reads from the line boundary nearest the last tailLen bytes. Every read
+// is positioned, so no other reader of the same file has to care about order.
+func tail(r io.ReaderAt, size int64) io.Reader {
 	if size <= tailLen {
-		return f
+		return io.NewSectionReader(r, 0, size)
 	}
-	br := bufio.NewReader(io.NewSectionReader(f, size-tailLen, tailLen))
+	br := bufio.NewReader(io.NewSectionReader(r, size-tailLen, tailLen))
 	if _, err := br.ReadString('\n'); err != nil {
 		// The window opened mid-line and never closed it.
 		return strings.NewReader("")

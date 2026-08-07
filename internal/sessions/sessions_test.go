@@ -94,6 +94,32 @@ func TestListSkipsOversizedLines(t *testing.T) {
 	}
 }
 
+// claude -p writes a transcript like any other, and neither --continue nor the
+// picker offers one, so a worktree holding nothing else holds no conversation.
+func TestListHidesPrintMode(t *testing.T) {
+	home := t.TempDir()
+	dir := "/w/t"
+
+	write(t, home, dir, "printed", []string{
+		`{"type":"system","entrypoint":"sdk-cli"}`,
+		`{"type":"last-prompt","lastPrompt":"summarise this"}`,
+	}, time.Unix(200, 0))
+
+	// The key inside a message body is text, not this transcript's entrypoint.
+	write(t, home, dir, "interactive", []string{
+		`{"type":"user","entrypoint":"cli","message":"what is \"entrypoint\":\"sdk-cli\"?"}`,
+		`{"type":"ai-title","aiTitle":"a real conversation"}`,
+	}, time.Unix(100, 0))
+
+	got, err := Claude{Home: home}.List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "interactive" {
+		t.Errorf("List() = %+v, want the interactive transcript alone", got)
+	}
+}
+
 func write(t *testing.T, home, dir, id string, lines []string, mod time.Time) {
 	t.Helper()
 	b := bucket(home, dir)

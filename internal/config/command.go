@@ -8,34 +8,37 @@ import (
 	"strings"
 )
 
-// Agent is what a worktree is handed over to. The three keys are one table
+// Agent is what a worktree is handed over to. The four keys are one table
 // because they have to agree: the agent that starts a conversation is the one
 // that returns to it.
 type Agent struct {
 	StartTicketCommand      Command `toml:"start-ticket"`
 	StartPullRequestCommand Command `toml:"start-pull-request"`
+	StartSessionCommand     Command `toml:"start-session"`
 	ResumeSessionCommand    Command `toml:"resume-session"`
 }
 
 const (
 	startTicketKey      = "agent.start-ticket"
 	startPullRequestKey = "agent.start-pull-request"
+	startSessionKey     = "agent.start-session"
 	resumeSessionKey    = "agent.resume-session"
 )
 
 // Launch is everything a command may be rendered with. Which of these a key
 // actually has is its launchValues; a template naming any other is refused.
 type Launch struct {
-	Name   string // what the target is retyped as
-	Dir    string // the worktree, which the process has already changed into
-	Model  string // what --model was given, empty when it was not
-	Effort string // what --effort was given, empty when it was not
-	ID     string // the ticket id
-	Title  string // the ticket title
-	Number string // the pull request number
-	Shell  string // $SHELL, or /bin/sh
-	Editor string // $VISUAL, else $EDITOR
-	Base   string // the commit the worktree's branch forked from
+	Name    string // what the target is retyped as
+	Dir     string // the worktree, which the process has already changed into
+	Model   string // what --model was given, empty when it was not
+	Effort  string // what --effort was given, empty when it was not
+	ID      string // the ticket id
+	Title   string // the ticket title
+	Number  string // the pull request number
+	Session string // the one conversation the worktree carries, empty where it carries several
+	Shell   string // $SHELL, or /bin/sh
+	Editor  string // $VISUAL, else $EDITOR
+	Base    string // the commit the worktree's branch forked from
 }
 
 // StartTicket is the command a fresh ticket worktree opens on. An unset command
@@ -50,9 +53,14 @@ func (a Agent) StartPullRequest(l Launch) ([]string, error) {
 	return a.StartPullRequestCommand.or(defaultAgent.StartPullRequestCommand).render(l)
 }
 
+// StartSession is the command a worktree that carries no conversation opens on.
+func (a Agent) StartSession(l Launch) ([]string, error) {
+	return a.StartSessionCommand.or(defaultAgent.StartSessionCommand).render(l)
+}
+
 // ResumeSession is the command that returns to the conversation a worktree
-// carries. It names no session: one is filed by the directory it ran in, so the
-// agent continues the conversation of the worktree it is run in.
+// carries. An empty .Session drops the element that placed it, so the one
+// conversation is returned to outright and several reach the agent's own list.
 func (a Agent) ResumeSession(l Launch) ([]string, error) {
 	return a.ResumeSessionCommand.or(defaultAgent.ResumeSessionCommand).render(l)
 }
@@ -65,6 +73,9 @@ func (a *Agent) validate() (string, error) {
 	}
 	if err := a.StartPullRequestCommand.bind(startPullRequestValues); err != nil {
 		return startPullRequestKey, err
+	}
+	if err := a.StartSessionCommand.bind(startSessionValues); err != nil {
+		return startSessionKey, err
 	}
 	if err := a.ResumeSessionCommand.bind(resumeSessionValues); err != nil {
 		return resumeSessionKey, err
@@ -88,10 +99,16 @@ var defaultAgent = Agent{
 		"{{with .Model}}--model={{.}}{{end}}",
 		"{{with .Effort}}--effort={{.}}{{end}}",
 	),
+	// Named after the worktree, so a conversation started here is that worktree in
+	// every later list. Neither of the two session commands places a model or an
+	// effort: a resumed conversation brings its own model back, and a fresh one
+	// takes the agent's default.
+	StartSessionCommand: mustCommand(startSessionValues,
+		"claude", "--permission-mode", "auto", "--name={{.Name}}",
+	),
+	// No --permission-mode: claude ignores it alongside --resume.
 	ResumeSessionCommand: mustCommand(resumeSessionValues,
-		"claude", "--permission-mode", "auto", "--continue",
-		"{{with .Model}}--model={{.}}{{end}}",
-		"{{with .Effort}}--effort={{.}}{{end}}",
+		"claude", "--resume", "{{.Session}}",
 	),
 }
 
@@ -171,7 +188,8 @@ var common = []string{"Name", "Dir", "Model", "Effort"}
 var (
 	startTicketValues      = launchValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
 	startPullRequestValues = launchValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
-	resumeSessionValues    = launchValues{resumeSessionKey, common}
+	startSessionValues     = launchValues{startSessionKey, common}
+	resumeSessionValues    = launchValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
 	shellValues            = launchValues{shellKey, slices.Concat(common, []string{"Shell"})}
 	editorValues           = launchValues{editorKey, slices.Concat(common, []string{"Editor"})}
 	diffValues             = launchValues{diffKey, slices.Concat(common, []string{"Base"})}
@@ -182,7 +200,7 @@ var (
 func (v launchValues) data(l Launch) map[string]any {
 	data := map[string]any{
 		"Name": l.Name, "Dir": l.Dir, "Model": l.Model, "Effort": l.Effort,
-		"ID": l.ID, "Title": l.Title, "Number": l.Number,
+		"ID": l.ID, "Title": l.Title, "Number": l.Number, "Session": l.Session,
 		"Shell": l.Shell, "Editor": l.Editor, "Base": l.Base,
 	}
 	// Dropping rather than picking: a name here that Launch has no field for leaves
@@ -206,7 +224,7 @@ func (v launchValues) list() string {
 // the arms an empty one would skip.
 var filledLaunch = Launch{
 	Name: "x", Dir: "x", Model: "x", Effort: "x", ID: "x", Title: "x", Number: "x",
-	Shell: "x", Editor: "x", Base: "x",
+	Session: "x", Shell: "x", Editor: "x", Base: "x",
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as

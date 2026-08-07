@@ -19,6 +19,7 @@ import (
 var errCancelled = errors.New("cancelled")
 
 type options struct {
+	agent   bool
 	shell   bool
 	editor  bool
 	diff    bool
@@ -59,8 +60,13 @@ and its open pull requests. That form needs fzf.
 
 Entering a worktree that already exists runs open.shell in it, your shell by
 default. A target without one has its worktree created and the configured
-launcher invoked in it. --shell, --editor and --diff name the command to open
-on instead.
+launcher invoked in it. --agent, --shell, --editor and --diff name the command
+to open on instead.
+
+--agent hands the worktree to its agent. It changes nothing for one just
+created, which opens on the launcher regardless; an existing one is handed over
+by what it carries, no conversation starting one, a single one being returned
+to, and several reaching the agent's own list.
 
 Creating a worktree for a ticket vets that ticket and claims it, whatever the
 worktree then opens on. A ticket the vetting refuses is refused outright;
@@ -87,13 +93,14 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 	cmd.AddCommand(initCommand())
 
 	f := cmd.Flags()
+	f.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent; an existing one starts, resumes or lists by what it carries")
 	f.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
 	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
-	cmd.MarkFlagsMutuallyExclusive("shell", "editor", "diff")
+	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff")
 
 	// The agent behind --model is about to be configurable, so a fixed list would
 	// rot. Registration fails only on a flag this function did not just declare.

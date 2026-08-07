@@ -9,6 +9,7 @@ import (
 
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/git"
+	"github.com/JHK/work-cli/internal/sessions"
 )
 
 // Handoff is the last thing work does: replace itself with a command running
@@ -72,10 +73,27 @@ func (e Env) Launch(s State, o Options) ([]string, error) {
 	return e.Config.Agent.StartTicket(l)
 }
 
-// Resume renders the command that returns to the conversation the worktree
-// carries, whatever kind of target it holds.
-func (e Env) Resume(s State, o Options) ([]string, error) {
-	return e.Config.Agent.ResumeSession(values(s, o))
+// Agent renders the command an existing worktree is handed to, which what it
+// already carries decides: no conversation starts one, a single one is returned
+// to, and several reach the agent's own list.
+func (e Env) Agent(s State, o Options) ([]string, error) {
+	// Unset is claude, as an unset command is the compiled-in one.
+	agent := e.Conversations
+	if agent == nil {
+		agent = sessions.Claude{}
+	}
+	list, err := agent.List(s.Path)
+	if err != nil {
+		return nil, err
+	}
+	l := values(s, o)
+	if len(list) == 0 {
+		return e.Config.Agent.StartSession(l)
+	}
+	if len(list) == 1 {
+		l.Session = list[0].ID
+	}
+	return e.Config.Agent.ResumeSession(l)
 }
 
 // values are what every command renders with, whatever it is for. The
