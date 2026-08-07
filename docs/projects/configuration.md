@@ -10,12 +10,7 @@ This settles the keys, whose file each belongs in, and how a value reaches the c
 
 ## Current state
 
-`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `[worktree]` and `[branch]` wired to it. Every command is still a Go constant.
-
-| Choice | Where it is fixed |
-|---|---|
-| the agent argv, fresh and resumed | `Launch.Argv` in `internal/work/handoff.go` |
-| the shell an existing worktree is entered with | `Shell` in `internal/work/handoff.go` |
+`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `[worktree]`, `[branch]` and `[agent]` wired to it. `[open]` is not: the shell an existing worktree is entered with is `Shell` in `internal/work/handoff.go`, and nothing offers an editor yet.
 
 ## The surface
 

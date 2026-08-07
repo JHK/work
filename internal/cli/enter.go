@@ -16,12 +16,13 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	e, err := entry(env, target, work.Options{Shell: o.shell, Model: o.model, Effort: o.effort})
+	opts := work.Options{Shell: o.shell, Model: o.model, Effort: o.effort}
+	e, err := entry(env, target, opts)
 	if err != nil {
 		return err
 	}
 	if !e.Launched {
-		report(e.State)
+		report(env, e.State, opts)
 	}
 	return e.Handoff.Exec()
 }
@@ -43,23 +44,26 @@ func entry(env work.Env, target string, o work.Options) (work.Entry, error) {
 	return env.Enter(t, o)
 }
 
-// report surfaces what the worktree already carries, so the shell you land in
-// starts with its sessions one paste away.
-func report(s work.State) {
+// report names what the worktree already carries, so the shell you land in
+// starts with its conversations one paste away. Returning to one is a single
+// line: the agent is run in the worktree, and picks the conversation up from
+// there.
+func report(env work.Env, s work.State, o work.Options) {
 	if s.SessionsErr != nil {
 		fmt.Fprintln(os.Stderr, "work: could not read session history:", s.SessionsErr)
 		return
 	}
 	if len(s.Sessions) == 0 {
-		fmt.Println("No prior Claude sessions here. Start one with:", commandLine(work.Launch{}))
+		fmt.Println("No prior Claude sessions here.")
 		return
 	}
 	for _, sess := range s.Sessions {
-		fmt.Printf("  %s\n    %s\n", sess.Title, commandLine(work.Launch{Resume: sess.ID}))
+		fmt.Println(" ", sess.Title)
 	}
-}
-
-// commandLine renders a launch as the line the user would type.
-func commandLine(l work.Launch) string {
-	return strings.Join(l.Argv(), " ")
+	resume, err := env.Resume(s, o)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "work:", err)
+		return
+	}
+	fmt.Println("Return to the most recent with:", strings.Join(resume, " "))
 }

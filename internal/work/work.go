@@ -337,11 +337,3 @@ func vetBead(b beads.Bead, ready bool) string {
 	}
 	return ""
 }
-
-// Title names the target for a session and for display.
-func (s State) Title() string {
-	if s.Target.Kind == KindPR {
-		return "PR #" + s.Target.ID
-	}
-	return s.Bead.Title
-}

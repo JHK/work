@@ -26,14 +26,14 @@ One tool answering costs nothing of the other, and an adapter that will not answ
 
 ## What each invocation does
 
-A target's worktree is the one checked out on its branch, wherever git reports it. That branch is `pr-<n>` for a pull request, and for a bead the id alone or ahead of a title slug ([configurable](configuration.md)). Only a new worktree needs a directory chosen for it, and the configuration decides which.
+A target's worktree is the one checked out on its [branch](configuration.md), wherever git reports it. Only a new worktree needs a directory chosen for it.
 
-Creating a worktree is the moment work on that target begins, so it also claims the bead and invokes the launcher. Entering a worktree that already exists hands over `$SHELL` and prints its session history, whatever the invocation. Provisioning is idempotent, so every form below re-enters an open worktree that way.
+Creating a worktree is the moment work on that target begins, so it also claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Entering one that already exists hands over `$SHELL`, names the conversations it carries and prints the line that returns to them. Provisioning is idempotent, so every form below re-enters an open worktree that way.
 
 | Invocation | On a target with no worktree |
 |---|---|
-| `work <id>` | vet, create, claim, and launch `claude` on `/start <id>` |
-| `work <pr>` | create, and launch `claude` on `/code-review <pr>` |
+| `work <id>` | vet, create, claim, and launch |
+| `work <pr>` | create, and launch |
 | `work <id> --shell` | create only; the bead is left as it is |
 | `work` | as for the target picked |
 
@@ -41,12 +41,12 @@ Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a defe
 
 ## Flags
 
-`--model` and `--effort` are accepted on every invocation and reach the launcher as `claude --model <m> --effort <e>`. Where nothing is launched, on `--shell` and on re-entry, they are dropped without a word.
+`--model` and `--effort` are accepted on every invocation and are passed to the [command](configuration.md#commands) that is launched. One placing neither drops both without a word, as `--shell` does.
 
 `--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
 
 ## Handoff
 
-`work` changes into the worktree and replaces itself with the launcher, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.
+`work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed picker exits 1 silently.
 
-The launcher command is built in `internal/work/handoff.go`, and the same builder renders the resume lines printed on entry.
+Which command each path runs is `internal/work/handoff.go`.

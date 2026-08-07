@@ -62,10 +62,16 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	}
 
 	entry := Entry{State: s, Launched: launching, Handoff: Handoff{Dir: s.Path}}
-	if launching {
-		entry.Handoff.Run = s.SessionLaunch(o.Model, o.Effort).Argv()
-	} else {
+	if !launching {
 		entry.Handoff.Run = Shell()
+		return entry, nil
 	}
+	// Past the provisioning and the claim, so a command that will not render leaves
+	// the worktree made and the ticket claimed, as one that will not start does.
+	run, err := e.Launch(s, o)
+	if err != nil {
+		return Entry{}, err
+	}
+	entry.Handoff.Run = run
 	return entry, nil
 }

@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"text/template"
 )
 
 // Branch is how a target's branch is named, one pattern per kind of target.
@@ -49,7 +48,7 @@ func (b Branch) pullRequest() Pattern { return b.PullRequestPattern.or(defaults.
 // filled in and the rest wildcarded, it says whether that branch is that
 // target's.
 type Pattern struct {
-	tmpl *template.Template
+	tmpl tmpl
 
 	// What the pattern matches as: one alternative per state of the optional
 	// value, every literal already quoted and the identifier left as a mark, the
@@ -103,11 +102,11 @@ func parsePattern(text string) (Pattern, error) {
 	if strings.ContainsAny(text, idMark+anyMark) {
 		return Pattern{}, errors.New("carries a control byte")
 	}
-	tmpl, err := template.New("branch").Option("missingkey=error").Parse(text)
+	t, err := parseTmpl("branch", text)
 	if err != nil {
 		return Pattern{}, err
 	}
-	return Pattern{tmpl: tmpl}, nil
+	return Pattern{tmpl: t}, nil
 }
 
 // bind ties the pattern to the values its key renders with and settles what it
@@ -123,7 +122,7 @@ func (p *Pattern) bind(v values) error {
 
 	var alts []string
 	for _, optional := range states {
-		arm, err := p.execute(v.with(idMark, optional))
+		arm, err := p.tmpl.execute(v.with(idMark, optional))
 		if err != nil {
 			return fmt.Errorf("%w; the values here are %s", err, v.list)
 		}
@@ -156,7 +155,7 @@ func (p *Pattern) bind(v values) error {
 
 // or is the pattern itself, or def where no file named one.
 func (p Pattern) or(def Pattern) Pattern {
-	if p.tmpl == nil {
+	if p.tmpl.t == nil {
 		return def
 	}
 	return p
@@ -165,17 +164,11 @@ func (p Pattern) or(def Pattern) Pattern {
 // render names one branch. bind refused every pattern that could fail to render
 // for the values named here.
 func (p Pattern) render(data map[string]any) string {
-	branch, err := p.execute(data)
+	branch, err := p.tmpl.execute(data)
 	if err != nil {
 		return ""
 	}
 	return branch
-}
-
-func (p Pattern) execute(data map[string]any) (string, error) {
-	var b strings.Builder
-	err := p.tmpl.Execute(&b, data)
-	return b.String(), err
 }
 
 // owns reports whether a branch is one this pattern names for id.

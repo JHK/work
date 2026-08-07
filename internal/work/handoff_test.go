@@ -69,63 +69,62 @@ func TestShell(t *testing.T) {
 	}
 }
 
-func TestSessionLaunch(t *testing.T) {
+// The compiled-in defaults are what work launched before any of this was a
+// setting, less the review prompt a pull request used to get.
+func TestLaunch(t *testing.T) {
 	var e Env
 	bead, _ := e.Resolve("bd-1")
 	pr, _ := e.Resolve("7")
 	tests := []struct {
 		name  string
 		state State
-		want  Launch
+		opts  Options
+		want  []string
 	}{
 		{
-			"a bead opens on the skill that works it",
+			"a ticket opens on the skill that works it",
 			State{Target: bead, Bead: beads.Bead{Title: "a title"}},
-			Launch{Name: "bd-1: a title", Prompt: "/start bd-1", Model: "opus", Effort: "high"},
+			Options{},
+			[]string{"claude", "--permission-mode", "auto", "--name=bd-1: a title", "/start bd-1"},
 		},
 		{
-			"a pull request opens on a review",
+			"a pull request opens on a bare named session",
 			State{Target: pr},
-			Launch{Name: "PR #7", Prompt: "/code-review 7", Model: "opus", Effort: "high"},
+			Options{},
+			[]string{"claude", "--name=PR #7"},
+		},
+		{
+			"model and effort are placed where the template names them",
+			State{Target: pr},
+			Options{Model: "opus", Effort: "high"},
+			[]string{"claude", "--name=PR #7", "--model=opus", "--effort=high"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.state.SessionLaunch("opus", "high"); got != tt.want {
-				t.Errorf("SessionLaunch() = %+v, want %+v", got, tt.want)
+			got, err := e.Launch(tt.state, tt.opts)
+			if err != nil {
+				t.Fatalf("Launch: %v", err)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Launch() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestLaunchArgv(t *testing.T) {
-	tests := []struct {
-		name   string
-		launch Launch
-		want   []string
-	}{
-		{
-			"fresh session",
-			Launch{Name: "bd-1: a title", Prompt: "/start bd-1"},
-			[]string{"claude", "--permission-mode", "auto", "--name", "bd-1: a title", "/start bd-1"},
-		},
-		{
-			"model and effort",
-			Launch{Prompt: "/start bd-1", Model: "opus", Effort: "high"},
-			[]string{"claude", "--permission-mode", "auto", "--model", "opus", "--effort", "high", "/start bd-1"},
-		},
-		{
-			"a resumed session takes no name",
-			Launch{Resume: "abc", Name: "ignored"},
-			[]string{"claude", "--permission-mode", "auto", "--resume", "abc"},
-		},
+// Returning to a conversation names no session: the agent is run in the
+// worktree, and a session is filed by the directory it ran in.
+func TestResume(t *testing.T) {
+	var e Env
+	bead, _ := e.Resolve("bd-1")
+
+	got, err := e.Resume(State{Target: bead}, Options{})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.launch.Argv()
-			if !slices.Equal(got, tt.want) {
-				t.Errorf("Argv() = %q, want %q", got, tt.want)
-			}
-		})
+	want := []string{"claude", "--permission-mode", "auto", "--continue"}
+	if !slices.Equal(got, want) {
+		t.Errorf("Resume() = %q, want %q", got, want)
 	}
 }

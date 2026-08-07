@@ -144,6 +144,126 @@ func TestConfiguredBranchesMatch(t *testing.T) {
 	}
 }
 
+// A zero Agent is the compiled-in commands, so an Env built without a loaded
+// Config still names something to run.
+func TestDefaultAgentCommands(t *testing.T) {
+	var a Agent
+	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7"}
+
+	tests := []struct {
+		name        string
+		got         func(Launch) ([]string, error)
+		want, tuned []string
+	}{
+		{"start-ticket", a.StartTicket,
+			[]string{"claude", "--permission-mode", "auto", "--name=bd-42: Port work to Go", "/start bd-42"},
+			[]string{"claude", "--permission-mode", "auto", "--name=bd-42: Port work to Go", "--model=opus", "--effort=high", "/start bd-42"},
+		},
+		{"start-pull-request", a.StartPullRequest,
+			[]string{"claude", "--name=PR #7"},
+			[]string{"claude", "--name=PR #7", "--model=opus", "--effort=high"},
+		},
+		{"resume-session", a.ResumeSession,
+			[]string{"claude", "--permission-mode", "auto", "--continue"},
+			[]string{"claude", "--permission-mode", "auto", "--continue", "--model=opus", "--effort=high"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Unset, so the optional flags are dropped rather than passed on empty.
+			got, err := tt.got(l)
+			if err != nil {
+				t.Fatalf("%s: %v", tt.name, err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("%s = %q, want %q", tt.name, got, tt.want)
+			}
+
+			got, err = tt.got(withModel(l))
+			if err != nil {
+				t.Fatalf("%s: %v", tt.name, err)
+			}
+			if !reflect.DeepEqual(got, tt.tuned) {
+				t.Errorf("%s with a model = %q, want %q", tt.name, got, tt.tuned)
+			}
+		})
+	}
+}
+
+// A command is the user's, whatever it launches, and nothing requires it to be
+// an agent: one naming no session value at all is a plain command line.
+func TestConfiguredAgentCommands(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	write(t, filepath.Join(home, userRelPath), `[agent]
+start-ticket = ["agent", "--session={{.Name}} in {{.Dir}}", "{{with .Model}}-m{{.}}{{end}}", "work {{.ID}}"]
+start-pull-request = ["make", "review"]
+resume-session = ["agent", "--continue"]
+`)
+
+	c, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7"}
+
+	got, err := c.Agent.StartTicket(l)
+	if err != nil {
+		t.Fatalf("StartTicket: %v", err)
+	}
+	if want := []string{"agent", "--session=bd-42 in /w", "work bd-42"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("StartTicket() = %q, want %q", got, want)
+	}
+
+	got, err = c.Agent.StartPullRequest(l)
+	if err != nil {
+		t.Fatalf("StartPullRequest: %v", err)
+	}
+	if want := []string{"make", "review"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("StartPullRequest() = %q, want %q", got, want)
+	}
+}
+
+// A first element rendering to nothing leaves no command, which only a render
+// can find out: the value it needed is one the invocation carries.
+func TestAgentCommandRendersNothing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	write(t, filepath.Join(home, userRelPath), "[agent]\nresume-session = [\"{{.Model}}\", \"--continue\"]\n")
+
+	c, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, err := c.Agent.ResumeSession(withModel(Launch{})); err != nil {
+		t.Fatalf("ResumeSession with a model: %v", err)
+	} else if got[0] != "opus" {
+		t.Errorf("ResumeSession() = %q, want the model as the command", got)
+	}
+
+	_, err = c.Agent.ResumeSession(Launch{})
+	if err == nil || !strings.Contains(err.Error(), resumeSessionKey) {
+		t.Errorf("ResumeSession() with no model = %v, want it to name %q", err, resumeSessionKey)
+	}
+}
+
+// Cloning a repository does not decide what runs on the machine that cloned it.
+func TestLoadRefusesACommandFromTheRepository(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	write(t, filepath.Join(repo, repoFile), "[agent]\nstart-ticket = [\"curl\"]\n")
+
+	_, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "[agent]") {
+		t.Errorf("Load() = %v, want [agent] refused in %s", err, repoFile)
+	}
+}
+
+func withModel(l Launch) Launch {
+	l.Model, l.Effort = "opus", "high"
+	return l
+}
+
 // An unset Directory is the default, so an Env built without a loaded Config
 // still puts a worktree where one belongs rather than in the repository root.
 func TestZeroWorktreeIsTheDefault(t *testing.T) {
@@ -181,6 +301,37 @@ func TestLoadRefusals(t *testing.T) {
 			repo := t.TempDir()
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			write(t, filepath.Join(repo, repoFile), tt.body)
+
+			_, err := Load(repo)
+			if err == nil {
+				t.Fatalf("Load(%q) = no error, want one", tt.body)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("Load(%q) = %v, want it to name %q", tt.body, err, tt.want)
+			}
+		})
+	}
+}
+
+// The commands are the user's, so what they are refused for is judged in the
+// user's file.
+func TestLoadRefusesAgentCommands(t *testing.T) {
+	tests := []struct{ name, body, want string }{
+		{"an unknown key", "[agent]\nstart = [\"claude\"]\n", "unknown setting"},
+		{"a command that is not a list", "[agent]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
+		{"a list of something other than strings", "[agent]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
+		{"a template that does not parse", "[agent]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
+		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
+		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
+		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Session}}\"]\n", resumeSessionKey},
+		// Only the arm a target with a model reaches names it.
+		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Model}}{{$.Session}}{{end}}\"]\n", resumeSessionKey},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, home := t.TempDir(), t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", home)
+			write(t, filepath.Join(home, userRelPath), tt.body)
 
 			_, err := Load(repo)
 			if err == nil {

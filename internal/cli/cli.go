@@ -46,9 +46,10 @@ to what the one you pick opens on: your shell, or a command.
 With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
-Entering a worktree that already exists opens a shell in it and prints the lines
-that resume the sessions it carries. A target without one has its worktree
-created, its ticket claimed, and the launcher invoked in it.`,
+Entering a worktree that already exists opens a shell in it, naming the
+conversations it carries, with one line to return to them. A target without one
+has its worktree created, its ticket claimed, and the configured launcher
+invoked in it.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.

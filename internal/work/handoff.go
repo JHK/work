@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+
+	"github.com/JHK/work-cli/internal/config"
 )
 
 // Handoff is the last thing work does: replace itself with a command running
@@ -37,46 +39,25 @@ func Shell() []string {
 	return []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")}
 }
 
-// Launch describes the session to hand off to.
-type Launch struct {
-	Resume string // session id to resume; empty starts a fresh session
-	Name   string // session name, for a fresh session
-	Prompt string
-	Model  string
-	Effort string
+// Launch renders the command a fresh worktree opens on, which the target's kind
+// chooses between.
+func (e Env) Launch(s State, o Options) ([]string, error) {
+	l := values(s, o)
+	if s.Target.Kind == KindPR {
+		l.Number = s.Target.ID
+		return e.Config.Agent.StartPullRequest(l)
+	}
+	l.ID, l.Title = s.Target.ID, s.Bead.Title
+	return e.Config.Agent.StartTicket(l)
 }
 
-// SessionLaunch is the session a fresh worktree opens with: named for the
-// target, opened on the skill that works it.
-func (s State) SessionLaunch(model, effort string) Launch {
-	l := Launch{Model: model, Effort: effort}
-	switch s.Target.Kind {
-	case KindPR:
-		l.Name = s.Title()
-		l.Prompt = "/code-review " + s.Target.ID
-	default:
-		l.Name = s.Target.ID + ": " + s.Title()
-		l.Prompt = "/start " + s.Target.ID
-	}
-	return l
+// Resume renders the command that returns to the conversation the worktree
+// carries, whatever kind of target it holds.
+func (e Env) Resume(s State, o Options) ([]string, error) {
+	return e.Config.Agent.ResumeSession(values(s, o))
 }
 
-// Argv builds the command that starts the session.
-func (l Launch) Argv() []string {
-	argv := []string{"claude", "--permission-mode", "auto"}
-	if l.Resume != "" {
-		argv = append(argv, "--resume", l.Resume)
-	} else if l.Name != "" {
-		argv = append(argv, "--name", l.Name)
-	}
-	if l.Model != "" {
-		argv = append(argv, "--model", l.Model)
-	}
-	if l.Effort != "" {
-		argv = append(argv, "--effort", l.Effort)
-	}
-	if l.Prompt != "" {
-		argv = append(argv, l.Prompt)
-	}
-	return argv
+// values are what every command renders with, whatever it is for.
+func values(s State, o Options) config.Launch {
+	return config.Launch{Name: s.Target.Name, Dir: s.Path, Model: o.Model, Effort: o.Effort}
 }

@@ -27,7 +27,7 @@ work
 
 Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
-- **With a worktree:** a shell in it, with the lines that resume the sessions it carries.
+- **With a worktree:** a shell in it, naming the conversations it carries, with one line to return to them.
 - **Without one:** the worktree is created, the ticket claimed, and the configured launcher invoked in it.
 
 ```
@@ -40,10 +40,9 @@ A worktree name, a ticket id or a pull request skips the chooser. See also [the 
 
 The tool above is the target. What ships is locked to one instance of each integration, and [a missing one](docs/references/tools.md) fails its path rather than degrading it.
 
-- **The launcher is `claude`.** There is nothing to configure: the command, its flags, the skills a fresh worktree opens on and the place session history is read from are all fixed. A new worktree that cannot start it is left created and claimed with nothing to hand over to.
 - **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a name that is not a pull request resolves nowhere without it.
 - **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
-- **The shell is fish.** It is what `work` is built and used against, and the resume lines it prints are joined for pasting there and quoted for nothing else.
+- **The shell is fish.** It is what `work` is built and used against, and the line it prints to return to a conversation is joined for pasting there and quoted for nothing else.
 - **The picker is `fzf`.** The no-argument form needs it.
 
 ## License
