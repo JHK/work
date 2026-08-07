@@ -1,6 +1,6 @@
 # Mise tasks
 
-`mise tasks` lists them and [mise.toml](../../mise.toml) defines them. What follows is where each one puts things.
+Where each task puts things. `mise tasks` lists them and [mise.toml](../../mise.toml) defines them.
 
 | Task | Result |
 |---|---|
@@ -14,12 +14,14 @@ The toolchain versions pinned in `[tools]` are what CI and a fresh checkout reso
 
 ## Version stamping
 
-`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty`, so the binary reports the checkout it came from under [`work --version`](cli.md#flags). The value is read where the task runs: building inside a worktree describes that worktree, dirty marker included.
+`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty` for [`work --version`](cli.md#flags) to report.
 
-Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails. The fallback matters: an empty version string makes cobra drop the `--version` flag entirely.
+The value is read where the task runs: building inside a worktree describes that worktree.
+
+Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails.
 
 ## Where the binary lands
 
 `install` and `uninstall` both resolve `$GOBIN`, falling back to `$GOPATH/bin`. Read the live value with `go env GOBIN`.
 
-When mise supplies the Go toolchain it also sets `GOBIN` inside that toolchain's own directory, which carries the version in its path. Raising `go` in `[tools]` therefore moves `GOBIN`, leaving the installed binary behind in the old directory and off `PATH`. Reinstall after a toolchain bump, or set `GOBIN` somewhere version-independent before installing.
+When mise supplies the Go toolchain it also sets `GOBIN` inside that toolchain's own directory, which carries the version in its path. Raising `go` in `[tools]` moves `GOBIN`, leaving the installed binary behind in the old directory and off `PATH`.

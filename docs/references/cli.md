@@ -1,6 +1,6 @@
 # Command line
 
-One command, an optional identifier and flags, and `init` for the shell integration. `work --help` sketches the forms and lists the flags; what follows is what each invocation does to the repository, which the help text does not say.
+One command, an optional identifier and flags, and `init` for the shell integration. `work --help` lists the forms and the flags.
 
 ## Identifiers
 
@@ -11,25 +11,27 @@ One command, an optional identifier and flags, and `init` for the shell integrat
 | `7`, `007` | pull request 7 |
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
-| omitted | an fzf list of the repository's worktrees, open pull requests and ready beads |
-
-Leading dashes, path separators, `.` and `..` are refused: the identifier becomes a directory of its own and an argument to `bd` and `git`. `init` and `help` are commands, so neither reaches the table at all.
+| omitted | [the picker](#what-the-picker-offers) |
 
 A pull request number is read against the current repository, whatever host the URL names.
 
+Refused: leading dashes, path separators, `.` and `..`.
+
+`init` and `help` are commands, so neither reaches the table.
+
 ## What the picker offers
 
-Every worktree git reports, less the main checkout, then the open pull requests of `origin` and the ready beads without one. Each worktree is read off its branch, and one whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`.
+`work` with no argument opens an fzf list of:
 
-A row is titled by whichever tool names that kind: `bd` a bead, `gh pr list` a pull request, drafts included. gh is pinned to origin's URL: left to resolve a checkout with several remotes it favours `upstream`, and lists pull requests whose head the fetch from origin then cannot find.
+- every worktree git reports, less the main checkout
+- the open pull requests of `origin`
+- the ready beads without a pull request
 
-One tool answering costs nothing of the other, and an adapter that will not answer costs its own rows and its own titles: the worktrees list either way, unlabeled.
+A worktree is read off its branch. One whose branch names neither a bead nor a pull request is offered under that branch and entered with `$SHELL`.
+
+`bd` titles the bead rows, `gh pr list` the pull request rows, drafts included. gh is pinned to origin's URL. A [missing tool](tools.md) costs its own rows and its own titles.
 
 ## What each invocation does
-
-A target's worktree is the one checked out on its [branch](configuration.md), wherever git reports it. Only a new worktree needs a directory chosen for it.
-
-Creating a worktree is the moment work on that target begins, so it also claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Entering one that already exists hands over `$SHELL`, names the conversations it carries and prints the line that returns to them. Provisioning is idempotent, so every form below re-enters an open worktree.
 
 | Invocation | On a target with no worktree |
 |---|---|
@@ -39,15 +41,24 @@ Creating a worktree is the moment work on that target begins, so it also claims 
 | `work <id> --editor` | vet, create, claim, and open the editor |
 | `work` | as for the target picked |
 
-Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a deferred, closed, epic, criteria-less or dependency-blocked bead is refused, and the message says which. It guards the claim, so the paths that do not claim do not vet.
+Creating a worktree claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
+
+Every form above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it; entering it hands over `$SHELL`, names the conversations it carries, and prints the line that returns to them.
+
+Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). The paths that do not claim do not vet.
 
 ## Flags
 
-`--editor` runs `<editor> <dir>` on the worktree, where the editor is `$VISUAL`, else `$EDITOR`, and names none of the conversations a shell entry names. With neither set the invocation is refused before anything is created or claimed. It is exclusive with `--shell`.
+| Flag | Effect |
+|---|---|
+| `--model`, `--effort` | passed to the launched [command](configuration.md#commands), which `--shell` and `--editor` do not launch; a command placing neither drops both silently |
+| `--shell` | [create only](#what-each-invocation-does) |
+| `--editor` | runs `<editor> <dir>` on the worktree; exclusive with `--shell` |
+| `--version` | prints and exits, touching no repository |
 
-`--model` and `--effort` are accepted on every invocation and are passed to the [command](configuration.md#commands) that is launched. One placing neither drops both without a word, as `--shell` and `--editor` do.
+The editor is `$VISUAL`, else `$EDITOR`; with neither set the invocation is refused before anything is created or claimed.
 
-`--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
+The version reported is what [stamped the binary](mise-tasks.md#version-stamping), or `dev` when nothing did.
 
 ## Shell integration
 
