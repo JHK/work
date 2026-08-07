@@ -6,7 +6,7 @@
 
 **Ticket.** A unit of work with a name, a status, and enough detail to judge whether it can be started: acceptance criteria and dependencies on other tickets. Which tracker holds it is the flow's business rather than this tool's, and so is the vocabulary. [`bd`](https://github.com/steveyegge/beads) is the instance `work` is built against, a local dependency-aware tracker whose database sits under `.beads/` and is shared by every worktree of the repository. There a ticket is a bead, and `bd ready` lists the ones whose dependencies are satisfied.
 
-**Worktree.** A second checkout of the same repository on its own branch, made with `git worktree`. One ticket gets one worktree, created under `.worktrees/` and used wherever it sits.
+**Worktree.** A second checkout of the same repository on its own branch, made with `git worktree`. One ticket gets one worktree, created under a [configured directory](../references/configuration.md) and used wherever it sits.
 
 **Session.** One conversation with a coding agent, filed by the directory it ran in, so a worktree accumulates its own history.
 

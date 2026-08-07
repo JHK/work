@@ -10,11 +10,10 @@ This settles the keys, whose file each belongs in, and how a value reaches the c
 
 ## Current state
 
-Every choice is a Go constant, and nothing reads a file.
+`internal/config` reads the [two files](../references/configuration.md) and `work.Env` carries the result, with `worktree.directory` the one key wired to it. Every other choice is a Go constant.
 
 | Choice | Where it is fixed |
 |---|---|
-| `.worktrees` | `worktreesDir` in `internal/work/work.go` |
 | a ticket's branch | `State.Branch` in `internal/work/provision.go` |
 | a pull request's branch | `prPrefix`, through `Target.Name` in `internal/work/work.go` |
 | the agent argv, fresh and resumed | `Launch.Argv` in `internal/work/handoff.go` |
@@ -64,19 +63,19 @@ These render what the constants produce, with two deliberate departures. A pull 
 
 ### Where the keys are read from
 
-Two files, because the two halves of the surface belong to different people. What a worktree is made of is the repository's, so it is checked in and everyone cloning gets it. What a worktree opens on is the person's, and follows them across repositories.
+Two files, because the two halves of the surface belong to different people. What a worktree is made of is the repository's, so it is checked in and everyone cloning gets it. What a worktree opens on is the user's, and follows them across repositories.
 
 | Layer | Location |
 |---|---|
 | the repository | `.work.toml` at the repository root, checked in |
-| the person | `$XDG_CONFIG_HOME/work/config.toml`, `~/.config/work/config.toml` when unset |
+| the user | `$XDG_CONFIG_HOME/work/config.toml`, `~/.config/work/config.toml` when unset |
 | defaults | compiled in |
 
 Highest first, merged key by key: a file that sets one key leaves the rest to the layer below it.
 
-**A repository's file may set `[worktree]` and `[branch]`, and nothing else.** Every other table names a command, and cloning a repository does not get to decide what runs on the machine that cloned it. The allowlist is by name, so a table invented later is refused until it is added; `.work.toml` naming any other table fails at load with that reason. The person's file may set any table, and where both name a key the repository's wins. The two keys a clone does decide are still checked: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
+**A repository's file may set `[worktree]` and `[branch]`, and nothing else.** Every other table names a command, and cloning a repository does not get to decide what runs on the machine that cloned it. The allowlist is by name, so a table invented later is refused until it is added; `.work.toml` naming any other table fails at load with that reason. The user's file may set any table, and where both name a key the repository's wins. The two keys a clone does decide are still checked: `worktree.directory` has to resolve inside the repository, and a rendered branch may not open with a dash, which `git` and `bd` would read as a flag.
 
-No flag is a layer, because none of them sets a key: `--model` and `--effort` are values a command may place, and `--shell` and `--editor` choose which command runs. Nor is the environment. `$SHELL`, `$VISUAL` and `$EDITOR` reach the templates as values, `XDG_CONFIG_HOME` locates the person's file, and none of them overrides a key.
+No flag is a layer, because none of them sets a key: `--model` and `--effort` are values a command may place, and `--shell` and `--editor` choose which command runs. Nor is the environment. `$SHELL`, `$VISUAL` and `$EDITOR` reach the templates as values, `XDG_CONFIG_HOME` locates the user's file, and none of them overrides a key.
 
 ### One key, one command
 

@@ -1,15 +1,20 @@
 package work
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/beads"
+	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
 )
+
+// defaultDir is where worktrees go with nothing configured.
+var defaultDir = config.Default().Worktree.Directory
 
 func TestResolve(t *testing.T) {
 	tests := []struct {
@@ -36,7 +41,7 @@ func TestResolve(t *testing.T) {
 	}
 
 	// An identifier becomes a directory name and a refspec; anything that would
-	// leave .worktrees, or that git would reject, has to be refused up front.
+	// traverse, or that git would reject, has to be refused up front.
 	for _, arg := range []string{"", "..", "../../etc", "a/b", "/", ".", "-5", "--yes", "docs/pull/99-notes.md"} {
 		if got, err := Resolve(arg); err == nil {
 			t.Errorf("Resolve(%q) = %+v, want an error", arg, got)
@@ -117,14 +122,15 @@ func TestMatches(t *testing.T) {
 	}
 }
 
-// Discovery is what git reports, so a worktree outside .worktrees is offered
-// and entered where it is, and the bead it holds is not offered as fresh.
+// Discovery is what git reports, so a worktree outside the configured directory
+// is offered and entered where it is, and the bead it holds is not offered as
+// fresh.
 func TestWorktreeDiscovery(t *testing.T) {
 	repo := initRepo(t)
 	outside := filepath.Join(t.TempDir(), "elsewhere-wt")
 	gitCmd(t, repo, "worktree", "add", "-b", "one-oxc-outside", outside)
 
-	e := Env{Repo: repo}
+	e := Env{Repo: repo, Config: config.Default()}
 	// The main checkout is git's first entry and never a place to work.
 	list, err := git.Linked(repo)
 	if err != nil {
@@ -143,11 +149,40 @@ func TestWorktreeDiscovery(t *testing.T) {
 		t.Errorf("Inspect(one-oxc) = exists %v at %q, want the worktree at %q", s.Exists, s.Path, outside)
 	}
 
-	// A target with no worktree is created under .worktrees, whatever the ones
-	// already open do.
+	// A target with no worktree is created under the configured directory,
+	// whatever the ones already open do.
 	fresh := e.Inspect(Target{Kind: KindBead, ID: "one-abc", Name: "one-abc"})
-	if fresh.Exists || fresh.Path != filepath.Join(repo, worktreesDir, "one-abc") {
-		t.Errorf("Inspect(one-abc) = exists %v at %q, want a fresh path under %s", fresh.Exists, fresh.Path, worktreesDir)
+	if want := filepath.Join(repo, defaultDir, "one-abc"); fresh.Exists || fresh.Path != want {
+		t.Errorf("Inspect(one-abc) = exists %v at %q, want a fresh path at %q", fresh.Exists, fresh.Path, want)
+	}
+}
+
+// The setting decides where a new worktree goes, and nothing else: one created
+// under an earlier value is still found and entered where it sits.
+func TestConfiguredWorktreeDirectory(t *testing.T) {
+	repo := initRepo(t)
+	body := []byte("[worktree]\ndirectory = \"trees\"\n")
+	if err := os.WriteFile(filepath.Join(repo, config.RepoFile), body, 0o644); err != nil {
+		t.Fatalf("write %s: %v", config.RepoFile, err)
+	}
+
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	target := Target{Kind: KindBead, ID: "one-abc", Name: "one-abc"}
+	// From e.Repo, not repo: git reports the repository with symlinks resolved,
+	// and a worktree that does not exist yet cannot be resolved to compare.
+	trees := filepath.Join(e.Repo, "trees", "one-abc")
+	if s := e.Inspect(target); s.Path != trees {
+		t.Errorf("Inspect() = %q, want %q", s.Path, trees)
+	}
+
+	gitCmd(t, repo, "worktree", "add", "-b", "one-abc", trees)
+	e.Config.Worktree.Directory = "elsewhere"
+	s := e.Inspect(target)
+	if !s.Exists || !git.SameDir(s.Path, trees) {
+		t.Errorf("Inspect() = exists %v at %q, want the worktree at %q", s.Exists, s.Path, trees)
 	}
 }
 
@@ -155,7 +190,7 @@ func TestWorktreeDiscovery(t *testing.T) {
 // main checkout.
 func TestOpenFromLinkedWorktree(t *testing.T) {
 	repo := initRepo(t)
-	wt := filepath.Join(repo, worktreesDir, "one-abc")
+	wt := filepath.Join(repo, defaultDir, "one-abc")
 	gitCmd(t, repo, "worktree", "add", "-b", "one-abc", wt)
 
 	e, err := Open(wt)
@@ -170,15 +205,15 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 // A worktree a listing already found is taken from it. The repository here is
 // not one, so a worktree still asked for would not be found at all.
 func TestInspectAtTakesTheListedWorktree(t *testing.T) {
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo")}
+	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
 	target := Target{Kind: KindBead, ID: "one", Name: "one"}
 
 	if s := e.inspectAt(target, "/elsewhere/wt"); !s.Exists || s.Path != "/elsewhere/wt" {
 		t.Errorf("inspectAt() = exists %v at %q, want the listed worktree", s.Exists, s.Path)
 	}
 	// An empty path is a target without one, which is where a fresh worktree goes.
-	if s := e.inspectAt(target, ""); s.Exists || s.Path != filepath.Join(e.Repo, worktreesDir, "one") {
-		t.Errorf("inspectAt() = exists %v at %q, want a fresh path under %s", s.Exists, s.Path, worktreesDir)
+	if s := e.inspectAt(target, ""); s.Exists || s.Path != filepath.Join(e.Repo, defaultDir, "one") {
+		t.Errorf("inspectAt() = exists %v at %q, want a fresh path under %s", s.Exists, s.Path, defaultDir)
 	}
 }
 
@@ -232,6 +267,8 @@ func TestCandidates(t *testing.T) {
 
 func initRepo(t *testing.T) string {
 	t.Helper()
+	// Whoever runs the tests has settings of their own, which Open would read.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	dir := t.TempDir()
 	gitCmd(t, dir, "init", "-b", "main")
 	gitCmd(t, dir, "commit", "--allow-empty", "-m", "root")

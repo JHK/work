@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/JHK/work-cli/internal/beads"
+	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/sessions"
@@ -44,20 +45,26 @@ type Sessions interface {
 	List(dir string) ([]sessions.Session, error)
 }
 
-// Env holds the repository work operates on and the adapters it reaches
-// through.
+// Env holds the repository work operates on, the settings it reads, and the
+// adapters it reaches through.
 type Env struct {
 	Repo     string
+	Config   config.Config
 	Sessions Sessions
 }
 
-// Open finds the repository containing dir and wires the default adapters.
+// Open finds the repository containing dir, reads its settings, and wires the
+// default adapters.
 func Open(dir string) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Sessions: sessions.Claude{}}, nil
+	cfg, err := config.Load(repo)
+	if err != nil {
+		return Env{}, err
+	}
+	return Env{Repo: repo, Config: cfg, Sessions: sessions.Claude{}}, nil
 }
 
 // State is everything knowable about a target on entry, less what an existing
@@ -73,13 +80,10 @@ type State struct {
 	TicketErr   error // bd could not answer for this target
 }
 
-// worktreesDir is where every target's worktree lives, relative to the repo.
-const worktreesDir = ".worktrees"
-
 var (
 	prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]+)(?:[/?#].*)?$`)
-	// The name becomes a directory under .worktrees and an argument to bd and git,
-	// so it may not traverse, and may not open with a dash.
+	// The name becomes a directory of its own and an argument to bd and git, so it
+	// may not traverse, and may not open with a dash.
 	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
@@ -263,8 +267,8 @@ func prTarget(id string) Target {
 	return Target{Kind: KindPR, ID: id, Name: prPrefix + id}
 }
 
-func worktreePath(repo, name string) string {
-	return filepath.Join(repo, worktreesDir, name)
+func (e Env) worktreePath(name string) string {
+	return filepath.Join(e.Repo, e.Config.Worktree.Dir(), name)
 }
 
 // Inspect gathers the state of a target without changing anything.
@@ -277,8 +281,8 @@ func (e Env) Inspect(t Target) State {
 // that git is not asked again. An empty path is a target without one.
 func (e Env) inspectAt(t Target, path string) State {
 	// Only creating a worktree needs a directory chosen for it; an existing one is
-	// entered where git says it is, .worktrees or not.
-	s := State{Target: t, Path: worktreePath(e.Repo, t.Name)}
+	// entered where git says it is, whatever the setting says today.
+	s := State{Target: t, Path: e.worktreePath(t.Name)}
 
 	if path != "" {
 		s.Exists, s.Path = true, path
