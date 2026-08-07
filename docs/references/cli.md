@@ -28,20 +28,23 @@ One tool answering costs nothing of the other, and an adapter that will not answ
 
 A target's worktree is the one checked out on its [branch](configuration.md), wherever git reports it. Only a new worktree needs a directory chosen for it.
 
-Creating a worktree is the moment work on that target begins, so it also claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Entering one that already exists hands over `$SHELL`, names the conversations it carries and prints the line that returns to them. Provisioning is idempotent, so every form below re-enters an open worktree that way.
+Creating a worktree is the moment work on that target begins, so it also claims the bead and runs the [command](configuration.md#commands) its kind of target opens on. Entering one that already exists hands over `$SHELL`, names the conversations it carries and prints the line that returns to them. Provisioning is idempotent, so every form below re-enters an open worktree.
 
 | Invocation | On a target with no worktree |
 |---|---|
 | `work <id>` | vet, create, claim, and launch |
 | `work <pr>` | create, and launch |
 | `work <id> --shell` | create only; the bead is left as it is |
+| `work <id> --editor` | vet, create, claim, and open the editor |
 | `work` | as for the target picked |
 
 Vetting is [bead-workflow policy](../explanation/worktree-per-ticket.md): a deferred, closed, epic, criteria-less or dependency-blocked bead is refused, and the message says which. It guards the claim, so the paths that do not claim do not vet.
 
 ## Flags
 
-`--model` and `--effort` are accepted on every invocation and are passed to the [command](configuration.md#commands) that is launched. One placing neither drops both without a word, as `--shell` does.
+`--editor` runs `<editor> <dir>` on the worktree, where the editor is `$VISUAL`, else `$EDITOR`, and names none of the conversations a shell entry names. With neither set the invocation is refused before anything is created or claimed. It is exclusive with `--shell`.
+
+`--model` and `--effort` are accepted on every invocation and are passed to the [command](configuration.md#commands) that is launched. One placing neither drops both without a word, as `--shell` and `--editor` do.
 
 `--version` prints and exits, touching no repository. It reports the `git describe --tags --always --dirty` of the checkout the binary was [built from](mise-tasks.md#version-stamping), or `dev` when nothing stamped it.
 

@@ -39,6 +39,19 @@ func Shell() []string {
 	return []string{cmp.Or(os.Getenv("SHELL"), "/bin/sh")}
 }
 
+// Editor names the editor to open the worktree in. An unset one is refused
+// rather than guessed at: a shell has a fallback every machine has, an editor
+// has none worth opening someone's work in.
+func Editor(dir string) ([]string, error) {
+	// Whatever the editor makes of the terminal it is handed is its own business,
+	// so a terminal and a GUI editor are invoked alike.
+	editor := cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR"))
+	if editor == "" {
+		return nil, errors.New("no editor to open: set $VISUAL or $EDITOR")
+	}
+	return []string{editor, dir}, nil
+}
+
 // Launch renders the command a fresh worktree opens on, which the target's kind
 // chooses between.
 func (e Env) Launch(s State, o Options) ([]string, error) {

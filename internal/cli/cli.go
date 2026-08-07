@@ -20,6 +20,7 @@ var errCancelled = errors.New("cancelled")
 
 type options struct {
 	shell  bool
+	editor bool
 	model  string
 	effort string
 }
@@ -57,7 +58,12 @@ and its open pull requests. That form needs fzf.
 Entering a worktree that already exists opens a shell in it, naming the
 conversations it carries, with one line to return to them. A target without one
 has its worktree created, its ticket claimed, and the configured launcher
-invoked in it.`,
+invoked in it.
+
+--editor takes over from whichever of those two the target was headed for: an
+existing worktree opens in the editor rather than the shell, and one that does
+not exist yet is still vetted, created and claimed, then opened there rather
+than launched into a session.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
@@ -81,8 +87,10 @@ invoked in it.`,
 
 	f := cmd.Flags()
 	f.BoolVar(&o.shell, "shell", false, "create the worktree without claiming the ticket or launching a session")
+	f.BoolVar(&o.editor, "editor", false, "open the worktree in $VISUAL, else $EDITOR, instead of a session or a shell")
 	f.StringVar(&o.model, "model", "", "model for the launched session")
 	f.StringVar(&o.effort, "effort", "", "effort for the launched session ("+strings.Join(efforts, "|")+")")
+	cmd.MarkFlagsMutuallyExclusive("shell", "editor")
 
 	// The agent behind --model is about to be configurable, so a fixed list would
 	// rot. Registration fails only on a flag this function did not just declare.

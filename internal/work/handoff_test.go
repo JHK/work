@@ -69,6 +69,28 @@ func TestShell(t *testing.T) {
 	}
 }
 
+func TestEditor(t *testing.T) {
+	t.Setenv("EDITOR", "vi")
+	t.Setenv("VISUAL", "gvim")
+	got, err := Editor("/w")
+	if err != nil || !slices.Equal(got, []string{"gvim", "/w"}) {
+		t.Errorf("Editor() = %q, %v; want $VISUAL on the worktree", got, err)
+	}
+
+	t.Setenv("VISUAL", "")
+	got, err = Editor("/w")
+	if err != nil || !slices.Equal(got, []string{"vi", "/w"}) {
+		t.Errorf("Editor() = %q, %v; want $EDITOR on the worktree", got, err)
+	}
+
+	t.Setenv("EDITOR", "")
+	if _, err := Editor("/w"); err == nil {
+		t.Error("Editor() with neither set: want an error")
+	} else if !strings.Contains(err.Error(), "$VISUAL") || !strings.Contains(err.Error(), "$EDITOR") {
+		t.Errorf("Editor() = %v; want both variables named", err)
+	}
+}
+
 // The compiled-in defaults are what work launched before any of this was a
 // setting, less the review prompt a pull request used to get.
 func TestLaunch(t *testing.T) {

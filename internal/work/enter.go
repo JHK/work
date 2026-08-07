@@ -6,6 +6,7 @@ import "errors"
 // itself.
 type Options struct {
 	Shell  bool   // create the worktree without claiming the bead or launching a session
+	Editor bool   // open the worktree in an editor instead of a session or a shell
 	Model  string // model for the launched session
 	Effort string // effort for the launched session
 }
@@ -13,9 +14,9 @@ type Options struct {
 // Entry is what Enter arrived at: the handoff to run, and how it got there, so
 // a front end can report the parts it wants to show.
 type Entry struct {
-	Handoff  Handoff
-	State    State
-	Launched bool // the handoff starts a session, rather than handing over the shell
+	Handoff Handoff
+	State   State
+	Shell   bool // the handoff hands the terminal to the shell, rather than to a command
 }
 
 // Enter takes a target from inspection to the handoff, vetting, provisioning
@@ -34,10 +35,23 @@ func (e Env) EnterCandidate(c Candidate, o Options) (Entry, error) {
 // enter takes an inspected target the rest of the way. ready says whether bd
 // has already been heard to call the bead workable.
 func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
-	launching := !s.Exists && !o.Shell
+	// Ahead of the vetting: an editor that cannot be named leaves nothing created
+	// or claimed, unlike a session command, which is only rendered once there is a
+	// worktree to run it in.
+	var editor []string
+	if o.Editor {
+		var err error
+		if editor, err = Editor(s.Path); err != nil {
+			return Entry{}, err
+		}
+	}
+
+	// Work on the target begins with its worktree, --shell excepted: the escape
+	// hatch creates one and does nothing else.
+	beginning := !s.Exists && !o.Shell
 	// Claiming marks a bead as being worked, so the vetting that guards it runs
 	// before anything is created, and only where it is about to happen.
-	claiming := launching && s.Target.Kind == KindBead
+	claiming := beginning && s.Target.Kind == KindBead
 	if claiming {
 		if s.TicketErr != nil {
 			return Entry{}, s.TicketErr
@@ -61,17 +75,20 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		}
 	}
 
-	entry := Entry{State: s, Launched: launching, Handoff: Handoff{Dir: s.Path}}
-	if !launching {
-		entry.Handoff.Run = Shell()
-		return entry, nil
+	entry := Entry{State: s, Handoff: Handoff{Dir: s.Path}}
+	switch {
+	case o.Editor:
+		entry.Handoff.Run = editor
+	case beginning:
+		// Past the provisioning and the claim, so a command that will not render leaves
+		// the worktree made and the ticket claimed, as one that will not start does.
+		run, err := e.Launch(s, o)
+		if err != nil {
+			return Entry{}, err
+		}
+		entry.Handoff.Run = run
+	default:
+		entry.Shell, entry.Handoff.Run = true, Shell()
 	}
-	// Past the provisioning and the claim, so a command that will not render leaves
-	// the worktree made and the ticket claimed, as one that will not start does.
-	run, err := e.Launch(s, o)
-	if err != nil {
-		return Entry{}, err
-	}
-	entry.Handoff.Run = run
 	return entry, nil
 }

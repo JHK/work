@@ -16,12 +16,14 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	opts := work.Options{Shell: o.shell, Model: o.model, Effort: o.effort}
+	opts := work.Options{Shell: o.shell, Editor: o.editor, Model: o.model, Effort: o.effort}
 	e, err := entry(env, target, opts)
 	if err != nil {
 		return err
 	}
-	if !e.Launched {
+	// Only the shell is landed in with a prompt to paste into; a command has the
+	// terminal to itself.
+	if e.Shell {
 		report(env, e.State, opts)
 	}
 	return e.Handoff.Exec()
