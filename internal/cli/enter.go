@@ -10,10 +10,7 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	e, err := entry(env, target, work.Options{
-		Agent: o.agent, Shell: o.shell, Editor: o.editor, Diff: o.diff,
-		NoClaim: o.noClaim,
-	})
+	e, err := entry(env, target, work.Options{Action: o.action(), NoClaim: o.noClaim})
 	if err != nil {
 		return err
 	}

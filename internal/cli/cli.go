@@ -25,6 +25,22 @@ type options struct {
 	noClaim bool
 }
 
+// action is the one the flags named. Cobra has already refused two at once, so
+// the order here only settles what nothing can ask for.
+func (o options) action() work.Action {
+	switch {
+	case o.agent:
+		return work.ActionAgent
+	case o.shell:
+		return work.ActionShell
+	case o.editor:
+		return work.ActionEditor
+	case o.diff:
+		return work.ActionDiff
+	}
+	return work.ActionUnnamed
+}
+
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
 	if err := command(version, enter, listing).Execute(); err != nil {

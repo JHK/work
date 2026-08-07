@@ -1,6 +1,7 @@
 package work
 
 import (
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -28,12 +29,12 @@ func TestEnterVetsEveryWay(t *testing.T) {
 		opts Options
 	}{
 		{"a session", Options{}},
-		{"an agent", Options{Agent: true}},
-		{"a shell", Options{Shell: true}},
-		{"an editor", Options{Editor: true}},
-		{"a diff", Options{Diff: true}},
+		{"an agent", Options{Action: ActionAgent}},
+		{"a shell", Options{Action: ActionShell}},
+		{"an editor", Options{Action: ActionEditor}},
+		{"a diff", Options{Action: ActionDiff}},
 		{"no claim", Options{NoClaim: true}},
-		{"a shell and no claim", Options{Shell: true, NoClaim: true}},
+		{"a shell and no claim", Options{Action: ActionShell, NoClaim: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,13 +63,60 @@ func TestEnterOpensOn(t *testing.T) {
 		want []string
 	}{
 		{"a shell by default", Options{}, []string{"/usr/bin/fish"}},
-		{"asked for outright", Options{Shell: true}, []string{"/usr/bin/fish"}},
+		{"asked for outright", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
 		{"no claim changes nothing", Options{NoClaim: true}, []string{"/usr/bin/fish"}},
-		{"an editor", Options{Editor: true}, []string{"vi", "/wt"}},
-		{"the agent, on what the worktree carries", Options{Agent: true}, []string{"claude", "--resume", "s1"}},
+		{"an editor", Options{Action: ActionEditor}, []string{"vi", "/wt"}},
+		{"the agent, on what the worktree carries", Options{Action: ActionAgent}, []string{"claude", "--resume", "s1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			got, err := e.enter(s, false, tt.opts)
+			if err != nil {
+				t.Fatalf("enter(%+v): %v", tt.opts, err)
+			}
+			if !slices.Equal(got.Handoff.Run, tt.want) {
+				t.Errorf("enter(%+v) runs %q; want %q", tt.opts, got.Handoff.Run, tt.want)
+			}
+		})
+	}
+}
+
+// A worktree only just created opens on the launcher rather than on the shell
+// an existing one gets, and --agent leaves that alone: there is no conversation
+// to return to yet. A pull request is the target here, its branch already local,
+// so provisioning is git's alone and neither bd nor gh is asked anything.
+func TestEnterCreatesAndOpensOn(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	t.Setenv("VISUAL", "vi")
+	repo := initRepo(t)
+	base := gitCmd(t, repo, "rev-parse", "HEAD")
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	// An agent that would be consulted fails the case rather than answering it.
+	e.Conversations = stubConversations{err: errors.New("a fresh worktree carries none")}
+
+	launcher := []string{"claude", "--name=PR #7"}
+	tests := []struct {
+		branch string
+		opts   Options
+		want   []string
+	}{
+		{"pr-7-unnamed", Options{}, launcher},
+		{"pr-7-agent", Options{Action: ActionAgent}, launcher},
+		{"pr-7-shell", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
+		{"pr-7-editor", Options{Action: ActionEditor}, []string{"vi", filepath.Join(repo, defaultDir, "pr-7-editor")}},
+		{"pr-7-diff", Options{Action: ActionDiff}, []string{"git", "diff", base}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.branch, func(t *testing.T) {
+			// One branch per case: each worktree is provisioned for real, and a branch
+			// is checked out once.
+			gitCmd(t, repo, "branch", tt.branch)
+			path := filepath.Join(repo, defaultDir, tt.branch)
+			s := State{Target: Target{Kind: KindPR, ID: "7", Name: tt.branch}, Path: path}
+
 			got, err := e.enter(s, false, tt.opts)
 			if err != nil {
 				t.Fatalf("enter(%+v): %v", tt.opts, err)
@@ -97,7 +145,7 @@ func TestEnterDiffsAgainstTheBase(t *testing.T) {
 	}
 	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: wt, Exists: true}
 
-	got, err := e.enter(s, false, Options{Diff: true})
+	got, err := e.enter(s, false, Options{Action: ActionDiff})
 	if err != nil {
 		t.Fatalf("enter with a diff: %v", err)
 	}

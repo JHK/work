@@ -1,15 +1,39 @@
 package work
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
+
+// Action is what a worktree is handed over to. One worktree opens on one
+// command, so a front end names one of these and cannot name two.
+type Action int
+
+const (
+	// ActionUnnamed is the moment's own: the launcher for a worktree just
+	// created, open.shell for one already there.
+	ActionUnnamed Action = iota
+	ActionAgent          // the agent, on whatever the worktree already carries
+	ActionShell          // open.shell, a worktree just created included
+	ActionEditor         // open.editor
+	ActionDiff           // open.diff
+)
+
+// actionNames are the names the actions go by, in the enum's own order.
+var actionNames = [...]string{"unnamed", "agent", "shell", "editor", "diff"}
+
+func (a Action) String() string {
+	if a < 0 || int(a) >= len(actionNames) {
+		return fmt.Sprintf("Action(%d)", int(a))
+	}
+	return actionNames[a]
+}
 
 // Options are the choices a front end makes on the way in, beyond the target
 // itself.
 type Options struct {
-	Agent   bool // hand the worktree to its agent, whatever it already carries
-	Shell   bool // hand the worktree to open.shell instead of launching a session
-	Editor  bool // hand the worktree to open.editor instead of a session or a shell
-	Diff    bool // hand the worktree to open.diff instead of a session or a shell
-	NoClaim bool // create the worktree without claiming the bead
+	Action  Action // what the worktree is handed over to
+	NoClaim bool   // create the worktree without claiming the bead
 }
 
 // Entry is what Enter arrived at: the handoff to run, and the target it was
@@ -39,7 +63,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 	// or claimed. Every other command is rendered once there is a worktree to run
 	// it in, a diff having no merge-base until the branch exists.
 	var editor []string
-	if o.Editor {
+	if o.Action == ActionEditor {
 		var err error
 		if editor, err = e.Editor(s); err != nil {
 			return Entry{}, err
@@ -73,25 +97,22 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		}
 	}
 
-	// A worktree only just created opens on the launcher, unless --shell asked
-	// otherwise; everything else lands in the shell.
-	launching := !s.Exists && !o.Shell
-
 	entry := Entry{State: s, Handoff: Handoff{Dir: s.Path}}
-	if o.Editor {
+	if o.Action == ActionEditor {
 		entry.Handoff.Run = editor
 		return entry, nil
 	}
 
-	render := e.Shell
+	// The launcher is what a worktree only just created opens on, an unnamed
+	// action and an agent alike: there is nothing there to enter yet, and no
+	// conversation to return to.
+	render := e.Launch
 	switch {
-	case o.Diff:
+	case o.Action == ActionShell, o.Action == ActionUnnamed && s.Exists:
+		render = e.Shell
+	case o.Action == ActionDiff:
 		render = e.Diff
-	case launching:
-		render = e.Launch
-	// Past launching, so a worktree only just created opens on its ticket or its
-	// pull request rather than on the bare session an empty one would get.
-	case o.Agent:
+	case o.Action == ActionAgent && s.Exists:
 		render = e.Agent
 	}
 	// Past the provisioning and the claim, so a command that will not render leaves

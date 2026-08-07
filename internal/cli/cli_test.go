@@ -47,6 +47,31 @@ func TestCommandFlags(t *testing.T) {
 	}
 }
 
+// The flags are four, the action they name is one. Which flag sets which field
+// is TestCommandFlags' to say; two at once never reach here, cobra having
+// refused them.
+func TestFlagsNameOneAction(t *testing.T) {
+	tests := []struct {
+		name string
+		opts options
+		want work.Action
+	}{
+		{"nothing named", options{}, work.ActionUnnamed},
+		{"agent", options{agent: true}, work.ActionAgent},
+		{"shell", options{shell: true}, work.ActionShell},
+		{"editor", options{editor: true}, work.ActionEditor},
+		{"diff", options{diff: true}, work.ActionDiff},
+		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.opts.action(); got != tt.want {
+				t.Errorf("%+v names %s; want %s", tt.opts, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestVersionFlag(t *testing.T) {
 	var out strings.Builder
 	err := runTo([]string{"--version"}, &out, func(options, string) error {

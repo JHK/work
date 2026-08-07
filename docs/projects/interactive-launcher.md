@@ -10,7 +10,7 @@
 
 Two questions stand between `work` and the handoff: what to work on, and what to hand it to. A `<name>` answers the first, a flag answers the second, and only what neither the arguments nor the [configuration](../references/configuration.md) answer reaches the screen. Each question that does is its own `fzf` invocation, one after the other.
 
-The actions are agent, shell, editor, diff and ask, each one a boolean flag. The first four name a command the configuration defines; ask names the screen, and is the choice between the other four. The screen orders them and says which apply; it does not define what they run. Handing over is the last thing that happens, so no action asks anything of its own — except agent, which may.
+The actions are agent, shell, editor, diff and ask. A worktree opens on one command, so the action is one value ([`work.Action`](../../internal/work/enter.go)) whatever named it: a flag, a configuration key, or the screen. The first four name a command the configuration defines; ask names the screen, and is the choice between the other four. The screen orders them and says which apply; it does not define what they run. Handing over is the last thing that happens, so no action asks anything of its own — except agent, which may.
 
 Configuration answers the second question standing, once per moment: one key for the worktree just created, another for the one already there. The first is agent, the second is ask.
 
