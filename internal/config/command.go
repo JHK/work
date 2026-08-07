@@ -8,9 +8,10 @@ import (
 	"strings"
 )
 
-// Agent is what a worktree is handed over to. The four keys are one table
-// because they have to agree: the agent that starts a conversation is the one
-// that returns to it.
+// Agent is what a worktree is handed over to. Each key falls back to
+// defaultAgent on its own, so a config pointing work at another agent sets every
+// one of them: the agent that starts a conversation is the one that returns to
+// it.
 type Agent struct {
 	StartTicketCommand      Command `toml:"start-ticket"`
 	StartPullRequestCommand Command `toml:"start-pull-request"`
