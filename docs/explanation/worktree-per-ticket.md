@@ -16,17 +16,17 @@
 
 Capture, refine, **work**, review, land, close. An idea is filed cheaply as an unrefined ticket. Refining fills in acceptance criteria and dependencies until it is workable. `work` opens the place to work on it. Everything from there happens inside the worktree, in an agent session or a shell or both in turn, until the change has landed and the worktree can go.
 
-`work` runs in the shell, before the worktree may even exist. Creating one means work is starting, so it gets the launcher; entering one that exists means returning to work already under way, so it gets a shell. Asking for a shell outright overrides that.
+`work` runs in the shell, before the worktree may even exist. Creating one means work is starting, so it opens on the agent; entering one that exists means returning to work already under way, and what that return is for is the one thing `work` cannot infer, so it asks.
 
 What earns its keep is what it surfaces: whether there is a worktree at all, and whether the ticket can be worked. Workability is a convention `work` encodes rather than invents, and a ticket that fails it is refused with the reason.
 
 Refining a ticket, opening a pull request, merging a branch and closing the ticket are judgements made with the work in front of you, so they belong to you and your agent.
 
-## Why a worktree for each ticket
+## One worktree per ticket
 
 A session edits files, runs tests and holds a working tree in a particular state for as long as it lasts. Switching branches underneath it invalidates all of that, so parallel tickets need parallel checkouts rather than one checkout and a branch each.
 
-## Why the branch is the key
+## The branch as the key
 
 Each worktree checks out a branch named for its ticket: `pr-<n>` for a pull request, the ticket's name ahead of a slug of its title otherwise, and a name given outright where there is no ticket. `git worktree list` reports that branch alongside the path, so every worktree answers for its ticket wherever on disk it lives. Keying on the directory instead loses every worktree created by hand or moved since: a ticket whose worktree cannot be seen reads as fresh, and working it opens a second checkout of the same branch.
 
@@ -34,6 +34,14 @@ Names and title slugs both contain dashes, so a branch is recognised by the name
 
 Sessions are filed by working directory, so the path git reports is what makes a worktree's prior ones findable.
 
-## What it is scoped to
+## The handoff
 
 `work` is bounded to one moment: it runs, hands the terminal to whatever it launched, and exits. Keeping sessions visible and switching between them wants a process that outlives the launch, which is a terminal multiplexer.
+
+Two questions stand between `work` and that handoff: what to work on, and what to hand it to. An identifier answers the first. A flag answers the second for one invocation and [a configuration key](../references/configuration.md#actions) answers it standing. Only what neither answers reaches [the screen](../references/cli.md#the-screen), the last moment a person is there to answer.
+
+A worktree opens on one command, so the action is one value whatever named it: a flag, a key, or the screen. `ask` is one of those values, the choice between the others being itself something a key can name.
+
+Handing over is the last thing that happens, so no action asks anything of its own. The agent is the exception, holding a terminal it may ask what it likes with, and it is one action [however many conversations a worktree carries](../references/cli.md#conversations). The agent draws that list, so no conversation id is asked of a person.
+
+Nothing about the agent is carried per worktree. A resumed conversation [brings back the model it ran under](../references/agent.md), so a model or an effort wanted at all is named in the [configuration](../references/configuration.md#commands).

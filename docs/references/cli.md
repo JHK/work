@@ -11,7 +11,7 @@ One command, an optional identifier and flags, and `init` for the shell integrat
 | `7`, `007` | pull request 7 |
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
-| omitted | [the picker](#what-the-picker-offers) |
+| omitted | [the picker](#the-picker) |
 
 A pull request number is read against the current repository, whatever host the URL names.
 
@@ -19,7 +19,7 @@ Refused: leading dashes, path separators, `.` and `..`.
 
 `init` and `help` are commands, so neither reaches the table.
 
-## What the picker offers
+## The picker
 
 `work` with no argument opens an fzf list of:
 
@@ -33,7 +33,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 
 `bd` titles the bead rows, `gh pr list` the pull request rows, drafts included. gh is pinned to origin's URL. A [missing tool](tools.md) costs its own rows and its own titles.
 
-## What the screen offers
+## The screen
 
 The second question, put where `--ask` or an [`action`](configuration.md#actions) key naming `ask` reached it: a second fzf list, of the actions that apply, in this order.
 
@@ -48,7 +48,7 @@ The second question, put where `--ask` or an [`action`](configuration.md#actions
 
 It is drawn after the vetting and before anything is created, so a refused ticket is refused without a question, and a dismissed list exits 1 with nothing created and nothing claimed.
 
-## What each invocation does
+## Invocations
 
 | Invocation | On a target with no worktree |
 |---|---|
@@ -64,7 +64,7 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every form above re-enters a worktree that already exists, `--create` excepted: it asserts the name is free, and refuses one a branch already holds. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [the screen](#what-the-screen-offers) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
+Every form above re-enters a worktree that already exists, `--create` excepted: it asserts the name is free, and refuses one a branch already holds. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [the screen](#the-screen) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
@@ -73,21 +73,25 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | Flag | Effect |
 |---|---|
 | `--create` | a worktree of the name given, on a new branch spelled the same way and forked from the main checkout's `HEAD`; nothing is asked of `bd` |
-| `--agent` | hands the worktree to its agent: a newly created one to [`agent.start-ticket`, `agent.start-pull-request` or `agent.start-session`](configuration.md#keys) by what it was created for, an existing one to what [the conversations it carries](#what-a-worktree-carries) name |
+| `--agent` | hands the worktree to its agent: a newly created one to [`agent.start-ticket`, `agent.start-pull-request` or `agent.start-session`](configuration.md#keys) by what it was created for, an existing one to what [the conversations it carries](#conversations) name |
 | `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |
 | `--diff` | hands the worktree to [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
-| `--ask` | offers [the screen](#what-the-screen-offers) and hands the worktree to the action picked there; needs fzf |
+| `--ask` | offers [the screen](#the-screen) and hands the worktree to the action picked there; needs fzf |
 | `--delete` | removes the worktree git reports for the target and deletes the branch it had checked out, leaving the ticket alone and asking no tracker |
 | `--force` | with `--delete`, takes a worktree with modified or untracked files and a branch not merged into the main checkout, which are refused without it |
-| `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
+| `--no-claim` | [creates the worktree without claiming](#invocations) the bead |
 | `--version` | prints and exits, touching no repository |
 
 `--agent`, `--shell`, `--editor`, `--diff`, `--ask` and `--delete` exclude one another, and every one but `--delete` wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline, and `--delete`. `--force` is refused without `--delete`.
 
 `--delete` weighs both refusals before it removes anything, and refuses the worktree the shell is standing in.
 
-### What a worktree carries
+An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
+
+The version reported is what [stamped the binary](mise-tasks.md#version-stamping), or `dev` when nothing did.
+
+### Conversations
 
 `--agent` counts the conversations the agent has recorded for the worktree's directory and hands over accordingly:
 
@@ -97,11 +101,7 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | one | [`agent.resume-session`](configuration.md#keys) naming it, so nothing is asked |
 | several | `agent.resume-session` naming none, which is the agent's own list |
 
-The count is `claude`'s transcript store, read by `internal/sessions/`. A transcript `claude -p` wrote is not a conversation to return to and does not count.
-
-An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
-
-The version reported is what [stamped the binary](mise-tasks.md#version-stamping), or `dev` when nothing did.
+The count is [`claude`'s transcript store](agent.md), read by `internal/sessions/`. A transcript `claude -p` wrote is not a conversation to return to and does not count.
 
 ## Shell integration
 

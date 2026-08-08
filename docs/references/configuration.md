@@ -33,7 +33,7 @@ Values are validated after the merge and before anything is created.
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
 | `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
-Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-per-ticket.md#why-the-branch-is-the-key).
+Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-per-ticket.md#the-branch-as-the-key).
 
 ## Branch patterns
 
@@ -55,11 +55,11 @@ An `[action]` value is one of the actions [a flag](cli.md#flags) names, anything
 
 | Value | Hands the worktree to |
 |---|---|
-| `agent` | the [launcher](cli.md#flags) its kind names where the worktree was just created, else what [the conversations it carries](cli.md#what-a-worktree-carries) name |
+| `agent` | the [launcher](cli.md#flags) its kind names where the worktree was just created, else what [the conversations it carries](cli.md#conversations) name |
 | `shell` | `open.shell` |
 | `editor` | `open.editor` |
 | `diff` | `open.diff` |
-| `ask` | whichever of the four [the screen](cli.md#what-the-screen-offers) returns |
+| `ask` | whichever of the four [the screen](cli.md#the-screen) returns |
 
 `ask` names no command of its own: it draws the choice between the other four, which is what `--ask` names for a single invocation.
 
@@ -85,9 +85,9 @@ Refused at load:
 - an empty list
 - a value the key does not have
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, and is no row on [the screen](cli.md#what-the-screen-offers).
+A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, and is no row on [the screen](cli.md#the-screen).
 
-The defaults:
+The defaults, which rest on [`claude`'s own behaviour](agent.md):
 
 ```toml
 [agent]
