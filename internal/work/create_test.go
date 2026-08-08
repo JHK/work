@@ -100,8 +100,8 @@ func TestCreateSkipsTheGuess(t *testing.T) {
 	}
 }
 
-// --create asserts the name is free. A branch already holding it is a worktree
-// to re-enter, which is the same name without the flag.
+// Create asserts the name is free. A branch already holding it is a worktree to
+// re-enter, which is the same name without the verb.
 func TestCreateRefuses(t *testing.T) {
 	repo := initRepo(t)
 	gitCmd(t, repo, "branch", "taken")

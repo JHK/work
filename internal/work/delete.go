@@ -20,7 +20,7 @@ type Deletion struct {
 //
 // Both of git's gates are weighed before anything is removed, so a refusal
 // leaves the worktree standing rather than half a deletion: a branch left behind
-// is what makes --create refuse the name later. A dirty worktree is git's own
+// is what makes Create refuse the name later. A dirty worktree is git's own
 // refusal, made by the removal before it touches anything; a branch not fully
 // merged is one only git branch -d makes, by which time the worktree would be
 // gone, so it is weighed here instead and the deletion itself left unguarded:

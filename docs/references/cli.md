@@ -7,6 +7,7 @@
 | Command | Does |
 |---|---|
 | `work [<identifier>]` | [enters](#invocations) the worktree an [identifier](#identifiers) names, creating it if there is none |
+| [`work add <name>`](#add) | creates a worktree on a new branch of that name and opens it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work init fish`](#shell-integration) | prints the shell integration |
 
@@ -62,11 +63,10 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 |---|---|
 | a bead | vet, create, claim, and launch |
 | a pull request | create, and launch |
-| a [`--create`](#flags) name | create on a branch of that name, and launch |
 
 Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. A target the picker handed over goes the same way as one named. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every target above re-enters a worktree that already exists, `--create` excepted: it asserts the name is free, and refuses one a branch already holds. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [the screen](#the-screen) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
+Every target above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [the screen](#the-screen) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
@@ -74,7 +74,6 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 
 | Flag | Effect |
 |---|---|
-| `--create` | a worktree of the name given, on a new branch spelled the same way and forked from the main checkout's `HEAD`; nothing is asked of `bd` |
 | `--agent` | hands the worktree to its agent: a newly created one to [`agent.start-ticket`, `agent.start-pull-request` or `agent.start-session`](configuration.md#keys) by what it was created for, an existing one to what [the conversations it carries](#conversations) name |
 | `--shell` | hands the worktree to [`open.shell`](configuration.md#keys), a newly created one included |
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |
@@ -83,7 +82,7 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | `--no-claim` | [creates the worktree without claiming](#invocations) the bead |
 | `--version` | prints and exits, touching no repository |
 
-`--agent`, `--shell`, `--editor`, `--diff` and `--ask` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline.
+`--agent`, `--shell`, `--editor`, `--diff` and `--ask` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. Every verb that opens something carries them, [`add`](#add) included; `--no-claim` and `--version` are the root's alone.
 
 An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
 
@@ -101,6 +100,12 @@ The version reported is what [stamped the binary](mise-tasks.md#version-stamping
 
 The count is [`claude`'s transcript store](agent.md), read by `internal/sessions/`. A transcript `claude -p` wrote is not a conversation to return to and does not count.
 
+## add
+
+`work add <name>` creates a worktree on a new branch spelled exactly as the name is, forked from the main checkout's `HEAD`, and opens it on [`action.create`](configuration.md#actions) or what an [open-on flag](#flags) named. Nothing is asked of `bd`, so the name is nobody's identifier; a branch already holding it is refused, and re-entering the worktree later is the name alone.
+
+The name is required, there being nothing that exists to pick from.
+
 ## remove
 
 `work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out, leaving the ticket alone and asking no tracker. With no name it opens [the picker](#the-picker).
@@ -109,7 +114,7 @@ The count is [`claude`'s transcript store](agent.md), read by `internal/sessions
 
 ## Shell integration
 
-`work init fish | source` in `config.fish` completes the identifier with what the picker offers, and [`remove`](#remove)'s name with the worktrees alone.
+`work init fish | source` in `config.fish` completes the identifier with what the picker offers, and [`remove`](#remove)'s name with the worktrees alone. [`add`](#add)'s name is new, so it completes to nothing.
 
 ## Handoff
 

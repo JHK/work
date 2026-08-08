@@ -31,11 +31,6 @@ func TestCommandFlags(t *testing.T) {
 		{"ask on a named target", []string{"--ask", "bd-1"}, options{ask: true}, "bd-1"},
 		{"ask with no identifier", []string{"--ask"}, options{ask: true}, ""},
 		{"ask without claiming", []string{"--ask", "--no-claim", "bd-1"}, options{ask: true, noClaim: true}, "bd-1"},
-		// --create says nothing about which command opens either, so it combines too.
-		{"create", []string{"--create", "scratch"}, options{create: true}, "scratch"},
-		{"a created worktree in a shell", []string{"--create", "--shell", "scratch"}, options{create: true, shell: true}, "scratch"},
-		{"a created worktree in the editor", []string{"--create", "--editor", "scratch"}, options{create: true, editor: true}, "scratch"},
-		{"a created worktree diffed", []string{"--create", "--diff", "scratch"}, options{create: true, diff: true}, "scratch"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,12 +66,45 @@ func TestFlagsNameOneAction(t *testing.T) {
 		{"diff", options{diff: true}, work.ActionDiff},
 		{"ask", options{ask: true}, work.ActionAsk},
 		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
-		{"create names none", options{create: true}, work.ActionUnnamed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.opts.action(); got != tt.want {
 				t.Errorf("%+v names %s; want %s", tt.opts, got, tt.want)
+			}
+		})
+	}
+}
+
+// add is a verb of its own, so it takes the name in the argument position and
+// carries the open-on flags wherever those sit.
+func TestAddFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want options
+	}{
+		{"a name of its own", []string{"add", "scratch"}, options{}},
+		{"named before the name", []string{"add", "--shell", "scratch"}, options{shell: true}},
+		{"named after the name", []string{"add", "scratch", "--shell"}, options{shell: true}},
+		{"in the editor", []string{"add", "--editor", "scratch"}, options{editor: true}},
+		{"diffed", []string{"add", "--diff", "scratch"}, options{diff: true}},
+		{"handed to the agent", []string{"add", "--agent", "scratch"}, options{agent: true}},
+		{"asking what to open on", []string{"add", "--ask", "scratch"}, options{ask: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got options
+			var name string
+			err := execute(t, tt.args, io.Discard, front{add: func(o options, n string) error {
+				got, name = o, n
+				return nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if got != tt.want || name != "scratch" {
+				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, name, tt.want, "scratch")
 			}
 		})
 	}
@@ -144,8 +172,13 @@ func TestCommandRejects(t *testing.T) {
 		{"asking and naming an action at once", []string{"bd-1", "--ask", "--shell"}},
 		{"asking and an agent at once", []string{"bd-1", "--ask", "--agent"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
-		// A worktree with no ticket behind it has no claim to decline.
-		{"creating and declining a claim at once", []string{"scratch", "--create", "--no-claim"}},
+		// Creating is a verb now, and the name it takes is not optional.
+		{"--create is gone", []string{"scratch", "--create"}},
+		{"add with no name", []string{"add"}},
+		{"adding two worktrees at once", []string{"add", "scratch", "other"}},
+		// add opens something but has no ticket, so it declines no claim.
+		{"declining a claim on add", []string{"add", "scratch", "--no-claim"}},
+		{"two actions on add at once", []string{"add", "scratch", "--shell", "--editor"}},
 		// Removing is a verb now, and --force went with it.
 		{"--delete is gone", []string{"scratch", "--delete"}},
 		{"--force is gone from the root", []string{"scratch", "--force"}},
@@ -204,16 +237,6 @@ func TestLabels(t *testing.T) {
 	}
 }
 
-// The picker offers what exists, so it never stands in for a name --create was
-// not given. The env here is not a repository, so anything else would fail
-// against git rather than refuse the invocation.
-func TestCreateNeedsAName(t *testing.T) {
-	_, err := candidate(work.Env{}, options{create: true}, "")
-	if err == nil || !strings.Contains(err.Error(), "--create needs a name") {
-		t.Errorf("--create with no name = %v; want it refused by name", err)
-	}
-}
-
 const stubVersion = "v0.0.0-test"
 
 // execute puts args through the tree, standing in for whatever the case left
@@ -223,6 +246,9 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 	t.Helper()
 	if f.enter == nil {
 		f.enter = func(options, string) error { t.Error("entered a worktree"); return nil }
+	}
+	if f.add == nil {
+		f.add = func(options, string) error { t.Error("added a worktree"); return nil }
 	}
 	if f.remove == nil {
 		f.remove = func(bool, string) error { t.Error("removed a worktree"); return nil }

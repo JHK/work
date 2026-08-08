@@ -23,7 +23,6 @@ type options struct {
 	editor  bool
 	diff    bool
 	ask     bool
-	create  bool
 	noClaim bool
 }
 
@@ -31,6 +30,7 @@ type options struct {
 // function per verb, and a listing per source for the verbs that complete.
 type front struct {
 	enter      func(o options, target string) error
+	add        func(o options, name string) error
 	remove     func(force bool, target string) error
 	candidates func() ([]work.Candidate, error)
 	worktrees  func() ([]work.Candidate, error)
@@ -64,6 +64,16 @@ func performEnter(o options, target string) error {
 	return enter(env, o, target)
 }
 
+// performAdd brings a worktree of the user's own name into being in the
+// repository the shell stands in and hands the terminal over to it.
+func performAdd(o options, name string) error {
+	env, err := work.Open(".")
+	if err != nil {
+		return err
+	}
+	return add(env, o, name)
+}
+
 // performRemove takes a worktree out of the repository the shell stands in.
 func performRemove(force bool, target string) error {
 	env, err := work.Open(".")
@@ -75,7 +85,7 @@ func performRemove(force bool, target string) error {
 
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
-	f := front{enter: performEnter, remove: performRemove, candidates: listing, worktrees: worktreeListing}
+	f := front{enter: performEnter, add: performAdd, remove: performRemove, candidates: listing, worktrees: worktreeListing}
 	if err := command(version, f).Execute(); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -116,11 +126,7 @@ to, and several reaching the agent's own list.
 
 Creating a worktree for a ticket vets that ticket and claims it, whatever the
 worktree then opens on. A ticket the vetting refuses is refused outright;
---no-claim declines the claim and nothing else.
-
---create takes the identifier as a name of its own, guessing nothing and asking
-no tracker: a worktree on a new branch spelled exactly that way, forked from the
-main checkout. Re-entering it later is the same name without the flag.`,
+--no-claim declines the claim and nothing else.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
@@ -140,19 +146,23 @@ main checkout. Re-entering it later is the same name without the flag.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), removeCommand(f.remove, f.worktrees))
+	cmd.AddCommand(initCommand(), addCommand(f.add), removeCommand(f.remove, f.worktrees))
 
+	openOn(cmd, &o)
+	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
+
+	return cmd
+}
+
+// openOn gives a command the flags that name what a worktree opens on. Every
+// verb that opens something carries the same set, so one place declares them and
+// one place excludes them against each other.
+func openOn(cmd *cobra.Command, o *options) {
 	flags := cmd.Flags()
 	flags.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent; an existing one starts, resumes or lists by what it carries")
 	flags.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
 	flags.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
-	flags.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
-	flags.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
-	// A worktree with no ticket behind it has no claim to decline.
-	cmd.MarkFlagsMutuallyExclusive("create", "no-claim")
-
-	return cmd
 }

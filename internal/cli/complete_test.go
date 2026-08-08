@@ -81,11 +81,23 @@ func TestCompleteRemove(t *testing.T) {
 	assertNoFileComp(t, out)
 }
 
+// A tab press after add offers nothing: the name is new, so no listing has it,
+// and a file name is not one either.
+func TestCompleteAdd(t *testing.T) {
+	listed := []work.Candidate{{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"}}
+
+	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "add", "")
+	if got := rows(out); got != nil {
+		t.Errorf("completing add gave %q; want nothing", got)
+	}
+	assertNoFileComp(t, out)
+}
+
 // Completion offers the declared flags, so a flag work no longer declares is a
 // flag it no longer offers.
 func TestGoneFlags(t *testing.T) {
 	f := command(stubVersion, front{}).Flags()
-	for _, name := range []string{"model", "effort", "delete", "force"} {
+	for _, name := range []string{"model", "effort", "delete", "force", "create"} {
 		if f.Lookup(name) != nil {
 			t.Errorf("--%s is still declared", name)
 		}
