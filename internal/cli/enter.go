@@ -30,23 +30,8 @@ func candidate(env work.Env, o options, target string) (work.Candidate, error) {
 		return work.Candidate{}, errors.New("--create needs a name")
 	case o.create:
 		return env.Create(target)
-	// Deleting reaches only what is already open, so the list narrows to it.
-	case o.delete && target == "":
-		return pickFrom(env.Worktrees, "no worktrees to delete")
 	case target == "":
 		return pickFrom(env.Candidates, "nothing to work on")
 	}
 	return env.Resolve(target)
-}
-
-// pickFrom puts one listing in front of the picker.
-func pickFrom(list func() ([]work.Candidate, error), none string) (work.Candidate, error) {
-	candidates, err := list()
-	if err != nil {
-		return work.Candidate{}, err
-	}
-	if len(candidates) == 0 {
-		return work.Candidate{}, errors.New(none)
-	}
-	return pick(candidates)
 }

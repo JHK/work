@@ -28,12 +28,12 @@ type Deletion struct {
 // after the removal what the gate here had already allowed. force overrides both.
 func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
 	if !c.Open {
-		return Deletion{}, fmt.Errorf("%s has no worktree to delete", c.Target.Name)
+		return Deletion{}, fmt.Errorf("%s has no worktree to remove", c.Target.Name)
 	}
 	// git removes the worktree the process stands in without a word, leaving the
 	// shell in a directory that is gone.
 	if wd, err := os.Getwd(); err == nil && git.Inside(wd, c.path) {
-		return Deletion{}, fmt.Errorf("%s is the worktree you are standing in; run work --delete from outside it", c.Target.Name)
+		return Deletion{}, fmt.Errorf("%s is the worktree you are standing in; run work remove from outside it", c.Target.Name)
 	}
 	if !force && c.branch != "" && !git.Merged(e.Repo, c.branch) {
 		return Deletion{}, fmt.Errorf("branch %s is not fully merged; delete it anyway with --force", c.branch)

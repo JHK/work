@@ -16,9 +16,19 @@ func listing() ([]work.Candidate, error) {
 	return env.Candidates()
 }
 
-// suggest answers a tab press on the identifier. There is only one, so a second
-// word completes nothing, and a repository that will not answer completes
-// nothing rather than spilling an error into the shell.
+// worktreeListing is what a tab press after remove gets: the repository's
+// worktrees alone, there being nothing else to remove.
+func worktreeListing() ([]work.Candidate, error) {
+	env, err := work.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	return env.Worktrees()
+}
+
+// suggest answers a tab press on a verb's argument. There is only one, so a
+// second word completes nothing, and a repository that will not answer
+// completes nothing rather than spilling an error into the shell.
 func suggest(list func() ([]work.Candidate, error)) cobra.CompletionFunc {
 	return func(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
 		var candidates []work.Candidate

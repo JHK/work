@@ -48,7 +48,7 @@ func TestCompleteIdentifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := complete(t, tt.list, tt.args...)
+			out := complete(t, front{candidates: tt.list}, tt.args...)
 			for _, w := range tt.want {
 				if !slices.Contains(rows(out), w) {
 					t.Errorf("completing %q gave %q; want a %q row", tt.args, out, w)
@@ -64,11 +64,28 @@ func TestCompleteIdentifier(t *testing.T) {
 	}
 }
 
+// A tab press after remove offers the worktrees and nothing else: not the
+// tickets and pull requests the identifier completes to, and not a file name.
+func TestCompleteRemove(t *testing.T) {
+	worktrees := []work.Candidate{
+		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true},
+		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+	}
+	elsewhere := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+
+	out := complete(t, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)}, "remove", "")
+	want := []string{"bd-1\tDo a thing", "spike"}
+	if !slices.Equal(rows(out), want) {
+		t.Errorf("completing remove gave %q; want %q", rows(out), want)
+	}
+	assertNoFileComp(t, out)
+}
+
 // Completion offers the declared flags, so a flag work no longer declares is a
 // flag it no longer offers.
 func TestGoneFlags(t *testing.T) {
-	f := command(stubVersion, nil, stub(nil, nil)).Flags()
-	for _, name := range []string{"model", "effort"} {
+	f := command(stubVersion, front{}).Flags()
+	for _, name := range []string{"model", "effort", "delete", "force"} {
 		if f.Lookup(name) != nil {
 			t.Errorf("--%s is still declared", name)
 		}
@@ -78,10 +95,7 @@ func TestGoneFlags(t *testing.T) {
 // init prints the script, and the shell it names completes no further.
 func TestInitFish(t *testing.T) {
 	var out strings.Builder
-	err := runTo([]string{"init", "fish"}, &out, func(options, string) error {
-		t.Error("entered a worktree despite init")
-		return nil
-	})
+	err := execute(t, []string{"init", "fish"}, &out, front{})
 	if err != nil {
 		t.Fatalf("work init fish: %v", err)
 	}
@@ -92,16 +106,13 @@ func TestInitFish(t *testing.T) {
 	if strings.Contains(out.String(), cobra.ShellCompNoDescRequestCmd) {
 		t.Error("work init fish printed a script that asks for no descriptions")
 	}
-	assertNoFileComp(t, complete(t, stub(nil, nil), "init", "fish", ""))
+	assertNoFileComp(t, complete(t, front{}, "init", "fish", ""))
 }
 
 // cobra's own completion command is gone, so work init fish is the one door.
 // Only running it tells: the tree carries that command only once Execute ran.
 func TestNoCompletionCommand(t *testing.T) {
-	err := run([]string{"completion", "fish"}, func(options, string) error {
-		t.Error("entered a worktree despite completion")
-		return nil
-	})
+	err := execute(t, []string{"completion", "fish"}, io.Discard, front{})
 	if err == nil {
 		t.Error("work still offers a completion command")
 	}
@@ -111,19 +122,12 @@ func stub(candidates []work.Candidate, err error) func() ([]work.Candidate, erro
 	return func() ([]work.Candidate, error) { return candidates, err }
 }
 
-// complete asks the command what it would offer, the way a shell does.
-func complete(t *testing.T, list func() ([]work.Candidate, error), args ...string) string {
+// complete asks the command what it would offer, the way a shell does. The
+// generated script discards stderr, so what a shell reads is stdout alone.
+func complete(t *testing.T, f front, args ...string) string {
 	t.Helper()
 	var out strings.Builder
-	cmd := command(stubVersion, func(options, string) error {
-		t.Error("ran despite completing")
-		return nil
-	}, list)
-	cmd.SetArgs(append([]string{"__complete"}, args...))
-	cmd.SetOut(&out)
-	// The generated script discards stderr, so what a shell reads is stdout alone.
-	cmd.SetErr(io.Discard)
-	if err := cmd.Execute(); err != nil {
+	if err := execute(t, append([]string{"__complete"}, args...), &out, f); err != nil {
 		t.Fatalf("__complete %q: %v", args, err)
 	}
 	return out.String()

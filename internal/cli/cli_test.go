@@ -36,20 +36,15 @@ func TestCommandFlags(t *testing.T) {
 		{"a created worktree in a shell", []string{"--create", "--shell", "scratch"}, options{create: true, shell: true}, "scratch"},
 		{"a created worktree in the editor", []string{"--create", "--editor", "scratch"}, options{create: true, editor: true}, "scratch"},
 		{"a created worktree diffed", []string{"--create", "--diff", "scratch"}, options{create: true, diff: true}, "scratch"},
-		// --delete opens on nothing, so it combines with no command; the picker
-		// still stands in for the name.
-		{"delete", []string{"--delete", "scratch"}, options{delete: true}, "scratch"},
-		{"a forced delete", []string{"--delete", "--force", "scratch"}, options{delete: true, force: true}, "scratch"},
-		{"delete with no identifier", []string{"--delete"}, options{delete: true}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := run(tt.args, func(o options, id string) error {
+			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) error {
 				got, target = o, id
 				return nil
-			})
+			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -77,7 +72,6 @@ func TestFlagsNameOneAction(t *testing.T) {
 		{"ask", options{ask: true}, work.ActionAsk},
 		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
 		{"create names none", options{create: true}, work.ActionUnnamed},
-		{"delete names none", options{delete: true}, work.ActionUnnamed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -88,12 +82,43 @@ func TestFlagsNameOneAction(t *testing.T) {
 	}
 }
 
+// remove is a verb of its own, so it takes the name in the argument position
+// and carries --force wherever that sits.
+func TestRemoveFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		force  bool
+		target string
+	}{
+		{"a named worktree", []string{"remove", "scratch"}, false, "scratch"},
+		{"forced before the name", []string{"remove", "--force", "scratch"}, true, "scratch"},
+		{"forced after the name", []string{"remove", "scratch", "--force"}, true, "scratch"},
+		// The picker stands in for the name, over the worktrees alone.
+		{"no name", []string{"remove"}, false, ""},
+		{"forced with no name", []string{"remove", "--force"}, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var force bool
+			var target string
+			err := execute(t, tt.args, io.Discard, front{remove: func(f bool, id string) error {
+				force, target = f, id
+				return nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if force != tt.force || target != tt.target {
+				t.Errorf("Execute(%q) = %v, %q; want %v, %q", tt.args, force, target, tt.force, tt.target)
+			}
+		})
+	}
+}
+
 func TestVersionFlag(t *testing.T) {
 	var out strings.Builder
-	err := runTo([]string{"--version"}, &out, func(options, string) error {
-		t.Error("entered a worktree despite --version")
-		return nil
-	})
+	err := execute(t, []string{"--version"}, &out, front{})
 	if err != nil {
 		t.Fatalf("Execute(--version): %v", err)
 	}
@@ -121,14 +146,12 @@ func TestCommandRejects(t *testing.T) {
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		// A worktree with no ticket behind it has no claim to decline.
 		{"creating and declining a claim at once", []string{"scratch", "--create", "--no-claim"}},
-		// Deleting opens on nothing, so it names no command and creates nothing.
-		{"deleting and creating at once", []string{"scratch", "--create", "--delete"}},
-		{"deleting into an agent", []string{"scratch", "--delete", "--agent"}},
-		{"deleting into a shell", []string{"scratch", "--delete", "--shell"}},
-		{"deleting into an editor", []string{"scratch", "--delete", "--editor"}},
-		{"deleting into a diff", []string{"scratch", "--delete", "--diff"}},
-		// --force is the override of deleting's two refusals and nothing else.
-		{"forcing without deleting", []string{"scratch", "--force"}},
+		// Removing is a verb now, and --force went with it.
+		{"--delete is gone", []string{"scratch", "--delete"}},
+		{"--force is gone from the root", []string{"scratch", "--force"}},
+		// remove declares --force and nothing else, so a root flag is unknown to it.
+		{"a root flag on remove", []string{"remove", "scratch", "--shell"}},
+		{"removing two worktrees at once", []string{"remove", "scratch", "other"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},
@@ -136,10 +159,7 @@ func TestCommandRejects(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := run(tt.args, func(options, string) error {
-				t.Error("ran despite invalid flags")
-				return nil
-			})
+			err := execute(t, tt.args, io.Discard, front{})
 			if err == nil {
 				t.Errorf("Execute(%q): want an error", tt.args)
 			}
@@ -196,12 +216,24 @@ func TestCreateNeedsAName(t *testing.T) {
 
 const stubVersion = "v0.0.0-test"
 
-func run(args []string, f func(options, string) error) error {
-	return runTo(args, io.Discard, f)
-}
-
-func runTo(args []string, out io.Writer, f func(options, string) error) error {
-	cmd := command(stubVersion, f, stub(nil, nil))
+// execute puts args through the tree, standing in for whatever the case left
+// unnamed: a verb it did not expect to run fails the test rather than passing
+// silently.
+func execute(t *testing.T, args []string, out io.Writer, f front) error {
+	t.Helper()
+	if f.enter == nil {
+		f.enter = func(options, string) error { t.Error("entered a worktree"); return nil }
+	}
+	if f.remove == nil {
+		f.remove = func(bool, string) error { t.Error("removed a worktree"); return nil }
+	}
+	if f.candidates == nil {
+		f.candidates = stub(nil, nil)
+	}
+	if f.worktrees == nil {
+		f.worktrees = stub(nil, nil)
+	}
+	cmd := command(stubVersion, f)
 	cmd.SetArgs(args)
 	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)

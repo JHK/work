@@ -24,9 +24,16 @@ type options struct {
 	diff    bool
 	ask     bool
 	create  bool
-	delete  bool
-	force   bool
 	noClaim bool
+}
+
+// front is what the command tree calls once cobra has read the flags: a
+// function per verb, and a listing per source for the verbs that complete.
+type front struct {
+	enter      func(o options, target string) error
+	remove     func(force bool, target string) error
+	candidates func() ([]work.Candidate, error)
+	worktrees  func() ([]work.Candidate, error)
 }
 
 // action is the one the flags named. Cobra has already refused two at once, so
@@ -47,22 +54,29 @@ func (o options) action() work.Action {
 	return work.ActionUnnamed
 }
 
-// perform is the invocation itself: --delete takes a worktree away, everything
-// else brings one into being and hands the terminal over to it.
-func perform(o options, target string) error {
+// performEnter brings a worktree into being in the repository the shell stands
+// in and hands the terminal over to it.
+func performEnter(o options, target string) error {
 	env, err := work.Open(".")
 	if err != nil {
 		return err
 	}
-	if o.delete {
-		return remove(env, o, target)
-	}
 	return enter(env, o, target)
+}
+
+// performRemove takes a worktree out of the repository the shell stands in.
+func performRemove(force bool, target string) error {
+	env, err := work.Open(".")
+	if err != nil {
+		return err
+	}
+	return remove(env, force, target)
 }
 
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
-	if err := command(version, perform, listing).Execute(); err != nil {
+	f := front{enter: performEnter, remove: performRemove, candidates: listing, worktrees: worktreeListing}
+	if err := command(version, f).Execute(); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -71,9 +85,9 @@ func Execute(version string) int {
 	return 0
 }
 
-// command builds the command tree, calling run once the flags are valid and
-// answering a tab press from list.
-func command(version string, run func(o options, target string) error, list func() ([]work.Candidate, error)) *cobra.Command {
+// command builds the command tree, calling the verb front once the flags are
+// valid and answering a tab press from its listings.
+func command(version string, f front) *cobra.Command {
 	var o options
 
 	cmd := &cobra.Command{
@@ -106,50 +120,37 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 
 --create takes the identifier as a name of its own, guessing nothing and asking
 no tracker: a worktree on a new branch spelled exactly that way, forked from the
-main checkout. Re-entering it later is the same name without the flag.
-
---delete takes a worktree away instead of opening it: git removes the worktree
-and deletes the branch it had checked out. The ticket is left alone. A worktree
-with modified or untracked files and a branch not fully merged are each refused;
---force takes both. With no identifier it chooses among the worktrees alone.`,
+main checkout. Re-entering it later is the same name without the flag.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			// Cobra can refuse two flags at once but not one that needs another.
-			if o.force && !o.delete {
-				return errors.New("--force applies to --delete alone")
-			}
 			target := ""
 			if len(args) == 1 {
 				target = args[0]
 			}
-			return run(o, target)
+			return f.enter(o, target)
 		},
-		ValidArgsFunction: suggest(list),
+		ValidArgsFunction: suggest(f.candidates),
 	}
 	// One documented door to the shell integration: work init fish.
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand())
+	cmd.AddCommand(initCommand(), removeCommand(f.remove, f.worktrees))
 
-	f := cmd.Flags()
-	f.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent; an existing one starts, resumes or lists by what it carries")
-	f.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
-	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
-	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
-	f.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
-	f.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
-	f.BoolVar(&o.delete, "delete", false, "remove the target's worktree and the branch it had checked out, instead of opening it")
-	f.BoolVar(&o.force, "force", false, "with --delete, take a worktree with modified or untracked files and a branch not fully merged")
-	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
-	// Deleting opens on nothing, so it names no action and creates nothing.
-	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask", "delete")
-	cmd.MarkFlagsMutuallyExclusive("create", "delete")
+	flags := cmd.Flags()
+	flags.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent; an existing one starts, resumes or lists by what it carries")
+	flags.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
+	flags.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
+	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
+	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
+	flags.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
+	flags.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
+	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
 	// A worktree with no ticket behind it has no claim to decline.
 	cmd.MarkFlagsMutuallyExclusive("create", "no-claim")
 

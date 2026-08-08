@@ -21,6 +21,18 @@ const (
 	openMark  = "⎇"
 )
 
+// pickFrom puts one listing in front of the picker.
+func pickFrom(list func() ([]work.Candidate, error), none string) (work.Candidate, error) {
+	candidates, err := list()
+	if err != nil {
+		return work.Candidate{}, err
+	}
+	if len(candidates) == 0 {
+		return work.Candidate{}, errors.New(none)
+	}
+	return pick(candidates)
+}
+
 // pick offers a listing and returns the candidate chosen. It is the first of
 // the two questions a moment can carry.
 func pick(candidates []work.Candidate) (work.Candidate, error) {
