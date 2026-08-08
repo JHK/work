@@ -10,13 +10,14 @@ Documentation under [docs/](docs/) is canonical: consult it before running comma
 
 Routing by question type:
 
-| Question | Subfolder |
+| Question | Where |
 |---|---|
 | "What is the current state of X?" | [docs/references/](docs/references/AGENTS.md) |
 | "What must not break when I change X?" | [docs/rules/](docs/rules/AGENTS.md) |
 | "What has bitten past sessions in X?" | [docs/gotchas/](docs/gotchas/AGENTS.md) |
 | "How do I do X?" | [docs/howto/](docs/howto/AGENTS.md) |
-| "What is the plan for X?" | [docs/projects/](docs/projects/AGENTS.md) |
+| "What are we agreeing to build for X?" | [docs/projects/](docs/projects/AGENTS.md) |
+| "What is the plan for X?" | `bd show <epic>` |
 | "Why is X shaped this way?" | [docs/explanation/](docs/explanation/AGENTS.md) |
 
 Open the subfolder's `AGENTS.md` first, then skim the folder's filenames and title lines and open only what the question needs. Never pre-load a folder.
