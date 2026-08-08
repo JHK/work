@@ -78,16 +78,49 @@ var (
 	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
-// Resolve maps an identifier to a target. A worktree already listed under the
-// name is that worktree, whatever the guesses below would make of the name.
-func (e Env) Resolve(arg string) (Target, error) {
+// Resolve maps an identifier to the place it names and to the worktree that
+// place already has. One listing serves both readings: the name is read off the
+// listing where a worktree answers to it and guessed where none does, and either
+// way the worktree is found by its branch.
+func (e Env) Resolve(arg string) (Candidate, error) {
 	if arg == "" {
-		return Target{}, errors.New("no target given")
+		return Candidate{}, errors.New("no target given")
 	}
-	if t, ok := e.worktreeNamed(arg); ok {
-		return t, nil
+	worktrees, ids := e.listing()
+	t, err := e.named(arg, worktrees, ids)
+	if err != nil {
+		return Candidate{}, err
+	}
+	path := e.located(t, worktrees, ids)
+	return Candidate{Target: t, Open: path != "", path: path}, nil
+}
+
+// named is the target an identifier stands for: a worktree already listed under
+// the name is that worktree, whatever guess would make of the name, so that what
+// the picker and the completion show is entered by retyping it.
+func (e Env) named(arg string, worktrees []git.Worktree, ids []string) (Target, error) {
+	for _, w := range worktrees {
+		if t := e.targetAt(w, ids); t.Name == arg {
+			return t, nil
+		}
 	}
 	return e.guess(arg)
+}
+
+// listing is the one answer a whole invocation works from: every worktree git
+// reports, and the bead ids that name them, asked for only where there is a
+// worktree to name.
+func (e Env) listing() ([]git.Worktree, []string) {
+	// Without a repository git would answer for whatever directory the process
+	// happens to be in.
+	if e.Repo == "" {
+		return nil, nil
+	}
+	worktrees, err := git.Linked(e.Repo)
+	if err != nil || len(worktrees) == 0 {
+		return nil, nil
+	}
+	return worktrees, e.knownIDs()
 }
 
 // guess reads an identifier no worktree answers to. A bare number, an
@@ -133,28 +166,6 @@ func (e Env) targetAt(w git.Worktree, ids []string) Target {
 	return Target{Kind: KindPlain, ID: w.Path, Name: cmp.Or(w.Branch, filepath.Base(w.Path))}
 }
 
-// worktreeNamed finds the worktree offered under this name, reading each one as
-// the listing does, so that what the picker and the completion show is entered
-// by retyping it.
-func (e Env) worktreeNamed(name string) (Target, bool) {
-	// Without a repository git would answer for whatever directory the process
-	// happens to be in.
-	if e.Repo == "" {
-		return Target{}, false
-	}
-	worktrees, err := git.Linked(e.Repo)
-	if err != nil || len(worktrees) == 0 {
-		return Target{}, false
-	}
-	ids := e.knownIDs()
-	for _, w := range worktrees {
-		if t := e.targetAt(w, ids); t.Name == name {
-			return t, true
-		}
-	}
-	return Target{}, false
-}
-
 // knownIDs is every bead id bd knows, and none where it would not answer: a
 // worktree of a bead nothing can name is merely a plain one.
 func (e Env) knownIDs() []string {
@@ -179,21 +190,24 @@ func (e Env) beadID(branch string, ids []string) string {
 }
 
 // matches reports whether a worktree is the one this target stands for,
-// wherever it happens to sit. A ticket is keyed on the branch; a plain worktree,
-// having no ticket to be named by, is only itself.
-func (e Env) matches(t Target, w git.Worktree) bool {
+// wherever it happens to sit. A ticket is keyed on the branch, less the branches
+// a longer known id owns, which are that other ticket's; where bd named no ids
+// nothing is longer and the branch alone settles it, as it does for the listing.
+// A plain worktree, having no ticket to be named by, is only itself.
+func (e Env) matches(t Target, w git.Worktree, ids []string) bool {
 	switch t.Kind {
 	case KindPR:
 		return w.Branch == t.Name
 	case KindPlain:
 		return git.SameDir(w.Path, t.ID)
 	default:
-		return e.Config.Branch.Owns(t.ID, w.Branch)
+		return e.Config.Branch.Owns(t.ID, w.Branch) && len(e.beadID(w.Branch, ids)) <= len(t.ID)
 	}
 }
 
-// Candidate is one place worth offering: a target, how it reads, and what the
-// listing already settled, which entering it takes rather than ask again.
+// Candidate is one place to work, whether it was offered or asked for by name:
+// a target, how it reads, and what the listing already settled, which entering
+// it takes rather than ask again.
 type Candidate struct {
 	Target Target
 	Label  string // bead or PR title, empty where no adapter named it
@@ -272,38 +286,19 @@ func (e Env) candidates(worktrees []git.Worktree, known, ready []beads.Bead, pul
 	return out
 }
 
-// locate finds the worktree a target already has, wherever it sits.
-func (e Env) locate(t Target) (string, bool) {
-	worktrees, err := git.Linked(e.Repo)
-	if err != nil {
-		return "", false
-	}
+// located is where the worktree a target already has sits, or "" for a target
+// without one. Several still matching is a repository arranged by hand: the
+// shortest branch takes it, so it is settled on the branch and never on git's
+// listing order.
+func (e Env) located(t Target, worktrees []git.Worktree, ids []string) string {
 	var found []git.Worktree
 	for _, w := range worktrees {
-		if e.matches(t, w) {
+		if e.matches(t, w, ids) {
 			found = append(found, w)
 		}
 	}
-	switch len(found) {
-	case 0:
-		return "", false
-	case 1:
-		return found[0].Path, true
-	}
-	return e.narrow(t, found, e.knownIDs()), true
-}
-
-// narrow picks between the worktrees one target matched. A ticket's id owns
-// every longer branch, so a branch a longer id owns is that other ticket's;
-// whatever survives is settled on the branch, never on git's listing order.
-func (e Env) narrow(t Target, found []git.Worktree, ids []string) string {
-	if t.Kind == KindBead {
-		own := slices.DeleteFunc(slices.Clone(found), func(w git.Worktree) bool {
-			return e.beadID(w.Branch, ids) != t.ID
-		})
-		if len(own) > 0 {
-			found = own
-		}
+	if len(found) == 0 {
+		return ""
 	}
 	return slices.MinFunc(found, func(a, b git.Worktree) int {
 		return cmp.Or(cmp.Compare(len(a.Branch), len(b.Branch)), cmp.Compare(a.Branch, b.Branch))
@@ -320,14 +315,8 @@ func (e Env) worktreePath(name string) string {
 	return filepath.Join(e.Repo, e.Config.Worktree.Dir(), name)
 }
 
-// Inspect gathers the state of a target without changing anything.
-func (e Env) Inspect(t Target) State {
-	path, _ := e.locate(t)
-	return e.inspectAt(t, path)
-}
-
-// inspectAt is Inspect for a target whose worktree has already been found, so
-// that git is not asked again. An empty path is a target without one.
+// inspectAt gathers the state of a target whose worktree the listing already
+// found, so that git is not asked again. An empty path is a target without one.
 func (e Env) inspectAt(t Target, path string) State {
 	// Only creating a worktree needs a directory chosen for it; an existing one is
 	// entered where git says it is, whatever the setting says today.

@@ -43,16 +43,10 @@ type Entry struct {
 	State   State
 }
 
-// Enter takes a target from inspection to the handoff, vetting, provisioning
-// and claiming along the way. Creating a worktree is the moment work on that
-// target begins.
-func (e Env) Enter(t Target, o Options) (Entry, error) {
-	return e.enter(e.Inspect(t), false, o)
-}
-
-// EnterCandidate enters one of the candidates Candidates offered, sparing git
-// and bd the questions that listing already answered.
-func (e Env) EnterCandidate(c Candidate, o Options) (Entry, error) {
+// Enter takes a place to work through to the handoff, vetting, provisioning and
+// claiming along the way, and spares git and bd the questions finding it already
+// answered. Creating a worktree is the moment work on that target begins.
+func (e Env) Enter(c Candidate, o Options) (Entry, error) {
 	return e.enter(e.inspectAt(c.Target, c.path), c.ready, o)
 }
 

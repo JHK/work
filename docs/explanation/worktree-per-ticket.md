@@ -30,12 +30,10 @@ A session edits files, runs tests and holds a working tree in a particular state
 
 Each worktree checks out a branch named for its ticket: `pr-<n>` for a pull request, the ticket's name ahead of a slug of its title otherwise. `git worktree list` reports that branch alongside the path, so every worktree answers for its ticket wherever on disk it lives. Keying on the directory instead loses every worktree created by hand or moved since: a ticket whose worktree cannot be seen reads as fresh, and working it opens a second checkout of the same branch.
 
-Names and title slugs both contain dashes, so a branch is recognised by the names the tracker knows rather than parsed apart. A branch matching no ticket is still a worktree, offered under its branch name and entered with a shell. That keeps the tracker off the path that finds worktrees at all: when it will not answer, the labels and the ready tickets go and the worktrees stay.
+Names and title slugs both contain dashes, so a branch is recognised by the names the tracker knows rather than parsed apart. A branch a longer known name matches is that ticket's, so `one` never opens `one-two`'s worktree; where several still match one ticket, the branches settle it rather than git's listing order. A branch matching no ticket is still a worktree, offered under its branch name and entered with a shell. That keeps the tracker off the path that finds worktrees at all: when it will not answer, the labels and the ready tickets go and the worktrees stay.
 
 Sessions are filed by working directory, so the path git reports is what makes a worktree's prior ones findable.
 
 ## What it is scoped to
 
 `work` is bounded to one moment: it runs, hands the terminal to whatever it launched, and exits. Keeping sessions visible and switching between them wants a process that outlives the launch, which is a terminal multiplexer.
-
-Two worktrees whose branches both match one ticket are not disambiguated: one of them wins, and which is not defined.

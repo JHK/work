@@ -17,19 +17,18 @@ func enter(o options, target string) error {
 	return e.Handoff.Exec()
 }
 
-// entry brings the target's worktree into being: an identifier names one
-// outright, and without one the picker hands over a candidate.
+// entry brings the target's worktree into being: an identifier names the place
+// to work outright, and without one the picker hands one over.
 func entry(env work.Env, target string, o work.Options) (work.Entry, error) {
+	var c work.Candidate
+	var err error
 	if target == "" {
-		c, err := pick(env)
-		if err != nil {
-			return work.Entry{}, err
-		}
-		return env.EnterCandidate(c, o)
+		c, err = pick(env)
+	} else {
+		c, err = env.Resolve(target)
 	}
-	t, err := env.Resolve(target)
 	if err != nil {
 		return work.Entry{}, err
 	}
-	return env.Enter(t, o)
+	return env.Enter(c, o)
 }

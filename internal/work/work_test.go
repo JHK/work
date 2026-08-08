@@ -2,6 +2,7 @@ package work
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,8 +40,8 @@ func TestResolve(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(%q): %v", tt.arg, err)
 		}
-		if got.Kind != tt.kind || got.ID != tt.id || got.Name != tt.name {
-			t.Errorf("Resolve(%q) = %+v, want kind %v id %q name %q", tt.arg, got, tt.kind, tt.id, tt.name)
+		if want := (Target{Kind: tt.kind, ID: tt.id, Name: tt.name}); got.Target != want {
+			t.Errorf("Resolve(%q) = %+v, want %+v", tt.arg, got.Target, want)
 		}
 	}
 
@@ -112,46 +113,78 @@ func TestResolveNamesAnOpenWorktree(t *testing.T) {
 	}
 
 	for _, branch := range []string{"spike", "spike-2", "1234", "feature/x"} {
-		target, err := e.Resolve(branch)
+		c, err := e.Resolve(branch)
 		if err != nil {
 			t.Errorf("Resolve(%q): %v", branch, err)
 			continue
 		}
-		if s := e.Inspect(target); !s.Exists || !git.SameDir(s.Path, made[branch]) {
-			t.Errorf("Resolve(%q) = %+v, entering %q; want the worktree at %q", branch, target, s.Path, made[branch])
+		if !c.Open || !git.SameDir(c.path, made[branch]) {
+			t.Errorf("Resolve(%q) = %+v, entering %q; want the worktree at %q", branch, c.Target, c.path, made[branch])
 		}
 	}
 
 	// A name no worktree answers to resolves as it always did.
-	if got, err := e.Resolve("7"); err != nil || got != e.prTarget("7") {
-		t.Errorf("Resolve(7) = %+v, %v; want pull request 7", got, err)
+	if got, err := e.Resolve("7"); err != nil || got.Target != e.prTarget("7") {
+		t.Errorf("Resolve(7) = %+v, %v; want pull request 7", got.Target, err)
 	}
-	if got, err := e.Resolve("one-abc"); err != nil || got.Kind != KindBead || got.ID != "one-abc" {
-		t.Errorf("Resolve(one-abc) = %+v, %v; want the bead", got, err)
+	if got, err := e.Resolve("one-abc"); err != nil || got.Target.Kind != KindBead || got.Target.ID != "one-abc" {
+		t.Errorf("Resolve(one-abc) = %+v, %v; want the bead", got.Target, err)
 	}
 }
 
-// A ticket whose id owns several open branches takes the one that is really
-// its own, and never git's listing order.
-func TestNarrow(t *testing.T) {
+// A ticket the listing names is still entered on the branch and never on git's
+// listing order, so naming it and locating it land in the same worktree.
+func TestResolveNamedTakesTheSameWorktreeAsLocating(t *testing.T) {
+	repo := initRepo(t)
+	// The longer branch sorts first, so git reports it ahead of the one wanted.
+	gitCmd(t, repo, "worktree", "add", "-b", "one-a-rather-longer-slug", filepath.Join(repo, defaultDir, "a"))
+	gitCmd(t, repo, "worktree", "add", "-b", "one-slug", filepath.Join(repo, defaultDir, "z"))
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	shim(t, `[{"id":"one"}]`)
+
+	c, err := e.Resolve("one")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if want := filepath.Join(e.Repo, defaultDir, "z"); !c.Open || !git.SameDir(c.path, want) {
+		t.Errorf("Resolve(one) = %q, want the shortest branch at %q", c.path, want)
+	}
+}
+
+// A ticket whose id owns several open branches takes the one that is really its
+// own, and never git's listing order.
+func TestLocated(t *testing.T) {
 	var e Env
-	found := []git.Worktree{
+	worktrees := []git.Worktree{
 		{Path: "/wt/two", Branch: "one-two-a-slug"},
 		{Path: "/wt/one", Branch: "one-a-rather-longer-slug"},
 	}
 	target := Target{Kind: KindBead, ID: "one", Name: "one"}
-	if got := e.narrow(target, found, []string{"one", "one-two"}); got != "/wt/one" {
-		t.Errorf("narrow() = %q, want the branch one owns", got)
+	if got := e.located(target, worktrees, []string{"one", "one-two"}); got != "/wt/one" {
+		t.Errorf("located() = %q, want the branch one owns", got)
+	}
+	// The same rule with nothing left to choose between: one-two's worktree is not
+	// one's, however alone it stands.
+	if got := e.located(target, worktrees[:1], []string{"one", "one-two"}); got != "" {
+		t.Errorf("located() = %q, want no worktree of one's own", got)
 	}
 	// Without the tracker to say which id owns what, the shortest branch settles it.
-	if got := e.narrow(target, found, nil); got != "/wt/two" {
-		t.Errorf("narrow() without ids = %q, want the shortest branch", got)
+	if got := e.located(target, worktrees, nil); got != "/wt/two" {
+		t.Errorf("located() without ids = %q, want the shortest branch", got)
+	}
+	if got := e.located(Target{Kind: KindBead, ID: "nine", Name: "nine"}, worktrees, nil); got != "" {
+		t.Errorf("located() for an unopened ticket = %q, want no worktree", got)
 	}
 }
 
-// A named target finds its worktree by branch, wherever that worktree sits.
+// A named target finds its worktree by branch, wherever that worktree sits, and
+// the branches a longer id owns are that other ticket's.
 func TestMatches(t *testing.T) {
 	var e Env
+	ids := []string{"bd-4", "bd-42"}
 	tests := []struct {
 		arg, branch string
 		want        bool
@@ -160,27 +193,34 @@ func TestMatches(t *testing.T) {
 		{"bd-42", "bd-42-port-work-to-go", true},
 		{"bd-42", "bd-42.1-a-child", false},
 		{"bd-4", "bd-42", false},
+		{"bd-4", "bd-42-port-work-to-go", false},
 		{"bd-42", "", false},
 		{"7", "pr-7", true},
 		{"7", "pr-70", false},
 	}
 	for _, tt := range tests {
-		target, err := e.Resolve(tt.arg)
+		c, err := e.Resolve(tt.arg)
 		if err != nil {
 			t.Fatalf("Resolve(%q): %v", tt.arg, err)
 		}
 		w := git.Worktree{Path: "/elsewhere/wt", Branch: tt.branch}
-		if got := e.matches(target, w); got != tt.want {
+		if got := e.matches(c.Target, w, ids); got != tt.want {
 			t.Errorf("Resolve(%q).matches(%q) = %v, want %v", tt.arg, tt.branch, got, tt.want)
 		}
 	}
 
+	// Where bd names no ids the branch alone stands, so a worktree is still found
+	// by the id that opened it.
+	if !e.matches(Target{Kind: KindBead, ID: "bd-4", Name: "bd-4"}, git.Worktree{Branch: "bd-4-a-slug"}, nil) {
+		t.Error("a ticket does not match its own worktree without the tracker")
+	}
+
 	// A plain worktree is only itself, so the path is what identifies it.
 	plain := e.targetAt(git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}, nil)
-	if !e.matches(plain, git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}) {
+	if !e.matches(plain, git.Worktree{Path: "/elsewhere/wt", Branch: "some-branch"}, ids) {
 		t.Error("a plain target does not match its own worktree")
 	}
-	if e.matches(plain, git.Worktree{Path: "/other/wt", Branch: "some-branch"}) {
+	if e.matches(plain, git.Worktree{Path: "/other/wt", Branch: "some-branch"}, ids) {
 		t.Error("a plain target matches another worktree on the same branch")
 	}
 }
@@ -203,20 +243,16 @@ func TestWorktreeDiscovery(t *testing.T) {
 		t.Fatalf("Linked = %+v, want only %q", list, outside)
 	}
 
-	target, err := e.Resolve("one-oxc")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	s := e.Inspect(target)
+	s := state(t, e, "one-oxc")
 	if !s.Exists || !git.SameDir(s.Path, outside) {
-		t.Errorf("Inspect(one-oxc) = exists %v at %q, want the worktree at %q", s.Exists, s.Path, outside)
+		t.Errorf("one-oxc = exists %v at %q, want the worktree at %q", s.Exists, s.Path, outside)
 	}
 
 	// A target with no worktree is created under the configured directory,
 	// whatever the ones already open do.
-	fresh := e.Inspect(Target{Kind: KindBead, ID: "one-abc", Name: "one-abc"})
+	fresh := state(t, e, "one-abc")
 	if want := filepath.Join(repo, defaultDir, "one-abc"); fresh.Exists || fresh.Path != want {
-		t.Errorf("Inspect(one-abc) = exists %v at %q, want a fresh path at %q", fresh.Exists, fresh.Path, want)
+		t.Errorf("one-abc = exists %v at %q, want a fresh path at %q", fresh.Exists, fresh.Path, want)
 	}
 }
 
@@ -233,19 +269,18 @@ func TestConfiguredWorktreeDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	target := Target{Kind: KindBead, ID: "one-abc", Name: "one-abc"}
 	// From e.Repo, not repo: git reports the repository with symlinks resolved,
 	// and a worktree that does not exist yet cannot be resolved to compare.
 	trees := filepath.Join(e.Repo, "trees", "one-abc")
-	if s := e.Inspect(target); s.Path != trees {
-		t.Errorf("Inspect() = %q, want %q", s.Path, trees)
+	if s := state(t, e, "one-abc"); s.Path != trees {
+		t.Errorf("one-abc = %q, want %q", s.Path, trees)
 	}
 
 	gitCmd(t, repo, "worktree", "add", "-b", "one-abc", trees)
 	e.Config.Worktree.Directory = "elsewhere"
-	s := e.Inspect(target)
+	s := state(t, e, "one-abc")
 	if !s.Exists || !git.SameDir(s.Path, trees) {
-		t.Errorf("Inspect() = exists %v at %q, want the worktree at %q", s.Exists, s.Path, trees)
+		t.Errorf("one-abc = exists %v at %q, want the worktree at %q", s.Exists, s.Path, trees)
 	}
 }
 
@@ -329,6 +364,100 @@ func TestCandidates(t *testing.T) {
 	}
 }
 
+// One listing answers a whole invocation: entering an identifier asks git for
+// its worktrees once and bd for its ids at most once, whatever the target's kind
+// and however many worktrees its branch matches. Counted rather than reasoned
+// about, so a second lookup cannot come back unobserved.
+func TestEnterAsksOnce(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	repo := initRepo(t)
+	for dir, branch := range map[string]string{
+		"one": "one-a-slug", "one-two": "one-two-a-slug", "pr": "pr-7",
+		"loose": "loose", "four": "four-a-slug", "four-five": "four-five-a-slug",
+	} {
+		gitCmd(t, repo, "worktree", "add", "-b", branch, filepath.Join(repo, defaultDir, dir))
+	}
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	// A bead the listing names, a pull request by number and by name, a plain
+	// worktree, and a bead matched on its branch alone.
+	for _, arg := range []string{"one", "one-two", "7", "pr-7", "loose", "four"} {
+		t.Run(arg, func(t *testing.T) {
+			// four is no bead of bd's, so its worktree is found by its branch rather
+			// than named by the listing, and four-five's is a second branch that match
+			// has to be narrowed against.
+			ran := shim(t, `[{"id":"one"},{"id":"one-two"}]`)
+			c, err := e.Resolve(arg)
+			if err != nil {
+				t.Fatalf("Resolve(%q): %v", arg, err)
+			}
+			if !c.Open {
+				t.Fatalf("Resolve(%q) = %+v, want the worktree it already has", arg, c.Target)
+			}
+			if _, err := e.Enter(c, Options{Action: ActionShell}); err != nil {
+				t.Fatalf("Enter(%q): %v", arg, err)
+			}
+
+			lists, ids := 0, 0
+			for _, cmd := range ran() {
+				switch {
+				case strings.HasPrefix(cmd, "git worktree list"):
+					lists++
+				case strings.HasPrefix(cmd, "bd list"):
+					ids++
+				}
+			}
+			if lists != 1 || ids > 1 {
+				t.Errorf("entering %q asked git %d times and bd %d; want one listing and at most one id list", arg, lists, ids)
+			}
+		})
+	}
+}
+
+// shim puts a counting git and a stub bd on PATH ahead of the real ones, and
+// hands back what they have been asked to run.
+func shim(t *testing.T, ids string) func() []string {
+	t.Helper()
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("git: %v", err)
+	}
+	dir := t.TempDir()
+	log, idsFile := filepath.Join(dir, "log"), filepath.Join(dir, "ids.json")
+	write := func(name, body string, mode os.FileMode) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), mode); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	write("ids.json", ids, 0o644)
+	write("git", fmt.Sprintf("#!/bin/sh\nprintf 'git %%s\\n' \"$*\" >> %q\nexec %q \"$@\"\n", log, realGit), 0o755)
+	// bd is answered rather than run: the ids are the test's, and there is no
+	// tracker database here to hold them.
+	write("bd", fmt.Sprintf("#!/bin/sh\nprintf 'bd %%s\\n' \"$*\" >> %q\ncase \"$1\" in list) cat %q ;; esac\n", log, idsFile), 0o755)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return func() []string {
+		out, err := os.ReadFile(log)
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatalf("read %s: %v", log, err)
+		}
+		return strings.Split(strings.TrimSpace(string(out)), "\n")
+	}
+}
+
+// state is the path a front end takes: an identifier resolved, then inspected
+// on what that resolution already found.
+func state(t *testing.T, e Env, arg string) State {
+	t.Helper()
+	c, err := e.Resolve(arg)
+	if err != nil {
+		t.Fatalf("Resolve(%q): %v", arg, err)
+	}
+	return e.inspectAt(c.Target, c.path)
+}
+
 func initRepo(t *testing.T) string {
 	t.Helper()
 	// Whoever runs the tests has settings of their own, which Open would read.
@@ -380,12 +509,12 @@ func TestSlug(t *testing.T) {
 func TestBranch(t *testing.T) {
 	var e Env
 	pr, _ := e.Resolve("7")
-	if got, err := e.Branch(State{Target: pr}); err != nil || got != "pr-7" {
+	if got, err := e.Branch(State{Target: pr.Target}); err != nil || got != "pr-7" {
 		t.Errorf("PR branch = %q, %v", got, err)
 	}
 
 	bead, _ := e.Resolve("bd-42")
-	s := State{Target: bead}
+	s := State{Target: bead.Target}
 	s.Bead.Title = "Port work to Go"
 	if got, err := e.Branch(s); err != nil || got != "bd-42-port-work-to-go" {
 		t.Errorf("bead branch = %q, %v", got, err)
@@ -416,8 +545,8 @@ func TestConfiguredBranchPattern(t *testing.T) {
 	// Made when the bead was titled otherwise, and found all the same.
 	wt := filepath.Join(repo, defaultDir, "one-abc")
 	gitCmd(t, repo, "worktree", "add", "-b", "feature/one-abc-an-older-title", wt)
-	if got := e.Inspect(target); !got.Exists || !git.SameDir(got.Path, wt) {
-		t.Errorf("Inspect() = exists %v at %q, want the worktree at %q", got.Exists, got.Path, wt)
+	if got := state(t, e, "one-abc"); !got.Exists || !git.SameDir(got.Path, wt) {
+		t.Errorf("one-abc = exists %v at %q, want the worktree at %q", got.Exists, got.Path, wt)
 	}
 	// And the picker reads the same worktree back off its branch.
 	if got := e.targetAt(git.Worktree{Path: wt, Branch: "feature/one-abc-an-older-title"}, []string{"one-abc"}); got != target {
@@ -426,10 +555,10 @@ func TestConfiguredBranchPattern(t *testing.T) {
 
 	// A pull request's branch is the name it is retyped as.
 	pr, err := e.Resolve("7")
-	if err != nil || pr.Name != "review/7" {
-		t.Fatalf("Resolve(7) = %+v, %v; want the configured name", pr, err)
+	if err != nil || pr.Target.Name != "review/7" {
+		t.Fatalf("Resolve(7) = %+v, %v; want the configured name", pr.Target, err)
 	}
-	if got, err := e.Resolve("review/7"); err != nil || got != pr {
-		t.Errorf("Resolve(review/7) = %+v, %v; want %+v", got, err, pr)
+	if got, err := e.Resolve("review/7"); err != nil || got.Target != pr.Target {
+		t.Errorf("Resolve(review/7) = %+v, %v; want %+v", got.Target, err, pr.Target)
 	}
 }

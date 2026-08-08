@@ -146,12 +146,12 @@ func TestLaunch(t *testing.T) {
 	}{
 		{
 			"a ticket opens on the skill that works it",
-			State{Target: bead, Bead: beads.Bead{Title: "a title"}},
+			State{Target: bead.Target, Bead: beads.Bead{Title: "a title"}},
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-1: a title", "/start bd-1"},
 		},
 		{
 			"a pull request opens on a bare named session",
-			State{Target: pr},
+			State{Target: pr.Target},
 			[]string{"claude", "--name=PR #7"},
 		},
 	}
@@ -186,7 +186,7 @@ func TestAgent(t *testing.T) {
 			e := Env{Conversations: stubConversations{list: tt.has}}
 			bead, _ := e.Resolve("bd-1")
 
-			got, err := e.Agent(State{Target: bead, Path: "/wt", Exists: true})
+			got, err := e.Agent(State{Target: bead.Target, Path: "/wt", Exists: true})
 			if err != nil {
 				t.Fatalf("Agent: %v", err)
 			}
