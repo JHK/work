@@ -38,7 +38,7 @@ func TestEnterVetsEveryWay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := e.enter(s, false, tt.opts)
+			_, err := e.enter(s, tt.opts)
 			if err == nil || !strings.Contains(err.Error(), "already closed") {
 				t.Errorf("enter(%+v) = %v; want the closed bead refused, saying which rule it broke", tt.opts, err)
 			}
@@ -70,7 +70,7 @@ func TestEnterOpensOn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := e.enter(s, false, tt.opts)
+			got, err := e.enter(s, tt.opts)
 			if err != nil {
 				t.Fatalf("enter(%+v): %v", tt.opts, err)
 			}
@@ -117,7 +117,7 @@ func TestEnterCreatesAndOpensOn(t *testing.T) {
 			path := filepath.Join(repo, defaultDir, tt.branch)
 			s := State{Target: Target{Kind: KindPR, ID: "7", Name: tt.branch}, Path: path}
 
-			got, err := e.enter(s, false, tt.opts)
+			got, err := e.enter(s, tt.opts)
 			if err != nil {
 				t.Fatalf("enter(%+v): %v", tt.opts, err)
 			}
@@ -145,7 +145,7 @@ func TestEnterDiffsAgainstTheBase(t *testing.T) {
 	}
 	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: wt, Exists: true}
 
-	got, err := e.enter(s, false, Options{Action: ActionDiff})
+	got, err := e.enter(s, Options{Action: ActionDiff})
 	if err != nil {
 		t.Fatalf("enter with a diff: %v", err)
 	}

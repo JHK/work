@@ -58,7 +58,7 @@ func TestResolve(t *testing.T) {
 // sits in.
 func TestTargetAt(t *testing.T) {
 	var e Env
-	ids := []string{"one", "one-two", "1234"}
+	ids := listed("one", "one-two", "1234")
 	tests := []struct {
 		name   string
 		branch string
@@ -143,7 +143,7 @@ func TestResolveNamedTakesTheSameWorktreeAsLocating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	shim(t, `[{"id":"one"}]`)
+	shim(t, map[string]string{"list": `[{"id":"one"}]`})
 
 	c, err := e.Resolve("one")
 	if err != nil {
@@ -163,12 +163,12 @@ func TestLocated(t *testing.T) {
 		{Path: "/wt/one", Branch: "one-a-rather-longer-slug"},
 	}
 	target := Target{Kind: KindBead, ID: "one", Name: "one"}
-	if got := e.located(target, worktrees, []string{"one", "one-two"}); got != "/wt/one" {
+	if got := e.located(target, worktrees, listed("one", "one-two")); got != "/wt/one" {
 		t.Errorf("located() = %q, want the branch one owns", got)
 	}
 	// The same rule with nothing left to choose between: one-two's worktree is not
 	// one's, however alone it stands.
-	if got := e.located(target, worktrees[:1], []string{"one", "one-two"}); got != "" {
+	if got := e.located(target, worktrees[:1], listed("one", "one-two")); got != "" {
 		t.Errorf("located() = %q, want no worktree of one's own", got)
 	}
 	// Without the tracker to say which id owns what, the shortest branch settles it.
@@ -184,7 +184,7 @@ func TestLocated(t *testing.T) {
 // the branches a longer id owns are that other ticket's.
 func TestMatches(t *testing.T) {
 	var e Env
-	ids := []string{"bd-4", "bd-42"}
+	ids := listed("bd-4", "bd-42")
 	tests := []struct {
 		arg, branch string
 		want        bool
@@ -306,12 +306,32 @@ func TestInspectAtTakesTheListedWorktree(t *testing.T) {
 	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
 	target := Target{Kind: KindBead, ID: "one", Name: "one"}
 
-	if s := e.inspectAt(target, "/elsewhere/wt"); !s.Exists || s.Path != "/elsewhere/wt" {
+	if s := e.inspectAt(Candidate{Target: target, path: "/elsewhere/wt"}); !s.Exists || s.Path != "/elsewhere/wt" {
 		t.Errorf("inspectAt() = exists %v at %q, want the listed worktree", s.Exists, s.Path)
 	}
 	// An empty path is a target without one, which is where a fresh worktree goes.
-	if s := e.inspectAt(target, ""); s.Exists || s.Path != filepath.Join(e.Repo, defaultDir, "one") {
+	if s := e.inspectAt(Candidate{Target: target}); s.Exists || s.Path != filepath.Join(e.Repo, defaultDir, "one") {
 		t.Errorf("inspectAt() = exists %v at %q, want a fresh path under %s", s.Exists, s.Path, defaultDir)
+	}
+}
+
+// A bead the listing already named is taken from it, and one it could not name
+// is asked for. The repository here is not one, so the query that stands in for
+// the unnamed bead fails rather than answers.
+func TestInspectAtTakesTheListedBead(t *testing.T) {
+	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
+	target := Target{Kind: KindBead, ID: "one", Name: "one"}
+	bead := beads.Bead{ID: "one", Title: "The first bead", Status: "open", Type: "task"}
+
+	if s := e.inspectAt(Candidate{Target: target, bead: bead}); s.Bead != bead || s.TicketErr != nil {
+		t.Errorf("inspectAt() = %+v, %v; want the listing's own record without asking bd", s.Bead, s.TicketErr)
+	}
+	if s := e.inspectAt(Candidate{Target: target}); s.TicketErr == nil {
+		t.Errorf("inspectAt() = %+v; want a bead the listing could not name asked for", s.Bead)
+	}
+	// A worktree that already exists needs no ticket, named or not.
+	if s := e.inspectAt(Candidate{Target: target, path: "/elsewhere/wt"}); s.Bead != (beads.Bead{}) || s.TicketErr != nil {
+		t.Errorf("inspectAt() = %+v, %v; want bd left unasked for an existing worktree", s.Bead, s.TicketErr)
 	}
 }
 
@@ -335,12 +355,14 @@ func TestCandidates(t *testing.T) {
 	ready := []beads.Bead{{ID: "one", Title: "The first bead"}, {ID: "two", Title: "The second bead"}}
 	pulls := []forge.PR{{Number: 7, Title: "Seventh pull request"}, {Number: 9, Title: "Ninth pull request"}}
 
+	// A bead row carries the record it was listed from, so entering it needs no
+	// lookup of its own.
 	want := []Candidate{
-		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true},
+		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true, bead: known[0]},
 		{Target: e.prTarget("7"), Label: "Seventh pull request", Open: true},
 		{Target: Target{Kind: KindPlain, ID: "/wt/loose", Name: "loose"}, Open: true},
 		{Target: e.prTarget("9"), Label: "Ninth pull request"},
-		{Target: Target{Kind: KindBead, ID: "two", Name: "two"}, Label: "The second bead", ready: true},
+		{Target: Target{Kind: KindBead, ID: "two", Name: "two"}, Label: "The second bead", ready: true, bead: ready[1]},
 	}
 	got := e.candidates(worktrees, known, ready, pulls)
 	if len(got) != len(want) {
@@ -388,7 +410,7 @@ func TestEnterAsksOnce(t *testing.T) {
 			// four is no bead of bd's, so its worktree is found by its branch rather
 			// than named by the listing, and four-five's is a second branch that match
 			// has to be narrowed against.
-			ran := shim(t, `[{"id":"one"},{"id":"one-two"}]`)
+			ran := shim(t, map[string]string{"list": `[{"id":"one"},{"id":"one-two"}]`})
 			c, err := e.Resolve(arg)
 			if err != nil {
 				t.Fatalf("Resolve(%q): %v", arg, err)
@@ -400,15 +422,8 @@ func TestEnterAsksOnce(t *testing.T) {
 				t.Fatalf("Enter(%q): %v", arg, err)
 			}
 
-			lists, ids := 0, 0
-			for _, cmd := range ran() {
-				switch {
-				case strings.HasPrefix(cmd, "git worktree list"):
-					lists++
-				case strings.HasPrefix(cmd, "bd list"):
-					ids++
-				}
-			}
+			out := ran()
+			lists, ids := spawns(out, "git worktree list"), spawns(out, "bd list")
 			if lists != 1 || ids > 1 {
 				t.Errorf("entering %q asked git %d times and bd %d; want one listing and at most one id list", arg, lists, ids)
 			}
@@ -416,26 +431,108 @@ func TestEnterAsksOnce(t *testing.T) {
 	}
 }
 
+// The same listing serves the vetting: a bead it named is worked from that
+// record, so entering a fresh ticket spawns no bd show at all, and only a bead
+// it could not name is asked for by itself.
+func TestEnterVetsFromTheListing(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	repo := initRepo(t)
+	// Some worktree, so there is a listing for a fresh ticket to be named by.
+	gitCmd(t, repo, "worktree", "add", "-b", "other-a-slug", filepath.Join(repo, defaultDir, "other"))
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	// in_progress, so the vetting needs no readiness query either, and show would
+	// answer for no bead at all.
+	answers := map[string]string{
+		"list": `[{"id":"one","title":"The first bead","status":"in_progress","issue_type":"task","acceptance_criteria":"It works"}]`,
+		"show": `[]`,
+	}
+
+	ran := shim(t, answers)
+	c, err := e.Resolve("one")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if c.Open {
+		t.Fatalf("Resolve(one) = %+v, want a ticket with no worktree yet", c.Target)
+	}
+	if _, err := e.Enter(c, Options{Action: ActionShell}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if n := spawns(ran(), "bd show"); n != 0 {
+		t.Errorf("entering a listed bead asked bd show %d times; want it vetted from the listing", n)
+	}
+
+	// A name the listing does not carry is still asked for, and still fails entry
+	// as the bead nothing knows.
+	ran = shim(t, answers)
+	c, err = e.Resolve("two")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	_, err = e.Enter(c, Options{Action: ActionShell})
+	if err == nil || !strings.Contains(err.Error(), `no bead "two"`) {
+		t.Errorf("Enter(two) = %v; want the missing bead refused", err)
+	}
+	if n := spawns(ran(), "bd show"); n != 1 {
+		t.Errorf("entering an unlisted bead asked bd show %d times; want it asked for once", n)
+	}
+}
+
+// The picker hands over the record it offered the row from, so choosing a fresh
+// ticket adds no query of its own: readiness came with the listing too.
+func TestEnterFromThePicker(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	repo := initRepo(t)
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	bead := `[{"id":"one","title":"The first bead","status":"open","issue_type":"task","acceptance_criteria":"It works"}]`
+	ran := shim(t, map[string]string{"list": bead, "ready": bead, "show": `[]`})
+
+	candidates, err := e.Candidates()
+	if err != nil {
+		t.Fatalf("Candidates: %v", err)
+	}
+	if len(candidates) != 1 || candidates[0].Target.ID != "one" || candidates[0].Open {
+		t.Fatalf("Candidates() = %+v, want the ready bead offered fresh", candidates)
+	}
+	if _, err := e.Enter(candidates[0], Options{Action: ActionShell}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+
+	out := ran()
+	if shows, ready := spawns(out, "bd show"), spawns(out, "bd ready"); shows != 0 || ready != 1 {
+		t.Errorf("picking a fresh ticket asked bd show %d times and bd ready %d; want the picker's own listings to serve both", shows, ready)
+	}
+}
+
 // shim puts a counting git and a stub bd on PATH ahead of the real ones, and
-// hands back what they have been asked to run.
-func shim(t *testing.T, ids string) func() []string {
+// hands back what they have been asked to run. answers is the JSON each bd
+// subcommand replies with; one with no answer of its own replies nothing.
+func shim(t *testing.T, answers map[string]string) func() []string {
 	t.Helper()
 	realGit, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatalf("git: %v", err)
 	}
 	dir := t.TempDir()
-	log, idsFile := filepath.Join(dir, "log"), filepath.Join(dir, "ids.json")
+	log := filepath.Join(dir, "log")
 	write := func(name, body string, mode os.FileMode) {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), mode); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
-	write("ids.json", ids, 0o644)
+	for sub, body := range answers {
+		write("answer-"+sub, body, 0o644)
+	}
 	write("git", fmt.Sprintf("#!/bin/sh\nprintf 'git %%s\\n' \"$*\" >> %q\nexec %q \"$@\"\n", log, realGit), 0o755)
-	// bd is answered rather than run: the ids are the test's, and there is no
+	// bd is answered rather than run: the beads are the test's, and there is no
 	// tracker database here to hold them.
-	write("bd", fmt.Sprintf("#!/bin/sh\nprintf 'bd %%s\\n' \"$*\" >> %q\ncase \"$1\" in list) cat %q ;; esac\n", log, idsFile), 0o755)
+	write("bd", fmt.Sprintf("#!/bin/sh\nprintf 'bd %%s\\n' \"$*\" >> %q\ncat %q/answer-\"$1\" 2>/dev/null\nexit 0\n", log, dir), 0o755)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	return func() []string {
@@ -447,6 +544,27 @@ func shim(t *testing.T, ids string) func() []string {
 	}
 }
 
+// spawns counts the invocations of one command in what a shim recorded.
+func spawns(ran []string, prefix string) int {
+	n := 0
+	for _, cmd := range ran {
+		if strings.HasPrefix(cmd, prefix) {
+			n++
+		}
+	}
+	return n
+}
+
+// listed is a listing that names ids and nothing else, for the tests that only
+// care which beads bd knows about.
+func listed(ids ...string) []beads.Bead {
+	out := make([]beads.Bead, len(ids))
+	for i, id := range ids {
+		out[i] = beads.Bead{ID: id}
+	}
+	return out
+}
+
 // state is the path a front end takes: an identifier resolved, then inspected
 // on what that resolution already found.
 func state(t *testing.T, e Env, arg string) State {
@@ -455,7 +573,7 @@ func state(t *testing.T, e Env, arg string) State {
 	if err != nil {
 		t.Fatalf("Resolve(%q): %v", arg, err)
 	}
-	return e.inspectAt(c.Target, c.path)
+	return e.inspectAt(c)
 }
 
 func initRepo(t *testing.T) string {
@@ -549,7 +667,7 @@ func TestConfiguredBranchPattern(t *testing.T) {
 		t.Errorf("one-abc = exists %v at %q, want the worktree at %q", got.Exists, got.Path, wt)
 	}
 	// And the picker reads the same worktree back off its branch.
-	if got := e.targetAt(git.Worktree{Path: wt, Branch: "feature/one-abc-an-older-title"}, []string{"one-abc"}); got != target {
+	if got := e.targetAt(git.Worktree{Path: wt, Branch: "feature/one-abc-an-older-title"}, listed("one-abc")); got != target {
 		t.Errorf("targetAt() = %+v, want %+v", got, target)
 	}
 

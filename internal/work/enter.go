@@ -47,12 +47,11 @@ type Entry struct {
 // claiming along the way, and spares git and bd the questions finding it already
 // answered. Creating a worktree is the moment work on that target begins.
 func (e Env) Enter(c Candidate, o Options) (Entry, error) {
-	return e.enter(e.inspectAt(c.Target, c.path), c.ready, o)
+	return e.enter(e.inspectAt(c), o)
 }
 
-// enter takes an inspected target the rest of the way. ready says whether bd
-// has already been heard to call the bead workable.
-func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
+// enter takes an inspected target the rest of the way.
+func (e Env) enter(s State, o Options) (Entry, error) {
 	// Ahead of the vetting: an editor that cannot be named leaves nothing created
 	// or claimed. Every other command is rendered once there is a worktree to run
 	// it in, a diff having no merge-base until the branch exists.
@@ -72,7 +71,7 @@ func (e Env) enter(s State, ready bool, o Options) (Entry, error) {
 		if s.TicketErr != nil {
 			return Entry{}, s.TicketErr
 		}
-		reason, err := e.vet(s.Bead, ready)
+		reason, err := e.vet(s.Bead, s.Ready)
 		if err != nil {
 			return Entry{}, err
 		}
