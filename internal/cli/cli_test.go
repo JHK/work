@@ -28,6 +28,9 @@ func TestCommandFlags(t *testing.T) {
 		{"a diff on a named target", []string{"--diff", "bd-1"}, options{diff: true}, "bd-1"},
 		{"a diff that does not claim", []string{"--diff", "--no-claim", "bd-1"}, options{diff: true, noClaim: true}, "bd-1"},
 		{"no claim from the picker", []string{"--no-claim"}, options{noClaim: true}, ""},
+		{"ask on a named target", []string{"--ask", "bd-1"}, options{ask: true}, "bd-1"},
+		{"ask with no identifier", []string{"--ask"}, options{ask: true}, ""},
+		{"ask without claiming", []string{"--ask", "--no-claim", "bd-1"}, options{ask: true, noClaim: true}, "bd-1"},
 		// --create says nothing about which command opens either, so it combines too.
 		{"create", []string{"--create", "scratch"}, options{create: true}, "scratch"},
 		{"a created worktree in a shell", []string{"--create", "--shell", "scratch"}, options{create: true, shell: true}, "scratch"},
@@ -52,7 +55,7 @@ func TestCommandFlags(t *testing.T) {
 	}
 }
 
-// The flags are four, the action they name is one. Which flag sets which field
+// The flags are five, the action they name is one. Which flag sets which field
 // is TestCommandFlags' to say; two at once never reach here, cobra having
 // refused them.
 func TestFlagsNameOneAction(t *testing.T) {
@@ -66,6 +69,7 @@ func TestFlagsNameOneAction(t *testing.T) {
 		{"shell", options{shell: true}, work.ActionShell},
 		{"editor", options{editor: true}, work.ActionEditor},
 		{"diff", options{diff: true}, work.ActionDiff},
+		{"ask", options{ask: true}, work.ActionAsk},
 		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
 		{"create names none", options{create: true}, work.ActionUnnamed},
 	}
@@ -106,6 +110,8 @@ func TestCommandRejects(t *testing.T) {
 		{"an agent and a shell at once", []string{"bd-1", "--agent", "--shell"}},
 		{"an agent and an editor at once", []string{"bd-1", "--agent", "--editor"}},
 		{"an agent and a diff at once", []string{"bd-1", "--agent", "--diff"}},
+		{"asking and naming an action at once", []string{"bd-1", "--ask", "--shell"}},
+		{"asking and an agent at once", []string{"bd-1", "--ask", "--agent"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		// A worktree with no ticket behind it has no claim to decline.
 		{"creating and declining a claim at once", []string{"scratch", "--create", "--no-claim"}},

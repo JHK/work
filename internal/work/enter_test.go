@@ -2,6 +2,7 @@ package work
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -35,6 +36,12 @@ func TestEnterVetsEveryWay(t *testing.T) {
 		{"a diff", Options{Action: ActionDiff}},
 		{"no claim", Options{NoClaim: true}},
 		{"a shell and no claim", Options{Action: ActionShell, NoClaim: true}},
+		// The screen comes after the vetting, so a ticket that cannot be worked is
+		// refused rather than asked about first.
+		{"a screen", Options{Action: ActionAsk, Ask: func([]Action) (Action, error) {
+			t.Error("asked which action to open on despite the ticket being refused")
+			return ActionShell, nil
+		}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,9 +67,9 @@ func TestEnterOpensOn(t *testing.T) {
 		opts  Options
 		want  []string
 	}{
-		{"a shell by default", "", Options{}, []string{"/usr/bin/fish"}},
 		{"asked for outright", "", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
-		{"no claim changes nothing", "", Options{NoClaim: true}, []string{"/usr/bin/fish"}},
+		{"the shell action.enter names", ActionShell, Options{}, []string{"/usr/bin/fish"}},
+		{"no claim changes nothing", ActionShell, Options{NoClaim: true}, []string{"/usr/bin/fish"}},
 		{"an editor", "", Options{Action: ActionEditor}, []string{"vi", "/wt"}},
 		{"the agent, on what the worktree carries", "", Options{Action: ActionAgent}, []string{"claude", "--resume", "s1"}},
 		{"the agent action.enter names", ActionAgent, Options{}, []string{"claude", "--resume", "s1"}},
@@ -84,6 +91,132 @@ func TestEnterOpensOn(t *testing.T) {
 			}
 			if !slices.Equal(got.Handoff.Run, tt.want) {
 				t.Errorf("enter(%+v) on action.enter %q runs %q; want %q", tt.opts, tt.enter, got.Handoff.Run, tt.want)
+			}
+		})
+	}
+}
+
+// A worktree that already exists is asked about unless something named the
+// action: the screen is offered the four, in that order, and the worktree opens
+// on what came back.
+func TestEnterAsksWhichAction(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	t.Setenv("VISUAL", "vi")
+	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
+
+	tests := []struct {
+		name   string
+		enter  Action // unset where the default is what is under test
+		opts   Options
+		chosen Action
+		want   []string
+	}{
+		{"by default", "", Options{}, ActionShell, []string{"/usr/bin/fish"}},
+		{"the editor chosen", "", Options{}, ActionEditor, []string{"vi", "/wt"}},
+		{"the agent chosen", "", Options{}, ActionAgent, []string{"claude", "--resume", "s1"}},
+		{"--ask over a key naming an action", ActionShell, Options{Action: ActionAsk}, ActionEditor, []string{"vi", "/wt"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Default()
+			cfg.Action.EnterName = tt.enter
+			e := Env{
+				Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: cfg,
+				Conversations: stubConversations{list: []sessions.Session{{ID: "s1"}}},
+			}
+
+			var offered []Action
+			opts := tt.opts
+			opts.Ask = func(offer []Action) (Action, error) {
+				offered = offer
+				return tt.chosen, nil
+			}
+			got, err := e.enter(s, opts)
+			if err != nil {
+				t.Fatalf("enter(%+v) on action.enter %q: %v", tt.opts, tt.enter, err)
+			}
+			if want := []Action{ActionAgent, ActionShell, ActionEditor, ActionDiff}; !slices.Equal(offered, want) {
+				t.Errorf("the screen was offered %q; want %q", offered, want)
+			}
+			if !slices.Equal(got.Handoff.Run, tt.want) {
+				t.Errorf("choosing %q runs %q; want %q", tt.chosen, got.Handoff.Run, tt.want)
+			}
+		})
+	}
+}
+
+// The screen offers what will run, so an editor neither the settings nor the
+// environment can name between them is left off it rather than offered and then
+// refused.
+func TestEnterOffersNoEditorItCannotName(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "")
+	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
+	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
+
+	var offered []Action
+	_, err := e.enter(s, Options{Ask: func(offer []Action) (Action, error) {
+		offered = offer
+		return ActionShell, nil
+	}})
+	if err != nil {
+		t.Fatalf("enter: %v", err)
+	}
+	if want := []Action{ActionAgent, ActionShell, ActionDiff}; !slices.Equal(offered, want) {
+		t.Errorf("the screen was offered %q; want %q", offered, want)
+	}
+}
+
+// Dismissing the screen is a choice not made: the error reaches the front end,
+// and the worktree it would have opened is not there to open.
+func TestEnterAsksBeforeCreating(t *testing.T) {
+	repo := initRepo(t)
+	gitCmd(t, repo, "branch", "pr-7")
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	path := filepath.Join(repo, defaultDir, "pr-7")
+	s := State{Target: Target{Kind: KindPR, ID: "7", Name: "pr-7"}, Path: path}
+
+	dismissed := errors.New("dismissed")
+	_, err = e.enter(s, Options{
+		Action: ActionAsk,
+		Ask:    func([]Action) (Action, error) { return ActionUnnamed, dismissed },
+	})
+	if !errors.Is(err, dismissed) {
+		t.Errorf("enter with the screen dismissed = %v; want it passed back", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("%s exists; want a dismissed screen to have created nothing", path)
+	}
+}
+
+// The screen is what settles ask, so a front end with none, and one whose screen
+// settled nothing, are both refused rather than handed an action work chose for
+// them: the launcher below is no answer to fall through to.
+func TestEnterRefusesAnUnsettledScreen(t *testing.T) {
+	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
+	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
+	answering := func(a Action) Ask {
+		return func([]Action) (Action, error) { return a, nil }
+	}
+
+	tests := []struct {
+		name string
+		opts Options
+		want string
+	}{
+		{"no screen at all", Options{}, "name one with a flag"},
+		{"a screen answering ask", Options{Ask: answering(ActionAsk)}, "named no action"},
+		{"a screen answering nothing", Options{Ask: answering(ActionUnnamed)}, "named no action"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := e.enter(s, tt.opts)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("enter = %v; want it refused, saying %q", err, tt.want)
 			}
 		})
 	}

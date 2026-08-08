@@ -24,12 +24,12 @@ Values are validated after the merge and before anything is created.
 | `branch.ticket` | `{{.ID}}{{with .Slug}}-{{.}}{{end}}` | the branch a ticket's worktree checks out |
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
 | `action.create` | `agent` | the [action](#actions) a newly created worktree opens on |
-| `action.enter` | `shell` | the [action](#actions) an existing worktree opens on |
+| `action.enter` | `ask` | the [action](#actions) an existing worktree opens on |
 | `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
 | `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
 | `agent.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
 | `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
-| `open.shell` | [below](#commands) | the command an existing worktree is entered with, and the one `--shell` hands over to |
+| `open.shell` | [below](#commands) | the command the `shell` action hands the worktree to, `--shell` included |
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
 | `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
@@ -59,6 +59,9 @@ An `[action]` value is one of the actions [a flag](cli.md#flags) names, anything
 | `shell` | `open.shell` |
 | `editor` | `open.editor` |
 | `diff` | `open.diff` |
+| `ask` | whichever of the four [the screen](cli.md#what-the-screen-offers) returns |
+
+`ask` names no command of its own: it draws the choice between the other four, which is what `--ask` names for a single invocation.
 
 ## Commands
 
@@ -82,7 +85,7 @@ Refused at load:
 - an empty list
 - a value the key does not have
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created.
+A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, and is no row on [the screen](cli.md#what-the-screen-offers).
 
 The defaults:
 

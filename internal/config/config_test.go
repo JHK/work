@@ -208,8 +208,8 @@ func TestDefaultActions(t *testing.T) {
 	if got := a.Create(); got != ActionAgent {
 		t.Errorf("Create() = %q, want %q", got, ActionAgent)
 	}
-	if got := a.Enter(); got != ActionShell {
-		t.Errorf("Enter() = %q, want %q", got, ActionShell)
+	if got := a.Enter(); got != ActionAsk {
+		t.Errorf("Enter() = %q, want %q", got, ActionAsk)
 	}
 }
 
@@ -229,6 +229,25 @@ func TestConfiguredActions(t *testing.T) {
 	}
 	if got := c.Action.Create(); got != ActionAgent {
 		t.Errorf("action.create = %q, want the default %q", got, ActionAgent)
+	}
+}
+
+// Ask is a value of both keys, so a worktree of either moment can be asked
+// about, and the moment a key does not name is left asking on its own default.
+func TestAskIsAnAction(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	write(t, filepath.Join(repo, repoFile), "[action]\ncreate = \"ask\"\n")
+
+	c, err := Load(repo)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Action.Create(); got != ActionAsk {
+		t.Errorf("action.create = %q, want %q", got, ActionAsk)
+	}
+	if got := c.Action.Enter(); got != ActionAsk {
+		t.Errorf("action.enter = %q, want the default %q", got, ActionAsk)
 	}
 }
 

@@ -21,12 +21,20 @@ const (
 	ActionShell          = config.ActionShell  // open.shell, a worktree just created included
 	ActionEditor         = config.ActionEditor // open.editor
 	ActionDiff           = config.ActionDiff   // open.diff
+	// ActionAsk is the choice between the four above, put to the person entering.
+	// It names no command of its own, so it never reaches the handoff.
+	ActionAsk = config.ActionAsk
 )
+
+// Ask puts the choice between the actions offered and returns the one chosen.
+// Drawing it is the front end's, so work names the offer and nothing more.
+type Ask func(offer []Action) (Action, error)
 
 // Options are the choices a front end makes on the way in, beyond the target
 // itself.
 type Options struct {
 	Action  Action // what the worktree is handed over to
+	Ask     Ask    // the screen ActionAsk reaches; nothing can ask without one
 	NoClaim bool   // create the worktree without claiming the bead
 }
 
@@ -45,7 +53,8 @@ func (e Env) Enter(c Candidate, o Options) (Entry, error) {
 }
 
 // opensOn is the action to hand the worktree to: the one the front end named,
-// else the one the moment's key holds.
+// else the one the moment's key holds. Either may be ask, which settles it no
+// further: the screen does.
 func (e Env) opensOn(s State, o Options) Action {
 	switch {
 	case o.Action != ActionUnnamed:
@@ -57,18 +66,27 @@ func (e Env) opensOn(s State, o Options) Action {
 	}
 }
 
+// offer are the actions the screen chooses between: never ask, which is the
+// screen itself, and no editor where nothing can name one, so what is offered is
+// what will run. The order is the one they are drawn in.
+func (e Env) offer(s State) []Action {
+	out := []Action{ActionAgent, ActionShell}
+	if _, err := e.Editor(s); err == nil {
+		out = append(out, ActionEditor)
+	}
+	return append(out, ActionDiff)
+}
+
 // enter takes an inspected target the rest of the way.
 func (e Env) enter(s State, o Options) (Entry, error) {
 	action := e.opensOn(s, o)
 
-	// Ahead of the vetting, whichever named the editor: one that cannot be named
-	// leaves nothing created or claimed. Every other command is rendered once
-	// there is a worktree to run it in, a diff having no merge-base until the
-	// branch exists.
-	var editor []string
+	// Ahead of the vetting, wherever the editor was named outright: one that cannot
+	// be named leaves nothing created or claimed, and the screen leaves it off
+	// instead. Every other command is rendered once there is a worktree to run it
+	// in, a diff having no merge-base until the branch exists.
 	if action == ActionEditor {
-		var err error
-		if editor, err = e.Editor(s); err != nil {
+		if _, err := e.Editor(s); err != nil {
 			return Entry{}, err
 		}
 	}
@@ -90,6 +108,25 @@ func (e Env) enter(s State, o Options) (Entry, error) {
 		}
 	}
 
+	// Past the vetting, so a ticket that cannot be worked is refused rather than
+	// asked about, and ahead of the provisioning, so a screen dismissed here
+	// leaves nothing created and nothing claimed.
+	if action == ActionAsk {
+		if o.Ask == nil {
+			return Entry{}, errors.New("nothing here can ask which action to open on; name one with a flag")
+		}
+		chosen, err := o.Ask(e.offer(s))
+		if err != nil {
+			return Entry{}, err
+		}
+		// A screen answering with ask or with nothing has settled nothing, and the
+		// launcher below is no answer to fall through to.
+		if chosen == ActionAsk || chosen == ActionUnnamed {
+			return Entry{}, errors.New("the screen named no action to open on")
+		}
+		action = chosen
+	}
+
 	if err := e.Provision(s); err != nil {
 		return Entry{}, err
 	}
@@ -100,18 +137,14 @@ func (e Env) enter(s State, o Options) (Entry, error) {
 		}
 	}
 
-	entry := Entry{State: s, Handoff: Handoff{Dir: s.Path}}
-	if action == ActionEditor {
-		entry.Handoff.Run = editor
-		return entry, nil
-	}
-
 	// The launcher is what the agent means for a worktree only just created: there
 	// is nothing there to enter yet, and no conversation to return to.
 	render := e.Launch
 	switch action {
 	case ActionShell:
 		render = e.Shell
+	case ActionEditor:
+		render = e.Editor
 	case ActionDiff:
 		render = e.Diff
 	case ActionAgent:
@@ -121,10 +154,10 @@ func (e Env) enter(s State, o Options) (Entry, error) {
 	}
 	// Past the provisioning and the claim, so a command that will not render leaves
 	// the worktree made and the ticket claimed, as one that will not start does.
+	// The editor alone was rendered ahead of both, and renders the same twice.
 	run, err := render(s)
 	if err != nil {
 		return Entry{}, err
 	}
-	entry.Handoff.Run = run
-	return entry, nil
+	return Entry{State: s, Handoff: Handoff{Dir: s.Path, Run: run}}, nil
 }

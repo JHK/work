@@ -22,6 +22,7 @@ type options struct {
 	shell   bool
 	editor  bool
 	diff    bool
+	ask     bool
 	create  bool
 	noClaim bool
 }
@@ -38,6 +39,8 @@ func (o options) action() work.Action {
 		return work.ActionEditor
 	case o.diff:
 		return work.ActionDiff
+	case o.ask:
+		return work.ActionAsk
 	}
 	return work.ActionUnnamed
 }
@@ -69,10 +72,13 @@ With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
 Entering a worktree that already exists hands it to what action.enter names,
-open.shell by default. A target without one has its worktree created and handed
+which by default asks. A target without one has its worktree created and handed
 to what action.create names, the configured launcher by default. --agent,
---shell, --editor and --diff name the action to open on instead, for that
+--shell, --editor, --diff and --ask name the action to open on instead, for that
 invocation.
+
+--ask offers the actions that apply and opens on the one picked; dismissing that
+list creates nothing and claims nothing. That form needs fzf.
 
 --agent hands the worktree to its agent. It changes nothing for one just
 created, which opens on the launcher regardless; an existing one is handed over
@@ -112,9 +118,10 @@ main checkout. Re-entering it later is the same name without the flag.`,
 	f.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
 	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
+	f.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
 	f.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
 	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
-	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff")
+	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
 	// A worktree with no ticket behind it has no claim to decline.
 	cmd.MarkFlagsMutuallyExclusive("create", "no-claim")
 

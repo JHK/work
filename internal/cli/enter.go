@@ -18,7 +18,7 @@ func enter(o options, target string) error {
 		return err
 	}
 
-	e, err := env.Enter(c, work.Options{Action: o.action(), NoClaim: o.noClaim})
+	e, err := env.Enter(c, work.Options{Action: o.action(), Ask: ask, NoClaim: o.noClaim})
 	if err != nil {
 		return err
 	}

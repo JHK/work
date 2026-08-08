@@ -22,7 +22,7 @@ const (
 )
 
 // pick offers what the repository has to work on and returns the candidate
-// chosen. It stands in until the screen replaces it.
+// chosen. It is the first of the two questions a moment can carry.
 func pick(env work.Env) (work.Candidate, error) {
 	candidates, err := env.Candidates()
 	if err != nil {
@@ -31,16 +31,39 @@ func pick(env work.Env) (work.Candidate, error) {
 	if len(candidates) == 0 {
 		return work.Candidate{}, errors.New("nothing to work on")
 	}
+	i, err := choose(labels(candidates), "work> ")
+	if err != nil {
+		return work.Candidate{}, err
+	}
+	return candidates[i], nil
+}
 
-	// The row index is the key, so nothing has to be parsed back out of the label.
-	rows := labels(candidates)
-	for i, l := range rows {
-		rows[i] = fmt.Sprintf("%d\t%s", i, l)
+// ask is the second question: which of the actions work says apply the worktree
+// opens on. An action reads as the flag naming it, there being nothing else it
+// is called.
+func ask(offer []work.Action) (work.Action, error) {
+	rows := make([]string, len(offer))
+	for i, a := range offer {
+		rows[i] = string(a)
+	}
+	i, err := choose(rows, "open> ")
+	if err != nil {
+		return work.ActionUnnamed, err
+	}
+	return offer[i], nil
+}
+
+// choose puts one question through fzf and returns the row chosen. The row index
+// is the key, so nothing has to be parsed back out of the label.
+func choose(rows []string, prompt string) (int, error) {
+	keyed := make([]string, len(rows))
+	for i, r := range rows {
+		keyed[i] = fmt.Sprintf("%d\t%s", i, r)
 	}
 
 	fzf := exec.Command("fzf", "--ansi", "--height", "40%", "--reverse",
-		"--delimiter", "\t", "--with-nth", "2..", "--prompt", "work> ")
-	fzf.Stdin = strings.NewReader(strings.Join(rows, "\n") + "\n")
+		"--delimiter", "\t", "--with-nth", "2..", "--prompt", prompt)
+	fzf.Stdin = strings.NewReader(strings.Join(keyed, "\n") + "\n")
 	fzf.Stderr = os.Stderr
 	out, err := fzf.Output()
 	if err != nil {
@@ -48,16 +71,16 @@ func pick(env work.Env) (work.Candidate, error) {
 		// missing binary above all, is a failure the user has to be told about.
 		var exit *exec.ExitError
 		if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
-			return work.Candidate{}, errCancelled
+			return 0, errCancelled
 		}
-		return work.Candidate{}, fmt.Errorf("fzf: %w", err)
+		return 0, fmt.Errorf("fzf: %w", err)
 	}
 	field, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
 	i, err := strconv.Atoi(field)
-	if err != nil || i < 0 || i >= len(candidates) {
-		return work.Candidate{}, errCancelled
+	if err != nil || i < 0 || i >= len(rows) {
+		return 0, errCancelled
 	}
-	return candidates[i], nil
+	return i, nil
 }
 
 // labels renders the rows, lining the titles up behind the widest name that has
