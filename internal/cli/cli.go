@@ -24,6 +24,8 @@ type options struct {
 	diff    bool
 	ask     bool
 	create  bool
+	delete  bool
+	force   bool
 	noClaim bool
 }
 
@@ -45,9 +47,22 @@ func (o options) action() work.Action {
 	return work.ActionUnnamed
 }
 
+// perform is the invocation itself: --delete takes a worktree away, everything
+// else brings one into being and hands the terminal over to it.
+func perform(o options, target string) error {
+	env, err := work.Open(".")
+	if err != nil {
+		return err
+	}
+	if o.delete {
+		return remove(env, o, target)
+	}
+	return enter(env, o, target)
+}
+
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
-	if err := command(version, enter, listing).Execute(); err != nil {
+	if err := command(version, perform, listing).Execute(); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -91,13 +106,22 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 
 --create takes the identifier as a name of its own, guessing nothing and asking
 no tracker: a worktree on a new branch spelled exactly that way, forked from the
-main checkout. Re-entering it later is the same name without the flag.`,
+main checkout. Re-entering it later is the same name without the flag.
+
+--delete takes a worktree away instead of opening it: git removes the worktree
+and deletes the branch it had checked out. The ticket is left alone. A worktree
+with modified or untracked files and a branch not fully merged are each refused;
+--force takes both. With no identifier it chooses among the worktrees alone.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, args []string) error {
+			// Cobra can refuse two flags at once but not one that needs another.
+			if o.force && !o.delete {
+				return errors.New("--force applies to --delete alone")
+			}
 			target := ""
 			if len(args) == 1 {
 				target = args[0]
@@ -120,8 +144,12 @@ main checkout. Re-entering it later is the same name without the flag.`,
 	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	f.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
 	f.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
+	f.BoolVar(&o.delete, "delete", false, "remove the target's worktree and the branch it had checked out, instead of opening it")
+	f.BoolVar(&o.force, "force", false, "with --delete, take a worktree with modified or untracked files and a branch not fully merged")
 	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
-	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
+	// Deleting opens on nothing, so it names no action and creates nothing.
+	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask", "delete")
+	cmd.MarkFlagsMutuallyExclusive("create", "delete")
 	// A worktree with no ticket behind it has no claim to decline.
 	cmd.MarkFlagsMutuallyExclusive("create", "no-claim")
 

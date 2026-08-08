@@ -21,16 +21,9 @@ const (
 	openMark  = "⎇"
 )
 
-// pick offers what the repository has to work on and returns the candidate
-// chosen. It is the first of the two questions a moment can carry.
-func pick(env work.Env) (work.Candidate, error) {
-	candidates, err := env.Candidates()
-	if err != nil {
-		return work.Candidate{}, err
-	}
-	if len(candidates) == 0 {
-		return work.Candidate{}, errors.New("nothing to work on")
-	}
+// pick offers a listing and returns the candidate chosen. It is the first of
+// the two questions a moment can carry.
+func pick(candidates []work.Candidate) (work.Candidate, error) {
 	i, err := choose(labels(candidates), "work> ")
 	if err != nil {
 		return work.Candidate{}, err

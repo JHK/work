@@ -50,6 +50,12 @@ func SameDir(a, b string) bool {
 	return resolve(a) == resolve(b)
 }
 
+// Inside reports whether path is dir or sits below it.
+func Inside(path, dir string) bool {
+	rel, err := filepath.Rel(resolve(dir), resolve(path))
+	return err == nil && filepath.IsLocal(rel)
+}
+
 // resolve normalises a path for comparison; git reports worktrees with symlinks
 // already resolved.
 func resolve(path string) string {
@@ -101,6 +107,14 @@ func HasBranch(repo, branch string) bool {
 	return err == nil
 }
 
+// Merged reports whether a branch has landed on the main checkout's HEAD. git
+// branch -d asks a different question, weighing the branch against its upstream
+// wherever it has one, so this gate is work's own and not git's.
+func Merged(repo, branch string) bool {
+	_, err := git(repo, "merge-base", "--is-ancestor", "refs/heads/"+branch, "HEAD")
+	return err == nil
+}
+
 // origin is the one remote work reads: a pull request is fetched from it, so it
 // is the repository whose pull requests are worth offering.
 const origin = "origin"
@@ -131,6 +145,25 @@ func AddWorktree(repo, path, branch string) error {
 // which is what asserts the name is free.
 func NewWorktree(repo, path, branch string) error {
 	return add(repo, path, "-b", branch)
+}
+
+// RemoveWorktree unregisters a worktree and deletes its directory. git refuses
+// one with modified or untracked files unless force.
+func RemoveWorktree(repo, path string, force bool) error {
+	args := []string{"worktree", "remove", path}
+	if force {
+		args = append(args, "--force")
+	}
+	_, err := git(repo, args...)
+	return err
+}
+
+// DeleteBranch deletes a local branch, whether or not it is merged: the caller
+// weighs that with [Merged], -d weighing something else. git refuses while a
+// worktree still has the branch checked out.
+func DeleteBranch(repo, branch string) error {
+	_, err := git(repo, "branch", "-D", branch)
+	return err
 }
 
 // add makes the directory the worktree goes in, then adds it. git takes its

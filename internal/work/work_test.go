@@ -163,20 +163,20 @@ func TestLocated(t *testing.T) {
 		{Path: "/wt/one", Branch: "one-a-rather-longer-slug"},
 	}
 	target := Target{Kind: KindBead, ID: "one", Name: "one"}
-	if got := e.located(target, worktrees, listed("one", "one-two")); got != "/wt/one" {
-		t.Errorf("located() = %q, want the branch one owns", got)
+	if got := e.located(target, worktrees, listed("one", "one-two")); got.Path != "/wt/one" {
+		t.Errorf("located() = %q, want the branch one owns", got.Path)
 	}
 	// The same rule with nothing left to choose between: one-two's worktree is not
 	// one's, however alone it stands.
-	if got := e.located(target, worktrees[:1], listed("one", "one-two")); got != "" {
-		t.Errorf("located() = %q, want no worktree of one's own", got)
+	if got := e.located(target, worktrees[:1], listed("one", "one-two")); got.Path != "" {
+		t.Errorf("located() = %q, want no worktree of one's own", got.Path)
 	}
 	// Without the tracker to say which id owns what, the shortest branch settles it.
-	if got := e.located(target, worktrees, nil); got != "/wt/two" {
-		t.Errorf("located() without ids = %q, want the shortest branch", got)
+	if got := e.located(target, worktrees, nil); got.Path != "/wt/two" {
+		t.Errorf("located() without ids = %q, want the shortest branch", got.Path)
 	}
-	if got := e.located(Target{Kind: KindBead, ID: "nine", Name: "nine"}, worktrees, nil); got != "" {
-		t.Errorf("located() for an unopened ticket = %q, want no worktree", got)
+	if got := e.located(Target{Kind: KindBead, ID: "nine", Name: "nine"}, worktrees, nil); got.Path != "" {
+		t.Errorf("located() for an unopened ticket = %q, want no worktree", got.Path)
 	}
 }
 
@@ -356,11 +356,12 @@ func TestCandidates(t *testing.T) {
 	pulls := []forge.PR{{Number: 7, Title: "Seventh pull request"}, {Number: 9, Title: "Ninth pull request"}}
 
 	// A bead row carries the record it was listed from, so entering it needs no
-	// lookup of its own.
+	// lookup of its own, and an open one the branch it has, so deleting it needs
+	// none either.
 	want := []Candidate{
-		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true, bead: known[0]},
-		{Target: e.prTarget("7"), Label: "Seventh pull request", Open: true},
-		{Target: Target{Kind: KindPlain, ID: "/wt/loose", Name: "loose"}, Open: true},
+		{Target: Target{Kind: KindBead, ID: "one", Name: "one"}, Label: "The first bead", Open: true, branch: "one-a-slug", bead: known[0]},
+		{Target: e.prTarget("7"), Label: "Seventh pull request", Open: true, branch: "pr-7"},
+		{Target: Target{Kind: KindPlain, ID: "/wt/loose", Name: "loose"}, Open: true, branch: "loose"},
 		{Target: e.prTarget("9"), Label: "Ninth pull request"},
 		{Target: Target{Kind: KindBead, ID: "two", Name: "two"}, Label: "The second bead", ready: true, bead: ready[1]},
 	}

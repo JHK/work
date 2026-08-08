@@ -88,13 +88,15 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 	if arg == "" {
 		return Candidate{}, errors.New("no target given")
 	}
-	worktrees, known := e.listing()
+	// Nothing is known where git or bd would not answer: a worktree of a bead
+	// nothing can name is merely a plain one.
+	worktrees, known, _ := e.opened()
 	t, err := e.named(arg, worktrees, known)
 	if err != nil {
 		return Candidate{}, err
 	}
-	path := e.located(t, worktrees, known)
-	return Candidate{Target: t, Open: path != "", path: path, bead: record(known, t)}, nil
+	w := e.located(t, worktrees, known)
+	return Candidate{Target: t, Open: w.Path != "", path: w.Path, branch: w.Branch, bead: record(known, t)}, nil
 }
 
 // Create is the place a name of the user's own makes: a worktree with no ticket
@@ -133,22 +135,21 @@ func (e Env) named(arg string, worktrees []git.Worktree, known []beads.Bead) (Ta
 	return e.guess(arg)
 }
 
-// listing is the one answer a whole invocation works from: every worktree git
+// opened is the one answer every listing starts from: every worktree git
 // reports, and the beads that name them, asked for only where there is a
-// worktree to name. Nothing is known where bd would not answer: a worktree of a
-// bead nothing can name is merely a plain one.
-func (e Env) listing() ([]git.Worktree, []beads.Bead) {
+// worktree to name. A bd that will not answer costs the names alone.
+func (e Env) opened() ([]git.Worktree, []beads.Bead, error) {
 	// Without a repository git would answer for whatever directory the process
 	// happens to be in.
 	if e.Repo == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	worktrees, err := git.Linked(e.Repo)
 	if err != nil || len(worktrees) == 0 {
-		return nil, nil
+		return nil, nil, err
 	}
 	known, _ := beads.All(e.Repo)
-	return worktrees, known
+	return worktrees, known, nil
 }
 
 // guess reads an identifier no worktree answers to. A bare number, an
@@ -244,9 +245,10 @@ type Candidate struct {
 	Label  string // bead or PR title, empty where no adapter named it
 	Open   bool   // a worktree for it already exists
 
-	path  string     // where that worktree sits
-	ready bool       // bd listed this bead as ready to work
-	bead  beads.Bead // the record the listing named, zero where none did
+	path   string     // where that worktree sits
+	branch string     // what it has checked out, empty when it is detached
+	ready  bool       // bd listed this bead as ready to work
+	bead   beads.Bead // the record the listing named, zero where none did
 }
 
 // Candidates lists what the repository offers to work on: every worktree git
@@ -254,15 +256,25 @@ type Candidate struct {
 // that will not answer costs its own rows and its own labels, never the
 // worktrees.
 func (e Env) Candidates() ([]Candidate, error) {
-	worktrees, err := git.Linked(e.Repo)
+	// The one listing serves both the branch matching and the labels.
+	worktrees, known, err := e.opened()
 	if err != nil {
 		return nil, err
 	}
-	// The one listing serves both the branch matching and the labels.
-	known, _ := beads.All(e.Repo)
 	ready, _ := beads.Ready(e.Repo)
 	pulls, _ := forge.Open(e.Repo, git.OriginURL(e.Repo))
 	return e.candidates(worktrees, known, ready, pulls), nil
+}
+
+// Worktrees lists the repository's open worktrees and nothing besides, the main
+// checkout excepted: what there is to delete. bd titles the rows it can name, as
+// it does for the full listing.
+func (e Env) Worktrees() ([]Candidate, error) {
+	worktrees, known, err := e.opened()
+	if err != nil {
+		return nil, err
+	}
+	return e.candidates(worktrees, known, nil, nil), nil
 }
 
 // candidates assembles the list from what the adapters answered, each of which
@@ -279,7 +291,7 @@ func (e Env) candidates(worktrees []git.Worktree, known, ready []beads.Bead, pul
 	open := make(map[string]bool, len(worktrees))
 	for _, w := range worktrees {
 		t := e.targetAt(w, known)
-		c := Candidate{Target: t, Open: true, path: w.Path}
+		c := Candidate{Target: t, Open: true, path: w.Path, branch: w.Branch}
 		open[t.Name] = true
 		switch t.Kind {
 		case KindBead:
@@ -315,11 +327,11 @@ func (e Env) candidates(worktrees []git.Worktree, known, ready []beads.Bead, pul
 	return out
 }
 
-// located is where the worktree a target already has sits, or "" for a target
-// without one. Several still matching is a repository arranged by hand: the
-// shortest branch takes it, so it is settled on the branch and never on git's
-// listing order.
-func (e Env) located(t Target, worktrees []git.Worktree, known []beads.Bead) string {
+// located is the worktree a target already has, or the zero worktree for a
+// target without one. Several still matching is a repository arranged by hand:
+// the shortest branch takes it, so it is settled on the branch and never on
+// git's listing order.
+func (e Env) located(t Target, worktrees []git.Worktree, known []beads.Bead) git.Worktree {
 	var found []git.Worktree
 	for _, w := range worktrees {
 		if e.matches(t, w, known) {
@@ -327,11 +339,11 @@ func (e Env) located(t Target, worktrees []git.Worktree, known []beads.Bead) str
 		}
 	}
 	if len(found) == 0 {
-		return ""
+		return git.Worktree{}
 	}
 	return slices.MinFunc(found, func(a, b git.Worktree) int {
 		return cmp.Or(cmp.Compare(len(a.Branch), len(b.Branch)), cmp.Compare(a.Branch, b.Branch))
-	}).Path
+	})
 }
 
 // prTarget names a pull request by the branch its worktree checks out, which is

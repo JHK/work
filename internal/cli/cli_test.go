@@ -36,6 +36,11 @@ func TestCommandFlags(t *testing.T) {
 		{"a created worktree in a shell", []string{"--create", "--shell", "scratch"}, options{create: true, shell: true}, "scratch"},
 		{"a created worktree in the editor", []string{"--create", "--editor", "scratch"}, options{create: true, editor: true}, "scratch"},
 		{"a created worktree diffed", []string{"--create", "--diff", "scratch"}, options{create: true, diff: true}, "scratch"},
+		// --delete opens on nothing, so it combines with no command; the picker
+		// still stands in for the name.
+		{"delete", []string{"--delete", "scratch"}, options{delete: true}, "scratch"},
+		{"a forced delete", []string{"--delete", "--force", "scratch"}, options{delete: true, force: true}, "scratch"},
+		{"delete with no identifier", []string{"--delete"}, options{delete: true}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,6 +77,7 @@ func TestFlagsNameOneAction(t *testing.T) {
 		{"ask", options{ask: true}, work.ActionAsk},
 		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
 		{"create names none", options{create: true}, work.ActionUnnamed},
+		{"delete names none", options{delete: true}, work.ActionUnnamed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -115,6 +121,14 @@ func TestCommandRejects(t *testing.T) {
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		// A worktree with no ticket behind it has no claim to decline.
 		{"creating and declining a claim at once", []string{"scratch", "--create", "--no-claim"}},
+		// Deleting opens on nothing, so it names no command and creates nothing.
+		{"deleting and creating at once", []string{"scratch", "--create", "--delete"}},
+		{"deleting into an agent", []string{"scratch", "--delete", "--agent"}},
+		{"deleting into a shell", []string{"scratch", "--delete", "--shell"}},
+		{"deleting into an editor", []string{"scratch", "--delete", "--editor"}},
+		{"deleting into a diff", []string{"scratch", "--delete", "--diff"}},
+		// --force is the override of deleting's two refusals and nothing else.
+		{"forcing without deleting", []string{"scratch", "--force"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},

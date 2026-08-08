@@ -27,6 +27,8 @@ Refused: leading dashes, path separators, `.` and `..`.
 - the open pull requests of `origin`
 - the ready beads without a pull request
 
+With [`--delete`](#flags) the list is the worktrees alone, there being nothing else to remove.
+
 A worktree is read off its branch. One whose branch names neither a bead nor a pull request is offered under that branch.
 
 `bd` titles the bead rows, `gh pr list` the pull request rows, drafts included. gh is pinned to origin's URL. A [missing tool](tools.md) costs its own rows and its own titles.
@@ -76,10 +78,14 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | `--editor` | hands the worktree to [`open.editor`](configuration.md#keys) |
 | `--diff` | hands the worktree to [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
 | `--ask` | offers [the screen](#what-the-screen-offers) and hands the worktree to the action picked there; needs fzf |
+| `--delete` | removes the worktree git reports for the target and deletes the branch it had checked out, leaving the ticket alone and asking no tracker |
+| `--force` | with `--delete`, takes a worktree with modified or untracked files and a branch not merged into the main checkout, which are refused without it |
 | `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
 | `--version` | prints and exits, touching no repository |
 
-`--agent`, `--shell`, `--editor`, `--diff` and `--ask` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline.
+`--agent`, `--shell`, `--editor`, `--diff`, `--ask` and `--delete` exclude one another, and every one but `--delete` wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline, and `--delete`. `--force` is refused without `--delete`.
+
+`--delete` weighs both refusals before it removes anything, and refuses the worktree the shell is standing in.
 
 ### What a worktree carries
 
@@ -104,5 +110,7 @@ The version reported is what [stamped the binary](mise-tasks.md#version-stamping
 ## Handoff
 
 `work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; either list dismissed exits 1 silently.
+
+[`--delete`](#flags) hands over to nothing: it names on stdout what it removed and exits.
 
 Which command each path runs is `internal/work/handoff.go`.
