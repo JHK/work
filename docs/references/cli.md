@@ -46,7 +46,7 @@ A worktree is read off its branch. One whose branch names neither a bead nor a p
 
 Which [command](configuration.md#commands) a worktree opens on says nothing about its ticket: creating one for a bead vets it and claims it whichever command that is, and `--no-claim`, which combines with any of them, declines the claim alone. Only a new worktree needs a [directory](configuration.md#keys) chosen for it.
 
-Every form above re-enters a worktree that already exists, `--create` excepted: it asserts the name is free, and refuses one a branch already holds. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over [`open.shell`](configuration.md#keys), or what the flag named.
+Every form above re-enters a worktree that already exists, `--create` excepted: it asserts the name is free, and refuses one a branch already holds. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [`open.shell`](configuration.md#keys) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
 
 Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
 
@@ -62,7 +62,7 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | `--no-claim` | [creates the worktree without claiming](#what-each-invocation-does) the bead |
 | `--version` | prints and exits, touching no repository |
 
-`--agent`, `--shell`, `--editor` and `--diff` exclude one another. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline.
+`--agent`, `--shell`, `--editor` and `--diff` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. `--create` excludes `--no-claim`, a worktree with no ticket behind it having no claim to decline.
 
 ### What a worktree carries
 

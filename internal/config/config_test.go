@@ -201,6 +201,37 @@ func TestDefaultOpenCommands(t *testing.T) {
 	}
 }
 
+// An unset [action] key is what work did before either was a setting, so a
+// Config that never reached Load names an action either way.
+func TestDefaultActions(t *testing.T) {
+	var a Action
+	if got := a.Create(); got != ActionAgent {
+		t.Errorf("Create() = %q, want %q", got, ActionAgent)
+	}
+	if got := a.Enter(); got != ActionShell {
+		t.Errorf("Enter() = %q, want %q", got, ActionShell)
+	}
+}
+
+// Each key is read on its own, so a file may name one action and leave the
+// other to the default.
+func TestConfiguredActions(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"editor\"\n")
+
+	c, err := Load(repo)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Action.Enter(); got != ActionEditor {
+		t.Errorf("action.enter = %q, want %q", got, ActionEditor)
+	}
+	if got := c.Action.Create(); got != ActionAgent {
+		t.Errorf("action.create = %q, want the default %q", got, ActionAgent)
+	}
+}
+
 // A configured diff replaces the default whole, and places the base wherever the
 // tool it names wants it.
 func TestConfiguredDiffCommand(t *testing.T) {
@@ -331,6 +362,12 @@ func TestLoadRefusals(t *testing.T) {
 		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
+		{"an unknown action key", "[action]\nopen = \"shell\"\n", "unknown setting"},
+		{"an action nothing goes by", "[action]\ncreate = \"launcher\"\n", "is not an action"},
+		{"an action named for its flag", "[action]\nenter = \"--shell\"\n", "is not an action"},
+		{"the unnamed action, which is no action", "[action]\nenter = \"unnamed\"\n", "is not an action"},
+		{"an action that is not a string", "[action]\ncreate = 3\n", "create"},
+		{"an action in another case", "[action]\nenter = \"Shell\"\n", "is not an action"},
 		{"an unknown command key", "[agent]\nstart = [\"claude\"]\n", "unknown setting"},
 		{"a command that is not a list", "[agent]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
 		{"a list of something other than strings", "[agent]\nstart-ticket = [1, 2]\n", "list of command line arguments"},

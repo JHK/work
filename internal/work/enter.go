@@ -2,32 +2,26 @@ package work
 
 import (
 	"errors"
-	"fmt"
+
+	"github.com/JHK/work-cli/internal/config"
 )
 
 // Action is what a worktree is handed over to. One worktree opens on one
-// command, so a front end names one of these and cannot name two.
-type Action int
+// command, so a front end names one of these and cannot name two. It is the
+// settings' own type: a flag and an [action] key name the one set of actions,
+// and the names they go by are the settings' to refuse.
+type Action = config.ActionName
 
 const (
-	// ActionUnnamed is the moment's own: the launcher for a worktree just
-	// created, open.shell for one already there.
-	ActionUnnamed Action = iota
-	ActionAgent          // the agent, on whatever the worktree already carries
-	ActionShell          // open.shell, a worktree just created included
-	ActionEditor         // open.editor
-	ActionDiff           // open.diff
+	// ActionUnnamed is no action named, which leaves the moment's own key to
+	// settle it: action.create for a worktree about to be made, action.enter for
+	// one already there.
+	ActionUnnamed Action = ""
+	ActionAgent          = config.ActionAgent  // the agent, on whatever the worktree already carries
+	ActionShell          = config.ActionShell  // open.shell, a worktree just created included
+	ActionEditor         = config.ActionEditor // open.editor
+	ActionDiff           = config.ActionDiff   // open.diff
 )
-
-// actionNames are the names the actions go by, in the enum's own order.
-var actionNames = [...]string{"unnamed", "agent", "shell", "editor", "diff"}
-
-func (a Action) String() string {
-	if a < 0 || int(a) >= len(actionNames) {
-		return fmt.Sprintf("Action(%d)", int(a))
-	}
-	return actionNames[a]
-}
 
 // Options are the choices a front end makes on the way in, beyond the target
 // itself.
@@ -50,13 +44,29 @@ func (e Env) Enter(c Candidate, o Options) (Entry, error) {
 	return e.enter(e.inspectAt(c), o)
 }
 
+// opensOn is the action to hand the worktree to: the one the front end named,
+// else the one the moment's key holds.
+func (e Env) opensOn(s State, o Options) Action {
+	switch {
+	case o.Action != ActionUnnamed:
+		return o.Action
+	case s.Exists:
+		return e.Config.Action.Enter()
+	default:
+		return e.Config.Action.Create()
+	}
+}
+
 // enter takes an inspected target the rest of the way.
 func (e Env) enter(s State, o Options) (Entry, error) {
-	// Ahead of the vetting: an editor that cannot be named leaves nothing created
-	// or claimed. Every other command is rendered once there is a worktree to run
-	// it in, a diff having no merge-base until the branch exists.
+	action := e.opensOn(s, o)
+
+	// Ahead of the vetting, whichever named the editor: one that cannot be named
+	// leaves nothing created or claimed. Every other command is rendered once
+	// there is a worktree to run it in, a diff having no merge-base until the
+	// branch exists.
 	var editor []string
-	if o.Action == ActionEditor {
+	if action == ActionEditor {
 		var err error
 		if editor, err = e.Editor(s); err != nil {
 			return Entry{}, err
@@ -91,22 +101,23 @@ func (e Env) enter(s State, o Options) (Entry, error) {
 	}
 
 	entry := Entry{State: s, Handoff: Handoff{Dir: s.Path}}
-	if o.Action == ActionEditor {
+	if action == ActionEditor {
 		entry.Handoff.Run = editor
 		return entry, nil
 	}
 
-	// The launcher is what a worktree only just created opens on, an unnamed
-	// action and an agent alike: there is nothing there to enter yet, and no
-	// conversation to return to.
+	// The launcher is what the agent means for a worktree only just created: there
+	// is nothing there to enter yet, and no conversation to return to.
 	render := e.Launch
-	switch {
-	case o.Action == ActionShell, o.Action == ActionUnnamed && s.Exists:
+	switch action {
+	case ActionShell:
 		render = e.Shell
-	case o.Action == ActionDiff:
+	case ActionDiff:
 		render = e.Diff
-	case o.Action == ActionAgent && s.Exists:
-		render = e.Agent
+	case ActionAgent:
+		if s.Exists {
+			render = e.Agent
+		}
 	}
 	// Past the provisioning and the claim, so a command that will not render leaves
 	// the worktree made and the ticket claimed, as one that will not start does.

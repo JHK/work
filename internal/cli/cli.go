@@ -68,10 +68,11 @@ to what the one you pick opens on: your shell, or a command.
 With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
-Entering a worktree that already exists runs open.shell in it, your shell by
-default. A target without one has its worktree created and the configured
-launcher invoked in it. --agent, --shell, --editor and --diff name the command
-to open on instead.
+Entering a worktree that already exists hands it to what action.enter names,
+open.shell by default. A target without one has its worktree created and handed
+to what action.create names, the configured launcher by default. --agent,
+--shell, --editor and --diff name the action to open on instead, for that
+invocation.
 
 --agent hands the worktree to its agent. It changes nothing for one just
 created, which opens on the launcher regardless; an existing one is handed over

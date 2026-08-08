@@ -23,6 +23,8 @@ Values are validated after the merge and before anything is created.
 | `worktree.directory` | `.worktrees` | a directory inside the repository root, where a new worktree is created |
 | `branch.ticket` | `{{.ID}}{{with .Slug}}-{{.}}{{end}}` | the branch a ticket's worktree checks out |
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
+| `action.create` | `agent` | the [action](#actions) a newly created worktree opens on |
+| `action.enter` | `shell` | the [action](#actions) an existing worktree opens on |
 | `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
 | `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
 | `agent.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
@@ -46,6 +48,17 @@ Refused at load:
 
 - a pattern placing no `.ID` or no `.Number`
 - a pattern rendering a branch that opens with a dash
+
+## Actions
+
+An `[action]` value is one of the actions [a flag](cli.md#flags) names, anything else being refused at load, and a flag naming one wins over both keys for that invocation:
+
+| Value | Hands the worktree to |
+|---|---|
+| `agent` | the [launcher](cli.md#flags) its kind names where the worktree was just created, else what [the conversations it carries](cli.md#what-a-worktree-carries) name |
+| `shell` | `open.shell` |
+| `editor` | `open.editor` |
+| `diff` | `open.diff` |
 
 ## Commands
 

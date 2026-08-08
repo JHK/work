@@ -18,6 +18,7 @@ import (
 type Config struct {
 	Worktree Worktree
 	Branch   Branch
+	Action   Action
 	Agent    Agent
 	Open     Open
 }
@@ -60,6 +61,7 @@ func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
 		Branch:   defaults,
+		Action:   defaultAction,
 		Agent:    defaultAgent,
 		Open:     defaultOpen,
 	}
@@ -160,6 +162,9 @@ func (c *Config) validate(repo string) (string, error) {
 		return pullRequestKey, err
 	}
 
+	if key, err := c.Action.validate(); err != nil {
+		return key, err
+	}
 	if key, err := c.Agent.validate(); err != nil {
 		return key, err
 	}
