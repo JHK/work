@@ -76,6 +76,58 @@ func TestListHidesPrintMode(t *testing.T) {
 	}
 }
 
+// An event too long to be one of the short ones read here must not hide the
+// events behind it.
+func TestListHidesPrintModeBehindAnOversizedLine(t *testing.T) {
+	home := t.TempDir()
+	dir := "/w/t"
+
+	// The oversized event names the key below the top level, where it decides nothing.
+	write(t, home, dir, "printed", []string{
+		`{"type":"user","message":{"entrypoint":"sdk-cli","pad":"` + strings.Repeat("x", headLen/4) + `"}}`,
+		`{"type":"system","entrypoint":"sdk-cli"}`,
+	}, time.Unix(100, 0))
+	write(t, home, dir, "interactive", []string{`{"type":"user","entrypoint":"cli"}`}, time.Unix(200, 0))
+
+	got, err := Claude{Home: home}.List(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "interactive" {
+		t.Errorf("List() = %+v, want the interactive transcript alone", got)
+	}
+}
+
+// A transcript naming no entrypoint stays on offer, and costs a bounded prefix
+// rather than the whole file.
+func TestPrintModeStopsAtHeadLen(t *testing.T) {
+	line := `{"type":"user","message":"nothing named here"}` + "\n"
+	r := strings.NewReader(strings.Repeat(line, 1+headLen/len(line)))
+
+	if printMode(r) {
+		t.Error("printMode() = true, want false for a transcript naming no entrypoint")
+	}
+	if read := r.Size() - int64(r.Len()); read > headLen {
+		t.Errorf("printMode read %d bytes, want at most headLen (%d)", read, headLen)
+	}
+}
+
+// The line headLen severs is a fragment, whatever it appears to name. Padded
+// with spaces, so the severed prefix parses and only the cut decides.
+func TestPrintModeIgnoresASeveredLine(t *testing.T) {
+	severed := `{"type":"system","entrypoint":"sdk-cli"}` + strings.Repeat(" ", headLen) + "\n"
+	if printMode(strings.NewReader(severed)) {
+		t.Error("printMode() = true, want false: the line was severed, not read")
+	}
+}
+
+// A writer that stopped short of the newline still wrote a whole event.
+func TestPrintModeReadsAnUnterminatedFinalLine(t *testing.T) {
+	if !printMode(strings.NewReader(`{"type":"system","entrypoint":"sdk-cli"}`)) {
+		t.Error("printMode() = false, want true: the file ran out, not the budget")
+	}
+}
+
 func write(t *testing.T, home, dir, id string, lines []string, mod time.Time) {
 	t.Helper()
 	b := bucket(home, dir)

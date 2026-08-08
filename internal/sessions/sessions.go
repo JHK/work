@@ -136,7 +136,7 @@ func listed(path string) bool {
 	}
 	defer func() { _ = f.Close() }()
 
-	return !printMode(io.NewSectionReader(f, 0, headLen))
+	return !printMode(f)
 }
 
 // printEntrypoint marks a transcript `claude -p` wrote. The picker does not
@@ -144,14 +144,22 @@ func listed(path string) bool {
 const printEntrypoint = "sdk-cli"
 
 // headLen is how much of a transcript's start is worth reading. Every message
-// event carries the entrypoint, and the metadata ahead of the first one runs to
-// a few kilobytes.
-const headLen = 64 << 10
+// event carries the entrypoint and the metadata ahead of the first one runs to a
+// few kilobytes; the rest is slack, so one outsized event cannot hide the ones
+// behind it.
+const headLen = 256 << 10
 
 // printMode reports whether the transcript came from print mode, which is the
-// entrypoint its events name.
+// entrypoint its events name. A line headLen severs is a fragment, not an event.
 func printMode(r io.Reader) bool {
-	for line := range lines(r) {
+	head := &io.LimitedReader{R: r, N: headLen}
+	br := bufio.NewReader(head)
+	for {
+		line, err := br.ReadString('\n')
+		// Short of a newline: a whole event only where the file, not the budget, ran out.
+		if err != nil && (head.N == 0 || line == "") {
+			return false
+		}
 		// A message body may quote the key, so the parsed value decides, not the text.
 		if !strings.Contains(line, `"entrypoint"`) {
 			continue
@@ -161,29 +169,5 @@ func printMode(r io.Reader) bool {
 			continue
 		}
 		return e.Entrypoint == printEntrypoint
-	}
-	return false
-}
-
-// maxLine bounds what is worth parsing. The events read here are short; the
-// lines that blow past this are message bodies.
-const maxLine = 64 << 10
-
-func lines(r io.Reader) func(func(string) bool) {
-	return func(yield func(string) bool) {
-		br := bufio.NewReaderSize(r, maxLine)
-		for {
-			line, err := br.ReadSlice('\n')
-			oversized := errors.Is(err, bufio.ErrBufferFull)
-			for errors.Is(err, bufio.ErrBufferFull) {
-				_, err = br.ReadSlice('\n')
-			}
-			if !oversized && len(line) > 0 && !yield(string(line)) {
-				return
-			}
-			if err != nil {
-				return
-			}
-		}
 	}
 }
