@@ -44,7 +44,7 @@ A worktree name, a ticket id or a pull request skips the chooser. See also [the 
 
 What ships is locked to one instance of each integration, and [a missing one](docs/references/tools.md) fails its path rather than degrading it.
 
-- **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a name that is not a pull request resolves nowhere without it.
+- **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a ticket resolves nowhere without it.
 - **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
 - **The shell is fish.** `work init fish` is the only integration it prints.
 - **The picker is `fzf`.** The no-argument form needs it.

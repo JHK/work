@@ -65,9 +65,13 @@ func (e Env) Diff(s State) ([]string, error) {
 // chooses between.
 func (e Env) Launch(s State) ([]string, error) {
 	l := values(s)
-	if s.Target.Kind == KindPR {
+	switch s.Target.Kind {
+	case KindPR:
 		l.Number = s.Target.ID
 		return e.Config.Agent.StartPullRequest(l)
+	case KindPlain:
+		// Nothing to prompt a session with: a bare worktree opens on one of its own.
+		return e.Config.Agent.StartSession(l)
 	}
 	l.ID, l.Title = s.Target.ID, s.Bead.Title
 	return e.Config.Agent.StartTicket(l)

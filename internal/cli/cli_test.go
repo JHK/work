@@ -28,6 +28,11 @@ func TestCommandFlags(t *testing.T) {
 		{"a diff on a named target", []string{"--diff", "bd-1"}, options{diff: true}, "bd-1"},
 		{"a diff that does not claim", []string{"--diff", "--no-claim", "bd-1"}, options{diff: true, noClaim: true}, "bd-1"},
 		{"no claim from the picker", []string{"--no-claim"}, options{noClaim: true}, ""},
+		// --create says nothing about which command opens either, so it combines too.
+		{"create", []string{"--create", "scratch"}, options{create: true}, "scratch"},
+		{"a created worktree in a shell", []string{"--create", "--shell", "scratch"}, options{create: true, shell: true}, "scratch"},
+		{"a created worktree in the editor", []string{"--create", "--editor", "scratch"}, options{create: true, editor: true}, "scratch"},
+		{"a created worktree diffed", []string{"--create", "--diff", "scratch"}, options{create: true, diff: true}, "scratch"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,6 +67,7 @@ func TestFlagsNameOneAction(t *testing.T) {
 		{"editor", options{editor: true}, work.ActionEditor},
 		{"diff", options{diff: true}, work.ActionDiff},
 		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
+		{"create names none", options{create: true}, work.ActionUnnamed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,6 +107,8 @@ func TestCommandRejects(t *testing.T) {
 		{"an agent and an editor at once", []string{"bd-1", "--agent", "--editor"}},
 		{"an agent and a diff at once", []string{"bd-1", "--agent", "--diff"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
+		// A worktree with no ticket behind it has no claim to decline.
+		{"creating and declining a claim at once", []string{"scratch", "--create", "--no-claim"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},
@@ -153,6 +161,16 @@ func TestLabels(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("row %d = %q; want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// The picker offers what exists, so it never stands in for a name --create was
+// not given. The env here is not a repository, so anything else would fail
+// against git rather than refuse the invocation.
+func TestCreateNeedsAName(t *testing.T) {
+	_, err := candidate(work.Env{}, options{create: true}, "")
+	if err == nil || !strings.Contains(err.Error(), "--create needs a name") {
+		t.Errorf("--create with no name = %v; want it refused by name", err)
 	}
 }
 

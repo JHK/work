@@ -11,10 +11,11 @@ import (
 )
 
 // Branch names the branch a target's worktree checks out, from the pattern its
-// kind is configured with. A pull request's is the name it already carries; a
-// bead's takes a slug of its title, which is only knowable once bd has answered.
+// kind is configured with. A pull request's is the name it already carries, and
+// a plain worktree, being asked for by name, is its own; a bead's takes a slug
+// of its title, which is only knowable once bd has answered.
 func (e Env) Branch(s State) (string, error) {
-	if s.Target.Kind == KindPR {
+	if s.Target.Kind == KindPR || s.Target.Kind == KindPlain {
 		return s.Target.Name, nil
 	}
 	if s.TicketErr != nil {
@@ -28,11 +29,6 @@ func (e Env) Branch(s State) (string, error) {
 func (e Env) Provision(s State) error {
 	if s.Exists {
 		return nil
-	}
-	// Nothing but the worktree itself said what a plain target was, so once it is
-	// gone there is nothing left to recreate.
-	if s.Target.Kind == KindPlain {
-		return fmt.Errorf("no worktree named %s", s.Target.Name)
 	}
 	branch, err := e.Branch(s)
 	if err != nil {
@@ -49,6 +45,14 @@ func (e Env) Provision(s State) error {
 			}
 		}
 		if err := git.AddWorktree(e.Repo, s.Path, branch); err != nil {
+			return err
+		}
+	// Only a target Create made reaches here: a discovered one is the worktree it
+	// was read off, which the idempotence above has already returned for.
+	case KindPlain:
+		// No ticket to name it after and no tracker to ask: git alone, forking the
+		// branch from what the main checkout has at HEAD.
+		if err := git.NewWorktree(e.Repo, s.Path, branch); err != nil {
 			return err
 		}
 	default:

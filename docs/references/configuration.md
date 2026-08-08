@@ -25,7 +25,7 @@ Values are validated after the merge and before anything is created.
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
 | `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
 | `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
-| `agent.start-session` | [below](#commands) | the command a worktree carrying no conversation opens on |
+| `agent.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
 | `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
 | `open.shell` | [below](#commands) | the command an existing worktree is entered with, and the one `--shell` hands over to |
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |

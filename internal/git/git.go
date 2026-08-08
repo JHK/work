@@ -123,10 +123,23 @@ func Fetch(repo, refspec string) error {
 
 // AddWorktree checks an existing branch out into a new worktree.
 func AddWorktree(repo, path, branch string) error {
+	return add(repo, path, branch)
+}
+
+// NewWorktree checks a branch of its own out into a new worktree, forked from
+// what the main checkout has at HEAD. git refuses a branch that already exists,
+// which is what asserts the name is free.
+func NewWorktree(repo, path, branch string) error {
+	return add(repo, path, "-b", branch)
+}
+
+// add makes the directory the worktree goes in, then adds it. git takes its
+// options after the path as readily as before it.
+func add(repo, path string, args ...string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	_, err := git(repo, "worktree", "add", path, branch)
+	_, err := git(repo, append([]string{"worktree", "add", path}, args...)...)
 	return err
 }
 

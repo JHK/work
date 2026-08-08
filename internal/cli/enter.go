@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/JHK/work-cli/internal/work"
+import (
+	"errors"
+
+	"github.com/JHK/work-cli/internal/work"
+)
 
 // enter resolves the target, asks work to bring its worktree into being, and
 // hands the terminal over to what came back.
@@ -9,26 +13,29 @@ func enter(o options, target string) error {
 	if err != nil {
 		return err
 	}
+	c, err := candidate(env, o, target)
+	if err != nil {
+		return err
+	}
 
-	e, err := entry(env, target, work.Options{Action: o.action(), NoClaim: o.noClaim})
+	e, err := env.Enter(c, work.Options{Action: o.action(), NoClaim: o.noClaim})
 	if err != nil {
 		return err
 	}
 	return e.Handoff.Exec()
 }
 
-// entry brings the target's worktree into being: an identifier names the place
-// to work outright, and without one the picker hands one over.
-func entry(env work.Env, target string, o work.Options) (work.Entry, error) {
-	var c work.Candidate
-	var err error
-	if target == "" {
-		c, err = pick(env)
-	} else {
-		c, err = env.Resolve(target)
+// candidate is the place to work: --create takes the name as its own, an
+// identifier names one outright, and without either the picker hands one over.
+func candidate(env work.Env, o options, target string) (work.Candidate, error) {
+	switch {
+	// The picker offers what exists; a bare worktree is created by name only.
+	case o.create && target == "":
+		return work.Candidate{}, errors.New("--create needs a name")
+	case o.create:
+		return env.Create(target)
+	case target == "":
+		return pick(env)
 	}
-	if err != nil {
-		return work.Entry{}, err
-	}
-	return env.Enter(c, o)
+	return env.Resolve(target)
 }

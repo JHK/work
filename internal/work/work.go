@@ -27,8 +27,9 @@ type Kind int
 const (
 	KindBead Kind = iota
 	KindPR
-	// KindPlain is a worktree whose branch names neither: it is offered as it is
-	// and entered with a shell. It is only ever discovered, never created.
+	// KindPlain is a worktree whose branch names neither: one discovered under a
+	// branch nothing else answers for, or one asked for by name outright. Having no
+	// ticket, it is neither vetted nor claimed.
 	KindPlain
 )
 
@@ -96,6 +97,30 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 	return Candidate{Target: t, Open: path != "", path: path, bead: record(known, t)}, nil
 }
 
+// Create is the place a name of the user's own makes: a worktree with no ticket
+// and no pull request behind it, on a branch spelled exactly as the name is.
+// Nothing is guessed and nothing is asked of bd. The name is asserted free, a
+// branch already holding it being a worktree to re-enter rather than create.
+// This is the one plain target without a worktree; every other is discovered.
+func (e Env) Create(name string) (Candidate, error) {
+	if err := checkName(name); err != nil {
+		return Candidate{}, err
+	}
+	if git.HasBranch(e.Repo, name) {
+		return Candidate{}, fmt.Errorf("branch %s already exists; enter its worktree with work %s", name, name)
+	}
+	return Candidate{Target: Target{Kind: KindPlain, ID: e.worktreePath(name), Name: name}}, nil
+}
+
+// checkName holds a name to the worktree-name rule, and is how breaking it
+// reads wherever it is broken.
+func checkName(name string) error {
+	if !worktreeName.MatchString(name) {
+		return fmt.Errorf("%q is not a usable worktree name", name)
+	}
+	return nil
+}
+
 // named is the target an identifier stands for: a worktree already listed under
 // the name is that worktree, whatever guess would make of the name, so that what
 // the picker and the completion show is entered by retyping it.
@@ -148,8 +173,8 @@ func (e Env) guess(arg string) (Target, error) {
 		return e.prTarget(strconv.FormatUint(i, 10)), nil
 	}
 
-	if !worktreeName.MatchString(arg) {
-		return Target{}, fmt.Errorf("%q is not a usable worktree name", arg)
+	if err := checkName(arg); err != nil {
+		return Target{}, err
 	}
 	return Target{Kind: KindBead, ID: arg, Name: arg}, nil
 }

@@ -22,6 +22,7 @@ type options struct {
 	shell   bool
 	editor  bool
 	diff    bool
+	create  bool
 	noClaim bool
 }
 
@@ -79,7 +80,11 @@ to, and several reaching the agent's own list.
 
 Creating a worktree for a ticket vets that ticket and claims it, whatever the
 worktree then opens on. A ticket the vetting refuses is refused outright;
---no-claim declines the claim and nothing else.`,
+--no-claim declines the claim and nothing else.
+
+--create takes the identifier as a name of its own, guessing nothing and asking
+no tracker: a worktree on a new branch spelled exactly that way, forked from the
+main checkout. Re-entering it later is the same name without the flag.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
@@ -106,8 +111,11 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 	f.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
 	f.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
 	f.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
+	f.BoolVar(&o.create, "create", false, "take the identifier as a worktree name of its own, on a new branch spelled the same way")
 	f.BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff")
+	// A worktree with no ticket behind it has no claim to decline.
+	cmd.MarkFlagsMutuallyExclusive("create", "no-claim")
 
 	return cmd
 }
