@@ -29,11 +29,7 @@ to remove. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(list),
 		RunE: func(_ *cobra.Command, args []string) error {
-			target := ""
-			if len(args) == 1 {
-				target = args[0]
-			}
-			return run(force, target)
+			return run(force, firstArg(args))
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "take a worktree with modified or untracked files and a branch not fully merged")

@@ -76,6 +76,49 @@ func TestFlagsNameOneAction(t *testing.T) {
 	}
 }
 
+// switch is the bare form spelled out, so it takes the same argument and
+// carries the same flags, and the verb reaches the names the bare form cannot.
+func TestSwitchFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		want   options
+		target string
+	}{
+		{"an identifier of its own", []string{"switch", "bd-1"}, options{}, "bd-1"},
+		{"no identifier", []string{"switch"}, options{}, ""},
+		{"named before the identifier", []string{"switch", "--shell", "bd-1"}, options{shell: true}, "bd-1"},
+		{"named after the identifier", []string{"switch", "bd-1", "--shell"}, options{shell: true}, "bd-1"},
+		{"in the editor", []string{"switch", "--editor", "bd-1"}, options{editor: true}, "bd-1"},
+		{"diffed", []string{"switch", "--diff", "bd-1"}, options{diff: true}, "bd-1"},
+		{"handed to the agent", []string{"switch", "--agent", "bd-1"}, options{agent: true}, "bd-1"},
+		{"asking what to open on", []string{"switch", "--ask", "bd-1"}, options{ask: true}, "bd-1"},
+		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
+		// The verbs shadow these names in the bare position; switch reaches them.
+		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
+		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
+		{"a worktree named remove", []string{"switch", "remove"}, options{}, "remove"},
+		{"a worktree named switch", []string{"switch", "switch"}, options{}, "switch"},
+		{"a worktree named help", []string{"switch", "help"}, options{}, "help"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got options
+			var target string
+			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) error {
+				got, target = o, id
+				return nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if got != tt.want || target != tt.target {
+				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
+			}
+		})
+	}
+}
+
 // add is a verb of its own, so it takes the name in the argument position and
 // carries the open-on flags wherever those sit.
 func TestAddFlags(t *testing.T) {
@@ -172,6 +215,9 @@ func TestCommandRejects(t *testing.T) {
 		{"asking and naming an action at once", []string{"bd-1", "--ask", "--shell"}},
 		{"asking and an agent at once", []string{"bd-1", "--ask", "--agent"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
+		{"two identifiers on switch", []string{"switch", "bd-1", "bd-2"}},
+		{"two actions on switch at once", []string{"switch", "bd-1", "--shell", "--editor"}},
+		{"a verb's flag on switch", []string{"switch", "bd-1", "--force"}},
 		// Creating is a verb now, and the name it takes is not optional.
 		{"--create is gone", []string{"scratch", "--create"}},
 		{"add with no name", []string{"add"}},

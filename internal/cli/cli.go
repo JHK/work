@@ -107,37 +107,16 @@ func command(version string, f front) *cobra.Command {
 has open and which tickets and pull requests are waiting, and hands the terminal
 to what the one you pick opens on: your shell, or a command.
 
-With no identifier, choose among the repository's worktrees, its ready tickets
-and its open pull requests. That form needs fzf.
-
-Entering a worktree that already exists hands it to what action.enter names,
-which by default asks. A target without one has its worktree created and handed
-to what action.create names, the configured launcher by default. --agent,
---shell, --editor, --diff and --ask name the action to open on instead, for that
-invocation.
-
---ask offers the actions that apply and opens on the one picked; dismissing that
-list creates nothing and claims nothing. That form needs fzf.
-
---agent hands the worktree to its agent. It changes nothing for one just
-created, which opens on the launcher regardless; an existing one is handed over
-by what it carries, no conversation starting one, a single one being returned
-to, and several reaching the agent's own list.
-
-Creating a worktree for a ticket vets that ticket and claims it, whatever the
-worktree then opens on. A ticket the vetting refuses is refused outright;
---no-claim declines the claim and nothing else.`,
+An identifier in this position, or none, is work switch: the same entering, the
+same picker and the same flags, which work switch --help spells out. A verb wins
+the position, so a worktree named for one is reached through the verb.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			target := ""
-			if len(args) == 1 {
-				target = args[0]
-			}
-			return f.enter(o, target)
+			return f.enter(o, firstArg(args))
 		},
 		ValidArgsFunction: suggest(f.candidates),
 	}
@@ -146,10 +125,10 @@ worktree then opens on. A ticket the vetting refuses is refused outright;
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), addCommand(f.add), removeCommand(f.remove, f.worktrees))
+	cmd.AddCommand(initCommand(), switchCommand(f.enter, f.candidates), addCommand(f.add), removeCommand(f.remove, f.worktrees))
 
 	openOn(cmd, &o)
-	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
+	noClaim(cmd, &o)
 
 	return cmd
 }
@@ -165,4 +144,19 @@ func openOn(cmd *cobra.Command, o *options) {
 	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
+}
+
+// noClaim gives a command the flag that declines a ticket's claim. It belongs to
+// entering alone, add having no ticket to decline.
+func noClaim(cmd *cobra.Command, o *options) {
+	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
+}
+
+// firstArg is the name a verb was given, empty where it was left out for the
+// picker. Cobra has already refused a second.
+func firstArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
 }

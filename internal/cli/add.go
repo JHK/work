@@ -24,7 +24,8 @@ The worktree opens on what action.create names, the configured launcher by
 default. --agent, --shell, --editor, --diff and --ask name the action to open on
 instead, for that invocation.
 
-Re-entering the worktree later is the same name without the verb.`,
+Re-entering the worktree later is the same name without the verb, or work
+switch <name> where a verb holds that name.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return run(o, args[0])

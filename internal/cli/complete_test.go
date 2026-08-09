@@ -64,6 +64,40 @@ func TestCompleteIdentifier(t *testing.T) {
 	}
 }
 
+// A tab press after switch offers what the picker offers, the bare position's
+// identifier rows exactly, and never a file name.
+func TestCompleteSwitch(t *testing.T) {
+	listed := []work.Candidate{
+		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"},
+		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+	}
+	worktrees := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+
+	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(worktrees, nil)}, "switch", "")
+	want := []string{"bd-1\tDo a thing", "spike"}
+	if !slices.Equal(rows(out), want) {
+		t.Errorf("completing switch gave %q; want %q", rows(out), want)
+	}
+	assertNoFileComp(t, out)
+
+	// There is one identifier, so a second word completes to nothing.
+	second := complete(t, front{candidates: stub(listed, nil)}, "switch", "bd-1", "")
+	if got := rows(second); got != nil {
+		t.Errorf("completing a second identifier after switch gave %q; want nothing", got)
+	}
+	assertNoFileComp(t, second)
+}
+
+// The bare position offers the verbs, switch among them, so reaching a worktree
+// by tab stays the identifier's own completion.
+func TestCompleteBarePositionOffersSwitch(t *testing.T) {
+	out := complete(t, front{candidates: stub(nil, nil)}, "")
+	want := "switch\tEnter the worktree an identifier names, creating it if there is none"
+	if !slices.Contains(rows(out), want) {
+		t.Errorf("completing the bare position gave %q; want a %q row", rows(out), want)
+	}
+}
+
 // A tab press after remove offers the worktrees and nothing else: not the
 // tickets and pull requests the identifier completes to, and not a file name.
 func TestCompleteRemove(t *testing.T) {
