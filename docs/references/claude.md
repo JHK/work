@@ -1,8 +1,8 @@
-# The agent
+# `claude`
 
 A worktree is handed to the [command](configuration.md#commands) the `[agent]` keys name, `claude` by default. Beyond running it, `work` asks the agent one question: which conversations a worktree carries.
 
-## Conversations in `claude`
+## Conversations
 
 No `claude` invocation reports a directory's conversations without becoming one.
 

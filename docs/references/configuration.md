@@ -78,7 +78,7 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 | `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
-An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](agent.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
+An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
 
@@ -87,7 +87,7 @@ Refused at load:
 
 A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, and is no row on [the screen](cli.md#the-screen).
 
-The defaults, which rest on [`claude`'s own behaviour](agent.md):
+The defaults, which rest on [`claude`'s own behaviour](claude.md):
 
 ```toml
 [agent]

@@ -88,7 +88,7 @@ What a worktree is handed to, for one invocation, ahead of what [`action.create`
 
 | Flag | Hands the worktree to |
 |---|---|
-| `--agent` | the [`agent` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](agent.md#the-contract) name |
+| `--agent` | the [`agent` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
 | `--shell` | [`open.shell`](configuration.md#keys), one just created included |
 | `--editor` | [`open.editor`](configuration.md#keys) |
 | `--diff` | [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
