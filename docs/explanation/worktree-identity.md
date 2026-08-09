@@ -6,7 +6,7 @@ Which worktree an ask reaches, and whether one exists to reach at all, both rest
 
 A branch each would be cheaper. One checkout, a branch per piece of work, and moving between them is a single command. It loses because a piece of work in flight is more than its commits: a build tree, a test run part way through, a shell sitting somewhere in the directory, an agent holding a picture of what is where. Changing the branch underneath all of that invalidates it, and what survives has to be stashed and restored by hand.
 
-A branch each therefore serialises work that has no reason to be serial, which is why [agentic work](scope-of-work.md#worktrees-and-agentic-work) needs worktrees rather than merely liking them.
+A branch each therefore serialises work that has no reason to be serial, which is why [agentic work](scope-of-work.md#isolation-is-half-of-what-an-agent-needs) needs worktrees rather than merely liking them.
 
 ## What a worktree is for is not the tool's call
 
