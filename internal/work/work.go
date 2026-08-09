@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
@@ -256,13 +257,23 @@ type Candidate struct {
 // that will not answer costs its own rows and its own labels, never the
 // worktrees.
 func (e Env) Candidates() ([]Candidate, error) {
+	var (
+		worktrees    []git.Worktree
+		known, ready []beads.Bead
+		pulls        []forge.PR
+		err          error
+	)
+	// None of them reads another's answer, so they are issued at once and the
+	// wait is the slowest of them rather than their sum.
+	var wg sync.WaitGroup
 	// The one listing serves both the branch matching and the labels.
-	worktrees, known, err := e.opened()
+	wg.Go(func() { worktrees, known, err = e.opened() })
+	wg.Go(func() { ready, _ = beads.Ready(e.Repo) })
+	wg.Go(func() { pulls, _ = forge.Open(e.Repo, git.OriginURL(e.Repo)) })
+	wg.Wait()
 	if err != nil {
 		return nil, err
 	}
-	ready, _ := beads.Ready(e.Repo)
-	pulls, _ := forge.Open(e.Repo, git.OriginURL(e.Repo))
 	return e.candidates(worktrees, known, ready, pulls), nil
 }
 

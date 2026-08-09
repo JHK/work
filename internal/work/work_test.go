@@ -511,6 +511,59 @@ func TestEnterFromThePicker(t *testing.T) {
 	}
 }
 
+// The picker's listings are issued at once: none of them reads another's
+// answer, so none of them waits for one.
+func TestCandidatesListsAtOnce(t *testing.T) {
+	repo := initRepo(t)
+	// gh is asked only where origin says which repository to ask about.
+	gitCmd(t, repo, "remote", "add", "origin", "https://github.com/o/r")
+	e, err := Open(repo)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	alone := stalling(t)
+
+	if _, err := e.Candidates(); err != nil {
+		t.Fatalf("Candidates: %v", err)
+	}
+	if alone() {
+		t.Error("a listing ran with no other in flight; want them issued at once")
+	}
+}
+
+// stalling puts a bd and a gh on PATH that each wait for a second of them to be
+// running, and hands back whether either gave up waiting. A listing issued on
+// its own never finds company; the markers outlive their process, so only the
+// first of a sequence gives up.
+func stalling(t *testing.T) func() bool {
+	t.Helper()
+	dir := t.TempDir()
+	stub := fmt.Sprintf(`#!/bin/sh
+: > %[1]q/running-$$
+n=0
+until [ "$(ls %[1]q | grep -c '^running-')" -ge 2 ]; do
+	n=$((n + 1))
+	if [ "$n" -gt 100 ]; then
+		: > %[1]q/alone
+		break
+	fi
+	sleep 0.05
+done
+echo '[]'
+`, dir)
+	for _, tool := range []string{"bd", "gh"} {
+		if err := os.WriteFile(filepath.Join(dir, tool), []byte(stub), 0o755); err != nil {
+			t.Fatalf("write %s: %v", tool, err)
+		}
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return func() bool {
+		_, err := os.Stat(filepath.Join(dir, "alone"))
+		return err == nil
+	}
+}
+
 // shim puts a counting git and a stub bd on PATH ahead of the real ones, and
 // hands back what they have been asked to run. answers is the JSON each bd
 // subcommand replies with; one with no answer of its own replies nothing.
