@@ -400,42 +400,48 @@ func (e Env) inspectAt(c Candidate) State {
 	return s
 }
 
-// vet reports why the bead cannot be worked, or "" if it can. bd is asked only
-// where its answer can decide: a status that settles the question, a listing
-// that already vouched for the bead, and an epic, whose verdict vetBead reaches
-// without the dependency check, each cost no query.
-func (e Env) vet(b beads.Bead, ready bool) (string, error) {
-	if b.Status == "open" && !ready && b.Type != "epic" {
-		list, err := beads.Ready(e.Repo)
-		if err != nil {
-			return "", err
-		}
-		ready = slices.ContainsFunc(list, func(r beads.Bead) bool { return r.ID == b.ID })
-	}
-	return vetBead(b, ready), nil
-}
-
-// vetBead reports why the bead cannot be worked, or "" if it can. ready says
-// whether bd currently considers it unblocked; it is consulted only for open
-// tickets, so callers may pass false for anything else.
-func vetBead(b beads.Bead, ready bool) string {
+// vetBead reports why the bead cannot be worked, or "" if it can. ready is
+// asked whether bd currently considers the bead unblocked, and only the last
+// rule asks it, so every verdict reached ahead of it costs no query.
+func vetBead(b beads.Bead, ready func() (bool, error)) (string, error) {
 	switch {
 	case b.Status == "closed":
-		return fmt.Sprintf("%s is already closed", b.ID)
+		return fmt.Sprintf("%s is already closed", b.ID), nil
 	// Refining an epic is what its worktree is for, and refining is what would
 	// supply the rest.
 	case b.Type == "epic":
-		return ""
+		return "", nil
 	case b.Status == "deferred":
-		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID)
+		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID), nil
 	// Ahead of the criteria check: /refine would move the bead out of the status
 	// that is the actual blocker.
 	case b.Status != "open" && b.Status != "in_progress":
-		return fmt.Sprintf("%s is %s, not workable", b.ID, b.Status)
+		return fmt.Sprintf("%s is %s, not workable", b.ID, b.Status), nil
 	case strings.TrimSpace(b.AcceptanceCriteria) == "":
-		return fmt.Sprintf("%s has no acceptance criteria; refine it first with /refine %s", b.ID, b.ID)
-	case b.Status == "open" && !ready:
-		return fmt.Sprintf("%s is blocked by an open dependency", b.ID)
+		return fmt.Sprintf("%s has no acceptance criteria; refine it first with /refine %s", b.ID, b.ID), nil
+	case b.Status == "open":
+		ok, err := ready()
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return fmt.Sprintf("%s is blocked by an open dependency", b.ID), nil
+		}
 	}
-	return ""
+	return "", nil
+}
+
+// readiness is the query vetting spends: whether bd lists the bead as workable.
+// A listing that already said so is spared it.
+func (e Env) readiness(s State) func() (bool, error) {
+	return func() (bool, error) {
+		if s.Ready {
+			return true, nil
+		}
+		list, err := beads.Ready(e.Repo)
+		if err != nil {
+			return false, err
+		}
+		return slices.ContainsFunc(list, func(r beads.Bead) bool { return r.ID == s.Bead.ID }), nil
+	}
 }

@@ -99,7 +99,7 @@ func (e Env) enter(s State, o Options) (Entry, error) {
 		if s.TicketErr != nil {
 			return Entry{}, s.TicketErr
 		}
-		reason, err := e.vet(s.Bead, s.Ready)
+		reason, err := vetBead(s.Bead, e.readiness(s))
 		if err != nil {
 			return Entry{}, err
 		}
