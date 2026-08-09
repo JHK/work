@@ -10,6 +10,7 @@ import (
 
 func TestVetBead(t *testing.T) {
 	workable := beads.Bead{ID: "bd-1", Title: "A ticket", Status: "open", Type: "task", AcceptanceCriteria: "It works"}
+	epic := with(workable, func(b *beads.Bead) { b.Type = "epic" })
 
 	tests := []struct {
 		name  string
@@ -21,7 +22,6 @@ func TestVetBead(t *testing.T) {
 		{"in progress needs no ready check", with(workable, func(b *beads.Bead) { b.Status = "in_progress" }), false, ""},
 		{"deferred", with(workable, func(b *beads.Bead) { b.Status = "deferred" }), false, "unrefined"},
 		{"closed", with(workable, func(b *beads.Bead) { b.Status = "closed" }), false, "already closed"},
-		{"epic", with(workable, func(b *beads.Bead) { b.Type = "epic" }), false, "is an epic"},
 		{"no acceptance criteria", with(workable, func(b *beads.Bead) { b.AcceptanceCriteria = "  \n" }), false, "no acceptance criteria"},
 		{"blocked status", with(workable, func(b *beads.Bead) { b.Status = "blocked" }), false, "is blocked, not workable"},
 
@@ -29,8 +29,10 @@ func TestVetBead(t *testing.T) {
 		{"unworkable status outranks missing criteria", with(workable, func(b *beads.Bead) { b.Status, b.AcceptanceCriteria = "blocked", "" }), false, "is blocked, not workable"},
 		{"blocked by a dependency", workable, false, "open dependency"},
 
-		// A deferred epic is unrefined first: the cheapest fix comes first.
-		{"deferred outranks epic", with(workable, func(b *beads.Bead) { b.Status, b.Type = "deferred", "epic" }), false, "unrefined"},
+		{"open epic, dependencies unasked", epic, false, ""},
+		{"deferred epic", with(epic, func(b *beads.Bead) { b.Status = "deferred" }), false, ""},
+		{"epic without acceptance criteria", with(epic, func(b *beads.Bead) { b.AcceptanceCriteria = "" }), false, ""},
+		{"closed epic", with(epic, func(b *beads.Bead) { b.Status = "closed" }), false, "already closed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -56,6 +58,12 @@ func TestVetTakesTheListingsWord(t *testing.T) {
 	}
 	if _, err := e.vet(open, false); err == nil {
 		t.Error("vet without a vouched bead did not ask bd")
+	}
+
+	// An epic's dependencies are not asked after, so there is nothing to ask bd.
+	epic := beads.Bead{ID: "bd-2", Status: "open", Type: "epic"}
+	if reason, err := e.vet(epic, false); err != nil || reason != "" {
+		t.Errorf("vet(epic) = %q, %v; want it workable without asking bd", reason, err)
 	}
 }
 

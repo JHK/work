@@ -401,10 +401,11 @@ func (e Env) inspectAt(c Candidate) State {
 }
 
 // vet reports why the bead cannot be worked, or "" if it can. bd is asked only
-// for an open bead nothing has already vouched for: a status that answers the
-// question, and a listing that reported the bead ready, both cost no query.
+// where its answer can decide: a status that settles the question, a listing
+// that already vouched for the bead, and an epic, whose verdict vetBead reaches
+// without the dependency check, each cost no query.
 func (e Env) vet(b beads.Bead, ready bool) (string, error) {
-	if b.Status == "open" && !ready {
+	if b.Status == "open" && !ready && b.Type != "epic" {
 		list, err := beads.Ready(e.Repo)
 		if err != nil {
 			return "", err
@@ -416,15 +417,17 @@ func (e Env) vet(b beads.Bead, ready bool) (string, error) {
 
 // vetBead reports why the bead cannot be worked, or "" if it can. ready says
 // whether bd currently considers it unblocked; it is consulted only for open
-// beads, so callers may pass false for any other status.
+// tickets, so callers may pass false for anything else.
 func vetBead(b beads.Bead, ready bool) string {
 	switch {
-	case b.Status == "deferred":
-		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID)
 	case b.Status == "closed":
 		return fmt.Sprintf("%s is already closed", b.ID)
+	// Refining an epic is what its worktree is for, and refining is what would
+	// supply the rest.
 	case b.Type == "epic":
-		return fmt.Sprintf("%s is an epic; start one of its children (bd show %s --children)", b.ID, b.ID)
+		return ""
+	case b.Status == "deferred":
+		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID)
 	// Ahead of the criteria check: /refine would move the bead out of the status
 	// that is the actual blocker.
 	case b.Status != "open" && b.Status != "in_progress":
