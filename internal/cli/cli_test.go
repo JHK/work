@@ -8,6 +8,9 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
+// The bare form arrives at switch as it was typed, whatever stands in the first
+// position: a name, a flag, or nothing. Which flag names which action is
+// TestSwitchFlags' to say, the two forms reaching the one command.
 func TestCommandFlags(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -15,22 +18,12 @@ func TestCommandFlags(t *testing.T) {
 		want   options
 		target string
 	}{
-		{"no identifier", []string{"--shell"}, options{shell: true}, ""},
-		{"flags before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
-		{"an editor with no identifier", []string{"--editor"}, options{editor: true}, ""},
-		{"an editor on a named target", []string{"--editor", "bd-1"}, options{editor: true}, "bd-1"},
+		{"nothing at all", nil, options{}, ""},
+		{"an identifier alone", []string{"bd-1"}, options{}, "bd-1"},
+		{"a flag before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
+		{"a flag in place of one", []string{"--shell"}, options{shell: true}, ""},
 		// --no-claim says nothing about which command opens, so it combines with each.
-		{"no claim", []string{"--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
 		{"a shell that does not claim", []string{"--shell", "--no-claim", "bd-1"}, options{shell: true, noClaim: true}, "bd-1"},
-		{"an editor that does not claim", []string{"--editor", "--no-claim", "bd-1"}, options{editor: true, noClaim: true}, "bd-1"},
-		{"an agent on a named target", []string{"--agent", "bd-1"}, options{agent: true}, "bd-1"},
-		{"an agent with no identifier", []string{"--agent"}, options{agent: true}, ""},
-		{"a diff on a named target", []string{"--diff", "bd-1"}, options{diff: true}, "bd-1"},
-		{"a diff that does not claim", []string{"--diff", "--no-claim", "bd-1"}, options{diff: true, noClaim: true}, "bd-1"},
-		{"no claim from the picker", []string{"--no-claim"}, options{noClaim: true}, ""},
-		{"ask on a named target", []string{"--ask", "bd-1"}, options{ask: true}, "bd-1"},
-		{"ask with no identifier", []string{"--ask"}, options{ask: true}, ""},
-		{"ask without claiming", []string{"--ask", "--no-claim", "bd-1"}, options{ask: true, noClaim: true}, "bd-1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +87,9 @@ func TestSwitchFlags(t *testing.T) {
 		{"handed to the agent", []string{"switch", "--agent", "bd-1"}, options{agent: true}, "bd-1"},
 		{"asking what to open on", []string{"switch", "--ask", "bd-1"}, options{ask: true}, "bd-1"},
 		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
+		// Every flag stands without an identifier too, the picker naming one.
+		{"an action for the picker's target", []string{"switch", "--editor"}, options{editor: true}, ""},
+		{"declining the picker's claim", []string{"switch", "--no-claim"}, options{noClaim: true}, ""},
 		// The verbs shadow these names in the bare position; switch reaches them.
 		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
 		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
@@ -116,6 +112,24 @@ func TestSwitchFlags(t *testing.T) {
 				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
 			}
 		})
+	}
+}
+
+// The bare form is a dispatch, not a second registration: every flag it takes
+// is declared once, on the verb it reaches.
+func TestOpenOnFlagsAreSwitchs(t *testing.T) {
+	root := command(stubVersion, front{})
+	sw, _, err := root.Find([]string{"switch"})
+	if err != nil {
+		t.Fatalf("finding switch: %v", err)
+	}
+	for _, name := range []string{"agent", "shell", "editor", "diff", "ask", "no-claim"} {
+		if root.Flags().Lookup(name) != nil {
+			t.Errorf("--%s is still declared on the root", name)
+		}
+		if sw.Flags().Lookup(name) == nil {
+			t.Errorf("switch does not declare --%s", name)
+		}
 	}
 }
 
@@ -285,9 +299,9 @@ func TestLabels(t *testing.T) {
 
 const stubVersion = "v0.0.0-test"
 
-// execute puts args through the tree, standing in for whatever the case left
-// unnamed: a verb it did not expect to run fails the test rather than passing
-// silently.
+// execute puts args through the tree the way [Execute] does, dispatch included,
+// standing in for whatever the case left unnamed: a verb it did not expect to
+// run fails the test rather than passing silently.
 func execute(t *testing.T, args []string, out io.Writer, f front) error {
 	t.Helper()
 	if f.enter == nil {
@@ -306,8 +320,7 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 		f.worktrees = stub(nil, nil)
 	}
 	cmd := command(stubVersion, f)
-	cmd.SetArgs(args)
 	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)
-	return cmd.Execute()
+	return run(cmd, args)
 }

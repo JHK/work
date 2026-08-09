@@ -26,46 +26,31 @@ func TestCompletions(t *testing.T) {
 	}
 }
 
-// The identifier completes to what the picker would offer, and never to a file
-// name: not on a repository that will not answer, and not on a second word,
-// there being only one identifier.
-func TestCompleteIdentifier(t *testing.T) {
+// The bare position offers the verbs and nothing else: the identifier is
+// switch's own completion now, and a file name is never one either.
+func TestCompleteBarePosition(t *testing.T) {
 	listed := []work.Candidate{
 		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"},
 		{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"},
 	}
-	tests := []struct {
-		name   string
-		args   []string
-		list   func() ([]work.Candidate, error)
-		want   []string
-		absent []string
-	}{
-		{"the listing", []string{""}, stub(listed, nil), []string{"bd-1\tDo a thing", "pr-7\tReview this"}, nil},
-		// The subcommands still complete; only the listing's rows are lost.
-		{"a repository that will not answer", []string{""}, stub(nil, errCancelled), []string{"init\tPrint the shell integration to source"}, []string{"bd-1\tDo a thing"}},
-		{"a second identifier", []string{"bd-1", ""}, stub(listed, nil), nil, []string{"bd-1\tDo a thing", "pr-7\tReview this"}},
+	out := complete(t, front{candidates: stub(listed, nil)}, "")
+	offered := names(rows(out))
+	for _, verb := range []string{"switch", "add", "remove", "init"} {
+		if !slices.Contains(offered, verb) {
+			t.Errorf("completing the bare position gave %q; want a %s row", offered, verb)
+		}
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			out := complete(t, front{candidates: tt.list}, tt.args...)
-			for _, w := range tt.want {
-				if !slices.Contains(rows(out), w) {
-					t.Errorf("completing %q gave %q; want a %q row", tt.args, out, w)
-				}
-			}
-			for _, a := range tt.absent {
-				if slices.Contains(rows(out), a) {
-					t.Errorf("completing %q gave %q; want no %q row", tt.args, out, a)
-				}
-			}
-			assertNoFileComp(t, out)
-		})
+	for _, absent := range []string{"bd-1", "pr-7"} {
+		if slices.Contains(offered, absent) {
+			t.Errorf("completing the bare position gave %q; want no %s row", offered, absent)
+		}
 	}
+	assertNoFileComp(t, out)
 }
 
-// A tab press after switch offers what the picker offers, the bare position's
-// identifier rows exactly, and never a file name.
+// A tab press after switch offers what the picker offers, and never a file
+// name: not on a repository that will not answer, and not on a second word,
+// there being only one identifier.
 func TestCompleteSwitch(t *testing.T) {
 	listed := []work.Candidate{
 		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"},
@@ -86,16 +71,13 @@ func TestCompleteSwitch(t *testing.T) {
 		t.Errorf("completing a second identifier after switch gave %q; want nothing", got)
 	}
 	assertNoFileComp(t, second)
-}
 
-// The bare position offers the verbs, switch among them, so reaching a worktree
-// by tab stays the identifier's own completion.
-func TestCompleteBarePositionOffersSwitch(t *testing.T) {
-	out := complete(t, front{candidates: stub(nil, nil)}, "")
-	want := "switch\tEnter the worktree an identifier names, creating it if there is none"
-	if !slices.Contains(rows(out), want) {
-		t.Errorf("completing the bare position gave %q; want a %q row", rows(out), want)
+	// A repository that will not answer costs the rows, not the shell.
+	silent := complete(t, front{candidates: stub(nil, errCancelled)}, "switch", "")
+	if got := rows(silent); got != nil {
+		t.Errorf("completing switch on a silent repository gave %q; want nothing", got)
 	}
+	assertNoFileComp(t, silent)
 }
 
 // A tab press after remove offers the worktrees and nothing else: not the
@@ -155,12 +137,17 @@ func TestInitFish(t *testing.T) {
 	assertNoFileComp(t, complete(t, front{}, "init", "fish", ""))
 }
 
-// cobra's own completion command is gone, so work init fish is the one door.
-// Only running it tells: the tree carries that command only once Execute ran.
+// cobra's own completion command is gone, so work init fish is the one door and
+// the word is a worktree name like any other. Only running it tells: the tree
+// carries that command only once Execute ran.
 func TestNoCompletionCommand(t *testing.T) {
-	err := execute(t, []string{"completion", "fish"}, io.Discard, front{})
-	if err == nil {
-		t.Error("work still offers a completion command")
+	var target string
+	err := execute(t, []string{"completion"}, io.Discard, front{enter: func(_ options, id string) error {
+		target = id
+		return nil
+	}})
+	if err != nil || target != "completion" {
+		t.Errorf(`work completion = %q, %v; want the worktree named completion`, target, err)
 	}
 }
 
@@ -177,6 +164,16 @@ func complete(t *testing.T, f front, args ...string) string {
 		t.Fatalf("__complete %q: %v", args, err)
 	}
 	return out.String()
+}
+
+// names is what each row completes to, the description column dropped: what a
+// row says of itself is the command's to word, not this package's.
+func names(rows []string) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i], _, _ = strings.Cut(r, "\t")
+	}
+	return out
 }
 
 // rows is the completion output less the directive line cobra ends with.

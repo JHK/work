@@ -1,6 +1,6 @@
 # Command line
 
-`work --help` lists the commands and the flags.
+`work --help` lists the commands, and each verb's own `--help` its flags.
 
 ## Commands
 
@@ -10,9 +10,9 @@
 | [`work add <name>`](#add) | creates a worktree on a new branch of that name and opens it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work init fish`](#shell-integration) | prints the shell integration |
-| `work [<identifier>]` | `work switch`, the shortcut living in that position |
+| `work [<identifier>]` | dispatched to `work switch`, the shortcut living in that position |
 
-A command wins the first position, `help` included, so a worktree named for one is reached through `switch`.
+A command wins the first position, `help` included, so a worktree named for one is reached through `switch`. So do the root's own `--help` and `--version`, shorthands included. Everything else in that position, another flag and nothing at all alike, goes to `switch` as it stands.
 
 ## Identifiers
 
@@ -83,7 +83,7 @@ Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked be
 | `--no-claim` | [creates the worktree without claiming](#invocations) the bead |
 | `--version` | prints and exits, touching no repository |
 
-`--agent`, `--shell`, `--editor`, `--diff` and `--ask` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. Every verb that opens something carries them, [`add`](#add) included; `--no-claim` is `switch`'s and the bare form's, `add` having no ticket to decline, and `--version` is the root's alone.
+`--agent`, `--shell`, `--editor`, `--diff` and `--ask` exclude one another, and each wins over [`action.create` and `action.enter`](configuration.md#actions) for that invocation. Every verb that opens something carries them, [`add`](#add) included; `--no-claim` is `switch`'s, `add` having no ticket to decline. Each is declared on its verb alone, a flag in the bare position reaching `switch` with the dispatch; `--version` and `--help` are the root's.
 
 An [`open.editor`](configuration.md#commands) that names nothing to run refuses the invocation before anything is created or claimed. [`open.diff`](configuration.md#commands) is rendered once the worktree exists, so a diff that will not render leaves the worktree made and the ticket claimed.
 
@@ -115,7 +115,7 @@ The name is required, there being nothing that exists to pick from.
 
 ## Shell integration
 
-`work init fish | source` in `config.fish` completes the identifier, in the bare position and after `switch` alike, with what the picker offers, and [`remove`](#remove)'s name with the worktrees alone. The bare position offers the commands beside it. [`add`](#add)'s name is new, so it completes to nothing.
+`work init fish | source` in `config.fish` completes `switch`'s identifier with what the picker offers, and [`remove`](#remove)'s name with the worktrees alone. The bare position offers the commands, so reaching a worktree by tab is `work switch <TAB>`. [`add`](#add)'s name is new, so it completes to nothing.
 
 ## Handoff
 

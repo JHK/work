@@ -86,7 +86,7 @@ func performRemove(force bool, target string) error {
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
 	f := front{enter: performEnter, add: performAdd, remove: performRemove, candidates: listing, worktrees: worktreeListing}
-	if err := command(version, f).Execute(); err != nil {
+	if err := run(command(version, f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -95,30 +95,32 @@ func Execute(version string) int {
 	return 0
 }
 
-// command builds the command tree, calling the verb front once the flags are
-// valid and answering a tab press from its listings.
-func command(version string, f front) *cobra.Command {
-	var o options
+// run puts args through the tree. The dispatch belongs to every way in, so the
+// tree is never executed on the words as typed.
+func run(cmd *cobra.Command, args []string) error {
+	cmd.SetArgs(dispatch(cmd, args))
+	return cmd.Execute()
+}
 
+// command builds the command tree, calling the verb front once the flags are
+// valid and answering a tab press from its listings. The root runs nothing
+// itself: [dispatch] has already sent the bare form to switch.
+func command(version string, f front) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "work [<id>|<pr>|<url>]",
+		Use:   "work",
 		Short: "A smarter cd for git worktrees",
 		Long: `work is a smarter cd for git worktrees. It knows which worktrees a repository
 has open and which tickets and pull requests are waiting, and hands the terminal
 to what the one you pick opens on: your shell, or a command.
 
-An identifier in this position, or none, is work switch: the same entering, the
-same picker and the same flags, which work switch --help spells out. A verb wins
-the position, so a worktree named for one is reached through the verb.`,
+Every capability is a verb, and the one reached for constantly is also the bare
+form: an identifier in the first position, or none at all, is work switch, whose
+--help spells out the entering, the picker and the flags for both. A verb wins
+that position, so a worktree named for one is reached through switch.`,
 		Version: version,
-		Args:    cobra.MaximumNArgs(1),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(_ *cobra.Command, args []string) error {
-			return f.enter(o, firstArg(args))
-		},
-		ValidArgsFunction: suggest(f.candidates),
 	}
 	// One documented door to the shell integration: work init fish.
 	cmd.CompletionOptions.DisableDefaultCmd = true
@@ -126,9 +128,10 @@ the position, so a worktree named for one is reached through the verb.`,
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	cmd.AddCommand(initCommand(), switchCommand(f.enter, f.candidates), addCommand(f.add), removeCommand(f.remove, f.worktrees))
-
-	openOn(cmd, &o)
-	noClaim(cmd, &o)
+	// Cobra adds these three as it runs, too late for [dispatch] to read them.
+	cmd.InitDefaultHelpCmd()
+	cmd.InitDefaultHelpFlag()
+	cmd.InitDefaultVersionFlag()
 
 	return cmd
 }
@@ -144,12 +147,6 @@ func openOn(cmd *cobra.Command, o *options) {
 	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
 	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
-}
-
-// noClaim gives a command the flag that declines a ticket's claim. It belongs to
-// entering alone, add having no ticket to decline.
-func noClaim(cmd *cobra.Command, o *options) {
-	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 }
 
 // firstArg is the name a verb was given, empty where it was left out for the

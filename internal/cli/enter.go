@@ -48,7 +48,8 @@ add, where work add creates one.`,
 		},
 	}
 	openOn(cmd, &o)
-	noClaim(cmd, &o)
+	// switch alone declines a claim; add has no ticket to decline.
+	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
 
 	return cmd
 }
