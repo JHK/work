@@ -9,6 +9,7 @@
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work list`](#list) | prints the worktrees open |
 | [`work init fish`](#init) | prints the shell integration |
+| [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`switch`](#switch) |
 
@@ -43,6 +44,12 @@ It takes no argument; a name to filter on is [`switch`](#switch)'s. With nothing
 ### init
 
 `work init fish | source` in `config.fish` installs the [completion](#completion). Printing it touches no repository.
+
+### config
+
+`work config dump` prints what the [layers](configuration.md) resolved to here, as TOML work loads back, each key under a comment naming the layer that set it: the compiled-in default, the user file's path, or `.work.toml`. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
+
+A configuration work would refuse to load is refused here too, with nothing printed.
 
 ## Arguments
 
@@ -111,6 +118,6 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 `work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 
-[`remove`](#remove) and [`list`](#list) hand over to nothing: what went, and what is open, are printed on stdout.
+[`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
 
 Which command each path runs is `internal/work/handoff.go`.

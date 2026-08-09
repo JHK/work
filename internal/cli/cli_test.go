@@ -97,6 +97,7 @@ func TestSwitchFlags(t *testing.T) {
 		{"a worktree named remove", []string{"switch", "remove"}, options{}, "remove"},
 		{"a worktree named list", []string{"switch", "list"}, options{}, "list"},
 		{"a worktree named switch", []string{"switch", "switch"}, options{}, "switch"},
+		{"a worktree named config", []string{"switch", "config"}, options{}, "config"},
 		{"a worktree named help", []string{"switch", "help"}, options{}, "help"},
 	}
 	for _, tt := range tests {
@@ -203,6 +204,35 @@ func TestRemoveFlags(t *testing.T) {
 	}
 }
 
+// config runs nothing of its own: dump is the sub-verb, and what it prints goes
+// to stdout rather than to the front end.
+func TestConfigDump(t *testing.T) {
+	var out strings.Builder
+	err := execute(t, []string{"config", "dump"}, &out, front{dump: func(w io.Writer) error {
+		_, err := io.WriteString(w, dumped)
+		return err
+	}})
+	if err != nil {
+		t.Fatalf("Execute(config dump): %v", err)
+	}
+	if out.String() != dumped {
+		t.Errorf("Execute(config dump) printed %q; want %q", out.String(), dumped)
+	}
+}
+
+// The verb with no sub-verb says what it carries instead of dumping, a dump
+// being one thing config could go on to do rather than the thing it is.
+func TestConfigWithoutASubVerb(t *testing.T) {
+	var out strings.Builder
+	err := execute(t, []string{"config"}, &out, front{})
+	if err != nil {
+		t.Fatalf("Execute(config): %v", err)
+	}
+	if !strings.Contains(out.String(), "dump") {
+		t.Errorf("Execute(config) printed %q; want the sub-verbs", out.String())
+	}
+}
+
 // list is a verb of its own, and the only one that prints rather than opening
 // something. It prints the worktrees remove's listing offers, no more.
 func TestListPrints(t *testing.T) {
@@ -306,6 +336,10 @@ func TestCommandRejects(t *testing.T) {
 		{"list with a name", []string{"list", "scratch"}},
 		{"a root flag on list", []string{"list", "--shell"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
+		// config carries sub-verbs, and dump takes nothing.
+		{"config with a sub-verb it does not carry", []string{"config", "bogus"}},
+		{"config dump with an argument", []string{"config", "dump", "extra"}},
+		{"a verb's flag on config dump", []string{"config", "dump", "--force"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},
 		{"init with two shells", []string{"init", "fish", "zsh"}},
@@ -357,7 +391,10 @@ func TestLabels(t *testing.T) {
 	}
 }
 
-const stubVersion = "v0.0.0-test"
+const (
+	stubVersion = "v0.0.0-test"
+	dumped      = "the configuration\n"
+)
 
 // execute puts args through the tree the way [Execute] does, dispatch included,
 // standing in for whatever the case left unnamed: a verb it did not expect to
@@ -372,6 +409,9 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 	}
 	if f.remove == nil {
 		f.remove = func(bool, string) error { t.Error("removed a worktree"); return nil }
+	}
+	if f.dump == nil {
+		f.dump = func(io.Writer) error { t.Error("dumped the configuration"); return nil }
 	}
 	if f.candidates == nil {
 		f.candidates = stub(nil, nil)

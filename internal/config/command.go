@@ -40,28 +40,44 @@ type Launch struct {
 	Base    string // the commit the worktree's branch forked from
 }
 
-// StartTicket is the command a fresh ticket worktree opens on. An unset command
-// is the compiled-in one, as it is below, so a Config that never reached Load
-// still names something to run.
+// StartTicket is the command a fresh ticket worktree opens on.
 func (a Agent) StartTicket(l Launch) ([]string, error) {
-	return a.StartTicketCommand.or(defaultAgent.StartTicketCommand).render(l)
+	return a.startTicket().render(l)
 }
 
 // StartPullRequest is the command a fresh pull request worktree opens on.
 func (a Agent) StartPullRequest(l Launch) ([]string, error) {
-	return a.StartPullRequestCommand.or(defaultAgent.StartPullRequestCommand).render(l)
+	return a.startPullRequest().render(l)
 }
 
 // StartSession is the command a worktree that carries no conversation opens on.
 func (a Agent) StartSession(l Launch) ([]string, error) {
-	return a.StartSessionCommand.or(defaultAgent.StartSessionCommand).render(l)
+	return a.startSession().render(l)
 }
 
 // ResumeSession is the command that returns to the conversation a worktree
 // carries. An empty .Session drops the element that placed it, so the one
 // conversation is returned to outright and several reach the agent's own list.
 func (a Agent) ResumeSession(l Launch) ([]string, error) {
-	return a.ResumeSessionCommand.or(defaultAgent.ResumeSessionCommand).render(l)
+	return a.resumeSession().render(l)
+}
+
+// An unset command is the compiled-in one, as it is below, so a Config that
+// never reached Load still names something to run.
+func (a Agent) startTicket() Command {
+	return a.StartTicketCommand.or(defaultAgent.StartTicketCommand)
+}
+
+func (a Agent) startPullRequest() Command {
+	return a.StartPullRequestCommand.or(defaultAgent.StartPullRequestCommand)
+}
+
+func (a Agent) startSession() Command {
+	return a.StartSessionCommand.or(defaultAgent.StartSessionCommand)
+}
+
+func (a Agent) resumeSession() Command {
+	return a.ResumeSessionCommand.or(defaultAgent.ResumeSessionCommand)
 }
 
 // validate judges each command against the values its key renders with, and
@@ -121,18 +137,23 @@ const (
 // Shell is the command an existing worktree is entered with, and the one
 // --shell hands over to.
 func (o Open) Shell(l Launch) ([]string, error) {
-	return o.ShellCommand.or(defaultOpen.ShellCommand).render(l)
+	return o.shell().render(l)
 }
 
 // Editor is the command --editor hands the worktree to.
 func (o Open) Editor(l Launch) ([]string, error) {
-	return o.EditorCommand.or(defaultOpen.EditorCommand).render(l)
+	return o.editor().render(l)
 }
 
 // Diff is the command --diff hands the worktree to.
 func (o Open) Diff(l Launch) ([]string, error) {
-	return o.DiffCommand.or(defaultOpen.DiffCommand).render(l)
+	return o.diff().render(l)
 }
+
+// An unset command is the compiled-in one, as [Agent]'s are.
+func (o Open) shell() Command  { return o.ShellCommand.or(defaultOpen.ShellCommand) }
+func (o Open) editor() Command { return o.EditorCommand.or(defaultOpen.EditorCommand) }
+func (o Open) diff() Command   { return o.DiffCommand.or(defaultOpen.DiffCommand) }
 
 func (o *Open) validate() (string, error) {
 	if err := o.ShellCommand.bind(shellValues); err != nil {

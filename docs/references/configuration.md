@@ -7,7 +7,7 @@ Two optional TOML files override the compiled-in defaults.
 | the repository | `.work.toml` at the root of the main checkout, checked in | every clone of that one repository |
 | the user | `$XDG_CONFIG_HOME/work/config.toml`, `~/.config/work/config.toml` when unset | every repository on that one machine |
 
-They merge key by key, the repository's winning where both set one. Unset keys fall to `Default` in [internal/config/](../../internal/config/), which also declares them and their types.
+They merge key by key, the repository's winning where both set one. Unset keys fall to `Default` in [internal/config/](../../internal/config/), which also declares them and their types. What the merge produced on a given machine, in a given repository, is [`work config dump`](cli.md#config).
 
 Refused at load, each naming the file it came from:
 

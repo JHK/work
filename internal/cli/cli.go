@@ -6,6 +6,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ type front struct {
 	enter      func(o options, target string) error
 	add        func(o options, name string) error
 	remove     func(force bool, target string) error
+	dump       func(out io.Writer) error
 	candidates func() ([]work.Candidate, error)
 	worktrees  func() ([]work.Candidate, error)
 }
@@ -85,7 +87,7 @@ func performRemove(force bool, target string) error {
 
 // Execute runs work and returns the process exit status.
 func Execute(version string) int {
-	f := front{enter: performEnter, add: performAdd, remove: performRemove, candidates: listing, worktrees: worktreeListing}
+	f := front{enter: performEnter, add: performAdd, remove: performRemove, dump: dump, candidates: listing, worktrees: worktreeListing}
 	if err := run(command(version, f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -124,7 +126,7 @@ An identifier in the first position, or none at all, is work switch.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), switchCommand(f.enter, f.candidates), addCommand(f.add), removeCommand(f.remove, f.worktrees), listCommand(f.worktrees))
+	cmd.AddCommand(initCommand(), switchCommand(f.enter, f.candidates), addCommand(f.add), removeCommand(f.remove, f.worktrees), listCommand(f.worktrees), configCommand(f.dump))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()

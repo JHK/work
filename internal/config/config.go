@@ -83,14 +83,20 @@ func mustPattern(text string, v values) Pattern {
 // by key. A file that is not there is no error; one that cannot be read, names a
 // key work does not know, or carries an unusable value, is.
 func Load(repo string) (Config, error) {
+	c, _, err := merge(repo)
+	return c, err
+}
+
+// merge is Load, keeping which file last set each key. A dump names those files;
+// refusing a value names the one that gave it rather than whichever layer was
+// read last.
+func merge(repo string) (Config, map[string]string, error) {
 	c := Default()
-	// Which file last set each key, so that refusing a value names the file that
-	// gave it rather than whichever layer was read last.
 	from := map[string]string{}
 	for _, path := range files(repo) {
 		md, err := decode(path, &c)
 		if err != nil {
-			return Config{}, err
+			return Config{}, nil, err
 		}
 		for _, key := range md.Keys() {
 			from[key.String()] = path
@@ -99,9 +105,9 @@ func Load(repo string) (Config, error) {
 	// Once merged, not per layer: a value the layer above replaces is not the one
 	// work uses, and a directory is judged against the repository it is used in.
 	if key, err := c.validate(repo); err != nil {
-		return Config{}, fmt.Errorf("%s: %s: %w", from[key], key, err)
+		return Config{}, nil, fmt.Errorf("%s: %s: %w", from[key], key, err)
 	}
-	return c, nil
+	return c, from, nil
 }
 
 // files are the layers above the defaults, lowest first.
@@ -110,7 +116,13 @@ func files(repo string) []string {
 	if user := userFile(); user != "" {
 		paths = append(paths, user)
 	}
-	return append(paths, filepath.Join(repo, RepoFile))
+	return append(paths, repoSettings(repo))
+}
+
+// repoSettings is where a repository keeps its own file, which is also what
+// names that layer wherever a value is traced back to it.
+func repoSettings(repo string) string {
+	return filepath.Join(repo, RepoFile)
 }
 
 // userFile is settings that follow one user from repository to repository. A
