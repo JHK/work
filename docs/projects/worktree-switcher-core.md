@@ -48,11 +48,11 @@ A key exists because a user has a choice to make and not because the code grew a
 
 ## Flags
 
-An implementation may need a flag as well as a key. `--no-claim` is the beads action's, and every action is named by one. A verb owns its flags under [the verb grammar](verb-first-command-grammar.md), and the core presents in `--help` a set it does not hold by hand.
+An implementation may need a flag as well as a key. `--no-claim` is the beads action's, and every action is named by one. A verb owns its flags, which is [R2](../rules/command-grammar.md), and the core presents in `--help` a set it does not hold by hand.
 
 ## Out of scope
 
 - Runtime loading, discovery, registration and implementations from outside the repository. The set is compiled in.
 - Preserving the behaviour the current code has, or the commands, flags, keys and names carrying it.
-- The verb grammar of [the command line](verb-first-command-grammar.md), which the seams hang off rather than change.
+- The verbs and their flags as [the command line](../references/cli.md) records them, which the seams hang off rather than change.
 - What the picker offers.

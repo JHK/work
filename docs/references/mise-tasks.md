@@ -14,7 +14,7 @@ The toolchain versions pinned in `[tools]` are what CI and a fresh checkout reso
 
 ## Version stamping
 
-`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty` for [`work --version`](cli.md#flags) to report.
+`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty` for [`work --version`](cli.md#commands) to report.
 
 The value is read where the task runs: building inside a worktree describes that worktree.
 

@@ -15,32 +15,19 @@ func switchCommand(run func(o options, target string) error, list func() ([]work
 	cmd := &cobra.Command{
 		Use:   "switch [<id>|<pr>|<url>]",
 		Short: "Enter the worktree an identifier names, creating it if there is none",
-		Long: `Enter the worktree an identifier names, creating it if there is none.
+		Long: `Enter the worktree an identifier names, creating it if there is none. An
+identifier is a worktree name, a ticket id or a pull request.
 
 With no identifier, choose among the repository's worktrees, its ready tickets
 and its open pull requests. That form needs fzf.
 
-Entering a worktree that already exists hands it to what action.enter names,
-which by default asks. A target without one has its worktree created and handed
-to what action.create names, the configured launcher by default. --agent,
---shell, --editor, --diff and --ask name the action to open on instead, for that
-invocation.
+An existing worktree opens on what action.enter names, a new one on what
+action.create names.
 
---ask offers the actions that apply and opens on the one picked; dismissing that
-list creates nothing and claims nothing. That form needs fzf.
+Creating a worktree for a ticket vets that ticket and claims it.
 
---agent hands the worktree to its agent. It changes nothing for one just
-created, which opens on the launcher regardless; an existing one is handed over
-by what it carries, no conversation starting one, a single one being returned
-to, and several reaching the agent's own list.
-
-Creating a worktree for a ticket vets that ticket and claims it, whatever the
-worktree then opens on. A ticket the vetting refuses is refused outright;
---no-claim declines the claim and nothing else.
-
-work <identifier>, without the verb, is this same command. The verb is how a
-worktree named for one is reached: work switch add enters the worktree named
-add, where work add creates one.`,
+work <identifier> is this same command without the verb: work switch add enters
+the worktree add.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(list),
 		RunE: func(_ *cobra.Command, args []string) error {

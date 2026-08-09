@@ -64,9 +64,9 @@ Not here: how a branch is matched to a ticket, and what git reports.
 | Question | Where |
 |---|---|
 | Which commands, flags and keys exist, and what each does | [the command line](../references/cli.md), [the configuration](../references/configuration.md) |
-| Why the command line reads verb-first | [the verb grammar](verb-first-command-grammar.md) until that work lands, then [the command line](../references/cli.md) |
+| Why the command line reads verb-first | [the command line](../references/cli.md) |
 | Why the core has two seams, and what earns a configuration key | [the switcher core](worktree-switcher-core.md) until that work lands; the concept is `scope-of-work.md`'s already |
-| Why the binary is sourced into the shell rather than run | an integration: [the command line](../references/cli.md#shell-integration) |
+| Why the binary is sourced into the shell rather than run | an integration: [the command line](../references/cli.md#init) |
 | Why an absent tool fails its own path rather than degrading it | an integration: [the README](../../README.md) |
 | Which tracker, forge, shell and picker are wired | [the README](../../README.md), which holds it as the moment it is |
 | How to install it, wire the shell, or reach a worktree | [the README](../../README.md), and `docs/howto/` for anything with steps |

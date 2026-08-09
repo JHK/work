@@ -16,16 +16,11 @@ func addCommand(run func(o options, name string) error) *cobra.Command {
 		Use:   "add <name>",
 		Short: "Create a worktree on a new branch of that name and open it",
 		Long: `Create a worktree on a new branch spelled exactly as the name is, forked from
-the main checkout. Nothing is guessed and no tracker is asked, so the name is
-the user's own: a branch already holding it is a worktree to enter rather than
-create, and is refused.
+the main checkout. No tracker is asked, and a branch already holding the name is
+refused.
 
-The worktree opens on what action.create names, the configured launcher by
-default. --agent, --shell, --editor, --diff and --ask name the action to open on
-instead, for that invocation.
-
-Re-entering the worktree later is the same name without the verb, or work
-switch <name> where a verb holds that name.`,
+The worktree opens on what action.create names. Re-enter it later with the name
+alone.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return run(o, args[0])

@@ -113,10 +113,7 @@ func command(version string, f front) *cobra.Command {
 has open and which tickets and pull requests are waiting, and hands the terminal
 to what the one you pick opens on: your shell, or a command.
 
-Every capability is a verb, and the one reached for constantly is also the bare
-form: an identifier in the first position, or none at all, is work switch, whose
---help spells out the entering, the picker and the flags for both. A verb wins
-that position, so a worktree named for one is reached through switch.`,
+An identifier in the first position, or none at all, is work switch.`,
 		Version: version,
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
@@ -141,11 +138,11 @@ that position, so a worktree named for one is reached through switch.`,
 // one place excludes them against each other.
 func openOn(cmd *cobra.Command, o *options) {
 	flags := cmd.Flags()
-	flags.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent; an existing one starts, resumes or lists by what it carries")
-	flags.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default, instead of launching a session")
-	flags.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default, instead of a session or a shell")
-	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, git diff against the point its branch forked from by default, instead of a session or a shell")
-	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply, rather than what a key names")
+	flags.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent")
+	flags.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default")
+	flags.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default")
+	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, its diff against the fork point by default")
+	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply")
 	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
 }
 

@@ -63,8 +63,7 @@ func initCommand() *cobra.Command {
 
     work init fish | source
 
-It completes the identifier with the repository's worktrees, its open pull
-requests and its ready tickets, each with its title beside it.`,
+It completes the commands and each verb's argument.`,
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: []cobra.Completion{cobra.CompletionWithDesc("fish", "fish shell integration")},
 		RunE: func(cmd *cobra.Command, _ []string) error {

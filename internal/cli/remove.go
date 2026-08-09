@@ -16,23 +16,21 @@ func removeCommand(run func(force bool, target string) error, list func() ([]wor
 	cmd := &cobra.Command{
 		Use:   "remove [<name>]",
 		Short: "Remove a worktree and delete the branch it had checked out",
-		Long: `Remove a worktree: git removes it and deletes the branch it had checked out. The
-ticket is left alone and no tracker is asked, so a bead's worktree, a pull
-request's and a bare one all go the same way.
+		Long: `Remove a worktree: git removes it and deletes the branch it had checked out. No
+tracker is asked.
 
 A worktree with modified or untracked files and a branch not fully merged are
-each refused; --force takes both. The worktree the shell is standing in is
-refused either way.
+each refused; --force takes both. The worktree you are standing in is refused
+either way.
 
-With no name, choose among the repository's worktrees, there being nothing else
-to remove. That form needs fzf.`,
+With no name, choose among the repository's worktrees. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(list),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return run(force, firstArg(args))
 		},
 	}
-	cmd.Flags().BoolVar(&force, "force", false, "take a worktree with modified or untracked files and a branch not fully merged")
+	cmd.Flags().BoolVar(&force, "force", false, "take an unclean worktree or an unmerged branch")
 
 	return cmd
 }

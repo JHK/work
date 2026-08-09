@@ -51,11 +51,11 @@ Refused at load:
 
 ## Actions
 
-An `[action]` value is one of the actions [a flag](cli.md#flags) names, anything else being refused at load, and a flag naming one wins over both keys for that invocation:
+An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, anything else being refused at load, and a flag naming one wins over both keys for that invocation:
 
 | Value | Hands the worktree to |
 |---|---|
-| `agent` | the [launcher](cli.md#flags) its kind names where the worktree was just created, else what [the conversations it carries](cli.md#conversations) name |
+| `agent` | what [`--agent`](cli.md#open-on-flags) hands it to |
 | `shell` | `open.shell` |
 | `editor` | `open.editor` |
 | `diff` | `open.diff` |
@@ -78,7 +78,7 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 | `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
-An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](cli.md#conversations) outright and the agent's own list where there are several. No id is ever asked of a person.
+An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](agent.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
 
