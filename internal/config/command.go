@@ -29,8 +29,8 @@ const (
 // Launch is everything a command may be rendered with. Which of these a key
 // actually has is its launchValues; a template naming any other is refused.
 type Launch struct {
-	Name    string // what the target is retyped as
-	Dir     string // the worktree, which the process has already changed into
+	Name    string // what the target is retyped as, or the file config edit opens
+	Dir     string // the worktree the process has already changed into, or that file
 	ID      string // the ticket id
 	Title   string // the ticket title
 	Number  string // the pull request number

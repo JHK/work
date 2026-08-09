@@ -9,15 +9,16 @@ import (
 )
 
 // configCommand is the verb that answers for the settings. It runs nothing
-// itself: what it carries is dump, and a second sub-verb would be added here.
-func configCommand(run func(out io.Writer) error) *cobra.Command {
+// itself: what it carries is dump and edit, and a further sub-verb would be
+// added here.
+func configCommand(run func(out io.Writer) error, open func() error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Answer for the settings work reads",
 		Long: `Answer for the settings work reads: the repository's .work.toml and your own
 file, merged over the compiled-in defaults.
 
-Nothing here writes a settings file.`,
+dump prints what they resolved to here; edit opens your own file.`,
 		Args: cobra.NoArgs,
 		// Cobra answers a verb of its own with the help before it ever weighs the
 		// arguments, so the sub-verb is asked for here and a typo of one is refused.
@@ -25,7 +26,7 @@ Nothing here writes a settings file.`,
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(dumpCommand(run))
+	cmd.AddCommand(dumpCommand(run), editCommand(open))
 
 	return cmd
 }
@@ -61,4 +62,39 @@ func dump(out io.Writer) error {
 	}
 	_, err = io.WriteString(out, text)
 	return err
+}
+
+// editCommand opens the user's settings file. It takes no argument, there being
+// one file of the user's to open; the repository's own is already where the
+// shell stands.
+func editCommand(run func() error) *cobra.Command {
+	return &cobra.Command{
+		Use:   "edit",
+		Short: "Open your own settings file in open.editor",
+		Long: `Open ~/.config/work/config.toml, the settings that follow you from repository
+to repository, in the command open.editor names, which is given the file as
+{{.Dir}}. The file and the directory it sits in are created where neither is
+there yet, so an editor that creates neither still opens. The repository's own
+.work.toml is not this file.
+
+Nothing is created where the editor names no command to run, which the default
+does with neither $VISUAL nor $EDITOR set, or where the configuration is one
+work would refuse to load.
+
+Nothing runs after: the terminal is the editor's from here.`,
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return run()
+		},
+	}
+}
+
+// edit opens the user's settings file and hands the terminal over to the editor,
+// which the settings of the repository the shell stands in are what name.
+func edit() error {
+	h, err := work.EditSettings(".")
+	if err != nil {
+		return err
+	}
+	return h.Exec()
 }

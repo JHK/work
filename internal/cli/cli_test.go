@@ -220,6 +220,26 @@ func TestConfigDump(t *testing.T) {
 	}
 }
 
+// edit takes no argument and prints nothing: the terminal goes to the editor,
+// so the front end is all there is to observe here.
+func TestConfigEdit(t *testing.T) {
+	var out strings.Builder
+	opened := false
+	err := execute(t, []string{"config", "edit"}, &out, front{edit: func() error {
+		opened = true
+		return nil
+	}})
+	if err != nil {
+		t.Fatalf("Execute(config edit): %v", err)
+	}
+	if !opened {
+		t.Error("Execute(config edit) did not open the settings file")
+	}
+	if out.String() != "" {
+		t.Errorf("Execute(config edit) printed %q; want nothing", out.String())
+	}
+}
+
 // The verb with no sub-verb says what it carries instead of dumping, a dump
 // being one thing config could go on to do rather than the thing it is.
 func TestConfigWithoutASubVerb(t *testing.T) {
@@ -228,8 +248,10 @@ func TestConfigWithoutASubVerb(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(config): %v", err)
 	}
-	if !strings.Contains(out.String(), "dump") {
-		t.Errorf("Execute(config) printed %q; want the sub-verbs", out.String())
+	for _, verb := range []string{"dump", "edit"} {
+		if !strings.Contains(out.String(), verb) {
+			t.Errorf("Execute(config) printed %q; want the sub-verbs", out.String())
+		}
 	}
 }
 
@@ -340,6 +362,9 @@ func TestCommandRejects(t *testing.T) {
 		{"config with a sub-verb it does not carry", []string{"config", "bogus"}},
 		{"config dump with an argument", []string{"config", "dump", "extra"}},
 		{"a verb's flag on config dump", []string{"config", "dump", "--force"}},
+		// edit opens the one file of the user's, and takes no flag naming another.
+		{"config edit with an argument", []string{"config", "edit", "extra"}},
+		{"a verb's flag on config edit", []string{"config", "edit", "--editor"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},
 		{"init with two shells", []string{"init", "fish", "zsh"}},
@@ -412,6 +437,9 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 	}
 	if f.dump == nil {
 		f.dump = func(io.Writer) error { t.Error("dumped the configuration"); return nil }
+	}
+	if f.edit == nil {
+		f.edit = func() error { t.Error("opened the settings file"); return nil }
 	}
 	if f.candidates == nil {
 		f.candidates = stub(nil, nil)

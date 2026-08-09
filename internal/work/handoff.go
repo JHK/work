@@ -46,7 +46,18 @@ func (e Env) Shell(s State) ([]string, error) {
 // which is how it is refused: a shell has a fallback every machine has, an
 // editor has none worth opening someone's work in.
 func (e Env) Editor(s State) ([]string, error) {
-	return e.Config.Open.Editor(values(s))
+	return e.editorOn(s.Target.Name, s.Path)
+}
+
+// editorOn renders open.editor over the one path it opens, a worktree at every
+// verb but config edit. The environment's editor is read here rather than in
+// values, being open.editor's value alone.
+func (e Env) editorOn(name, path string) ([]string, error) {
+	return e.Config.Open.Editor(config.Launch{
+		Name:   name,
+		Dir:    path,
+		Editor: cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR")),
+	})
 }
 
 // Diff renders the command the worktree's own work is shown with. The base is
@@ -100,14 +111,14 @@ func (e Env) Agent(s State) ([]string, error) {
 	return e.Config.Agent.ResumeSession(l)
 }
 
-// values are what every command renders with, whatever it is for. The
-// environment is read here rather than per command, so which key may place what
-// it named is the settings' allowlist to say and nothing else's.
+// values are what every command renders with, whatever it is for. What one key
+// alone has is read where that key is rendered, .Editor and .Base both; the
+// rest is read once here, so which key may place what it named is the settings'
+// allowlist to say and nothing else's.
 func values(s State) config.Launch {
 	return config.Launch{
-		Name:   s.Target.Name,
-		Dir:    s.Path,
-		Shell:  cmp.Or(os.Getenv("SHELL"), "/bin/sh"),
-		Editor: cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR")),
+		Name:  s.Target.Name,
+		Dir:   s.Path,
+		Shell: cmp.Or(os.Getenv("SHELL"), "/bin/sh"),
 	}
 }

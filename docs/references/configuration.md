@@ -5,9 +5,9 @@ Two optional TOML files override the compiled-in defaults.
 | Layer | Location | Scope |
 |---|---|---|
 | the repository | `.work.toml` at the root of the main checkout, checked in | every clone of that one repository |
-| the user | `$XDG_CONFIG_HOME/work/config.toml`, `~/.config/work/config.toml` when unset | every repository on that one machine |
+| the user | `~/.config/work/config.toml`, `$XDG_CONFIG_HOME/work/config.toml` where that variable names an absolute path | every repository on that one machine |
 
-They merge key by key, the repository's winning where both set one. Unset keys fall to `Default` in [internal/config/](../../internal/config/), which also declares them and their types. What the merge produced on a given machine, in a given repository, is [`work config dump`](cli.md#config).
+They merge key by key, the repository's winning where both set one. Unset keys fall to `Default` in [internal/config/](../../internal/config/), which also declares them and their types. What the merge produced on a given machine, in a given repository, is [`work config dump`](cli.md#config); the user's file is what [`work config edit`](cli.md#config) opens, creating it where it is not there yet.
 
 Refused at load, each naming the file it came from:
 
@@ -78,6 +78,8 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 | `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
+[`work config edit`](cli.md#config) renders `open.editor` against the user's settings file, where `.Dir` is that file and `.Name` is `config.toml`.
+
 An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
@@ -85,7 +87,7 @@ Refused at load:
 - an empty list
 - a value the key does not have
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, and is no row on [the screen](cli.md#the-screen).
+A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, a settings file included, and is no row on [the screen](cli.md#the-screen).
 
 The defaults, which rest on [`claude`'s own behaviour](claude.md):
 

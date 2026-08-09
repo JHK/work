@@ -10,6 +10,7 @@
 | [`work list`](#list) | prints the worktrees open |
 | [`work init fish`](#init) | prints the shell integration |
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
+| [`work config edit`](#config) | opens your own [settings file](configuration.md) in `open.editor` |
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`switch`](#switch) |
 
@@ -51,6 +52,10 @@ It takes no argument; a name to filter on is [`switch`](#switch)'s. With nothing
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 
+`work config edit` hands [the user's file](configuration.md) to [`open.editor`](configuration.md#commands), which is given the path as `{{.Dir}}`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is. The repository's `.work.toml` is not this file.
+
+Nothing is created where the editor names no command to run, where git names no repository, or where the configuration is one work would refuse to load.
+
 ## Arguments
 
 ### Identifiers
@@ -88,11 +93,12 @@ What [`init`](#init)'s integration offers at each position:
 | Position | Offers |
 |---|---|
 | the first word | the commands |
+| [`config`](#config)'s sub-verb | `dump` and `edit` |
 | [`switch`](#switch)'s identifier | what [the picker](#the-picker) offers |
 | [`remove`](#remove)'s name | the worktrees |
 | [`add`](#add)'s name | nothing |
 
-A second word completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell.
+A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell.
 
 ## Opening
 
@@ -116,7 +122,7 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 ## Handoff
 
-`work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
+`work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in. A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 
 [`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
 

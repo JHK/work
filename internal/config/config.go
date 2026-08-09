@@ -47,7 +47,7 @@ func (w Worktree) Dir() string {
 }
 
 // RepoFile is the repository's settings, at its root and checked in, so every
-// clone gets them. The user's are userFile.
+// clone gets them. The user's are [UserFile].
 const RepoFile = ".work.toml"
 
 // defaults are the compiled-in patterns, bound once.
@@ -113,7 +113,7 @@ func merge(repo string) (Config, map[string]string, error) {
 // files are the layers above the defaults, lowest first.
 func files(repo string) []string {
 	var paths []string
-	if user := userFile(); user != "" {
+	if user := UserFile(); user != "" {
 		paths = append(paths, user)
 	}
 	return append(paths, repoSettings(repo))
@@ -125,9 +125,10 @@ func repoSettings(repo string) string {
 	return filepath.Join(repo, RepoFile)
 }
 
-// userFile is settings that follow one user from repository to repository. A
-// machine with nowhere to keep them has none.
-func userFile() string {
+// UserFile is settings that follow one user from repository to repository,
+// named whether or not the file is there. A machine with nowhere to keep them
+// has none, and answers with the empty path.
+func UserFile() string {
 	// Not os.UserConfigDir, which reads XDG_CONFIG_HOME on Unix alone.
 	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
 		return filepath.Join(dir, "work", "config.toml")
