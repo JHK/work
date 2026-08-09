@@ -1,6 +1,6 @@
 # Tickets
 
-What `work` asks of a ticket before it creates a worktree for it. The tracker is [`bd`](tools.md); workability is [the flow's convention](../explanation/work-loop.md#creation-and-discovery).
+What `work` asks of a ticket before it creates a worktree for it. The tracker is [`bd`](tools.md); workability is [the flow's convention](../explanation/work-loop.md#workability-is-the-trackers-judgement).
 
 ## Vetting
 
