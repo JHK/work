@@ -53,7 +53,11 @@ A pull request number is read against the current repository, whatever host the 
 
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 
-The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), [wherever git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path), less the branches a longer ticket name owns.
+The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), [wherever git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
+
+A ticket's branch is recognised, never read apart: the [pattern](configuration.md#branch-patterns) is matched against the whole branch with an id filled in and the rest wildcarded, and of the ids `bd` listed the longest owner takes it. Where `bd` names none, nothing is longer and the pattern alone settles it.
+
+Where several worktrees match one ticket, the shortest branch takes it, ties settled on the name, so it is never git's listing order.
 
 ### The picker
 
