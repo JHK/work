@@ -4,7 +4,7 @@
 
 `docs/explanation/` answers why `work` is shaped the way it is. Two readers arrive there: a person deciding whether the tool is theirs before installing any of it, and an agent that would otherwise infer the model and spend a session acting on the wrong one. What belongs there comes from the brief and from the questions those two arrive with. Reading the build returns implementation detail from a build that is mid-development and never was the authority on intent.
 
-The folder holds three docs. [The scope of `work`](../explanation/scope-of-work.md) stands as written. [The worktree-per-ticket flow](../explanation/worktree-per-ticket.md) mixes the loop `work` is a verb in with what makes a worktree a ticket's, and becomes two docs. Nothing else is added: every other question collected sorts out of the type.
+The folder holds three docs. [The scope of `work`](../explanation/scope-of-work.md) stands as written. Nothing else is added: every other question collected sorts out of the type.
 
 ## What counts as an explanation
 
@@ -23,7 +23,7 @@ A fifth test is this repository's. **An explanation is a concept, not an integra
 |---|---|
 | `scope-of-work.md` | What is `work` for, what will it never do, and why does it have two sides? |
 | `work-loop.md` | What loop is `work` a verb in, when does work land, and where does the verb stop? |
-| `worktree-identity.md` | Why one worktree per ticket, and what makes a worktree that ticket's? |
+| `worktree-identity.md` | Why a checkout of its own, and what makes a worktree reachable again? |
 
 The bullets under each doc are its questionnaire: intent the repository cannot supply, to be answered before writing starts.
 
@@ -33,7 +33,7 @@ It answers its set at the right altitude, states the remit as a boundary rather 
 
 ### `work-loop.md`
 
-The loop from capture to close, where `work` sits in it, and what it deliberately leaves to a person. The vocabulary the flow borrows — ticket, worktree, session, skill — is not defined here: a glossary is technical description, and each term earns its place only where the loop turns on something the word does not already carry. It absorbs the question the current doc answers only in passing: **when does work land.** [The scope of `work`](../explanation/scope-of-work.md) says what a worktree coming into being means; the end of the loop wants saying as plainly.
+The loop from capture to close, where `work` sits in it, and what it deliberately leaves to a person. The vocabulary the flow borrows — ticket, worktree, session, skill — is not defined here: a glossary is technical description, and each term earns its place only where the loop turns on something the word does not already carry. It absorbs a question neither of the others answers squarely: **when does work land.** [The scope of `work`](../explanation/scope-of-work.md) says what a worktree coming into being means; the end of the loop wants saying as plainly.
 
 Where the verb stops is that same boundary one scale down, so it belongs here rather than to a doc of its own. Bounding `work` to a single invocation is what settles who owns the work it opens on, and what has to outlive the launch.
 

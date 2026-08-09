@@ -53,7 +53,7 @@ A pull request number is read against the current repository, whatever host the 
 
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 
-The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md).
+The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), [wherever git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path), less the branches a longer ticket name owns.
 
 ### The picker
 

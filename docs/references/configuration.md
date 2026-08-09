@@ -33,7 +33,7 @@ Values are validated after the merge and before anything is created.
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
 | `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
-Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-per-ticket.md#the-branch-as-the-key).
+Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
 ## Branch patterns
 
