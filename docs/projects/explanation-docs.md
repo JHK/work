@@ -33,7 +33,7 @@ It answers its set at the right altitude, states the remit as a boundary rather 
 
 ### `work-loop.md`
 
-The vocabulary the flow borrows — ticket, worktree, session, skill — the loop from capture to close, where `work` sits in it, and what it deliberately leaves to a person. It absorbs the question the current doc answers only in passing: **when does work land.** [The scope of `work`](../explanation/scope-of-work.md) says what a worktree coming into being means; the end of the loop wants saying as plainly.
+The loop from capture to close, where `work` sits in it, and what it deliberately leaves to a person. The vocabulary the flow borrows — ticket, worktree, session, skill — is not defined here: a glossary is technical description, and each term earns its place only where the loop turns on something the word does not already carry. It absorbs the question the current doc answers only in passing: **when does work land.** [The scope of `work`](../explanation/scope-of-work.md) says what a worktree coming into being means; the end of the loop wants saying as plainly.
 
 Where the verb stops is that same boundary one scale down, so it belongs here rather than to a doc of its own. Bounding `work` to a single invocation is what settles who owns the work it opens on, and what has to outlive the launch.
 

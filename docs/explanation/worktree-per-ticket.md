@@ -1,26 +1,6 @@
 # The worktree-per-ticket flow
 
-`work` is one verb in a larger loop. Neither that loop nor the vocabulary it borrows lives in this repository.
-
-## The vocabulary
-
-**Ticket.** A unit of work with a name, a status, and enough detail to judge whether it can be started: acceptance criteria and dependencies on other tickets. Which tracker holds it, and the vocabulary that comes with it, is the flow's business rather than this tool's. [`bd`](https://github.com/steveyegge/beads) is the instance `work` is built against, a local dependency-aware tracker whose database sits under `.beads/`, shared by every worktree of the repository. There a ticket is a bead, and `bd ready` lists the ones whose dependencies are satisfied.
-
-**Worktree.** A second checkout of the same repository on its own branch, made with `git worktree`. One ticket gets one worktree, created under a [configured directory](../references/configuration.md) and used wherever it sits.
-
-**Session.** One conversation with a coding agent, filed by the directory it ran in, so a worktree accumulates its own history.
-
-**Skill.** A set of instructions a coding agent loads on demand, invoked in a session as a slash command. The steps on either side of `work` are usually packaged this way. A fresh worktree opens on the one that suits its target: here, `/start <id>` for a bead and `/code-review <n>` for a pull request.
-
-## The loop
-
-Capture, refine, **work**, review, land, close. An idea is filed cheaply as an unrefined ticket. Refining fills in acceptance criteria and dependencies until it is workable. `work` opens the place to work on it. Everything from there happens inside the worktree, in an agent session or a shell or both in turn, until the change has landed and the worktree can go.
-
-`work` runs in the shell, before the worktree may even exist. Creating one means work is starting, so it opens on the agent; entering one that exists means returning to work already under way, and what that return is for is the one thing `work` cannot infer, so it asks.
-
-What earns its keep is what it surfaces: whether there is a worktree at all, and whether the ticket can be worked. Workability is a convention `work` encodes rather than invents, and a ticket that fails it is refused with the reason.
-
-Refining a ticket, opening a pull request, merging a branch and closing the ticket are judgements made with the work in front of you, so they belong to you and your agent.
+[One verb of the loop](work-loop.md) is the tool's: opening the place a ticket is worked. This is what makes that place the ticket's own.
 
 ## One worktree per ticket
 
@@ -33,15 +13,3 @@ Each worktree checks out a branch named for its ticket: `pr-<n>` for a pull requ
 Names and title slugs both contain dashes, so a branch is recognised by the names the tracker knows rather than parsed apart. A branch a longer known name matches is that ticket's, so `one` never opens `one-two`'s worktree; where several still match one ticket, the branches settle it rather than git's listing order. A branch matching no ticket is still a worktree, offered under its branch name and entered with a shell, and one can be asked for outright: a name of your own is a branch of your own, with nothing to vet or claim. That keeps the tracker off the path that finds worktrees at all: when it will not answer, the labels and the ready tickets go and the worktrees stay.
 
 Sessions are filed by working directory, so the path git reports is what makes a worktree's prior ones findable.
-
-## The handoff
-
-`work` is bounded to one moment: it runs, hands the terminal to whatever it launched, and exits. Keeping sessions visible and switching between them wants a process that outlives the launch, which is a terminal multiplexer.
-
-Two questions stand between `work` and that handoff: what to work on, and what to hand it to. An identifier answers the first. A flag answers the second for one invocation and [a configuration key](../references/configuration.md#actions) answers it standing. Only what neither answers reaches [the screen](../references/cli.md#the-screen), the last moment a person is there to answer.
-
-A worktree opens on one command, so the action is one value whatever named it: a flag, a key, or the screen. `ask` is one of those values, the choice between the others being itself something a key can name.
-
-Handing over is the last thing that happens, so no action asks anything of its own. The agent is the exception, holding a terminal it may ask what it likes with, and it is one action [however many conversations a worktree carries](../references/cli.md#conversations). The agent draws that list, so no conversation id is asked of a person.
-
-Nothing about the agent is carried per worktree. A resumed conversation [brings back the model it ran under](../references/agent.md), so a model or an effort wanted at all is named in the [configuration](../references/configuration.md#commands).

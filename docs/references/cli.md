@@ -69,7 +69,7 @@ Which [command](configuration.md#commands) a worktree opens on says nothing abou
 
 Every target above re-enters a worktree that already exists. A target's worktree is the one checked out on its [branch](configuration.md#keys), wherever git reports it, less the branches [a longer ticket name owns](../explanation/worktree-per-ticket.md); entering it hands over what [`action.enter`](configuration.md#actions) names, [the screen](#the-screen) by default, or what the flag named. The launch above is likewise what [`action.create`](configuration.md#actions) names by default.
 
-Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/worktree-per-ticket.md). No flag reaches past it.
+Vetting refuses a deferred, closed, epic, criteria-less or dependency-blocked bead, and the message says which; the rule is [bead-workflow policy](../explanation/work-loop.md#creation-and-discovery). No flag reaches past it.
 
 ## Flags
 

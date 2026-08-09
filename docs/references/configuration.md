@@ -78,7 +78,7 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
 | `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
 
-An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](../explanation/worktree-per-ticket.md#the-vocabulary) outright and the agent's own list where there are several. No id is ever asked of a person.
+An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](cli.md#conversations) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
 
