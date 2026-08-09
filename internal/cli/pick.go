@@ -88,9 +88,9 @@ func choose(rows []string, prompt string) (int, error) {
 	return i, nil
 }
 
-// labels renders the rows, lining the titles up behind the widest name that has
-// one. A worktree name is ASCII by construction, so its length is its width.
-func labels(candidates []work.Candidate) []string {
+// column is where the titles line up: behind the widest name that has one. A
+// worktree name is ASCII by construction, so its length is its width.
+func column(candidates []work.Candidate) int {
 	width := 0
 	for _, c := range candidates {
 		// An untitled row is not padded, so it does not set the column either.
@@ -98,6 +98,12 @@ func labels(candidates []work.Candidate) []string {
 			width = max(width, len(c.Target.Name))
 		}
 	}
+	return width
+}
+
+// labels renders the rows the picker offers.
+func labels(candidates []work.Candidate) []string {
+	width := column(candidates)
 	out := make([]string, len(candidates))
 	for i, c := range candidates {
 		out[i] = label(c, width)

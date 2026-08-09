@@ -278,8 +278,8 @@ func (e Env) Candidates() ([]Candidate, error) {
 }
 
 // Worktrees lists the repository's open worktrees and nothing besides, the main
-// checkout excepted: what there is to delete. bd titles the rows it can name, as
-// it does for the full listing.
+// checkout excepted: what is already there to reach, rather than what could be
+// started. bd titles the rows it can name, as it does for the full listing.
 func (e Env) Worktrees() ([]Candidate, error) {
 	worktrees, known, err := e.opened()
 	if err != nil {

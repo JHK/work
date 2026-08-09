@@ -2,6 +2,7 @@ package cli
 
 import (
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -94,6 +95,7 @@ func TestSwitchFlags(t *testing.T) {
 		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
 		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
 		{"a worktree named remove", []string{"switch", "remove"}, options{}, "remove"},
+		{"a worktree named list", []string{"switch", "list"}, options{}, "list"},
 		{"a worktree named switch", []string{"switch", "switch"}, options{}, "switch"},
 		{"a worktree named help", []string{"switch", "help"}, options{}, "help"},
 	}
@@ -201,6 +203,61 @@ func TestRemoveFlags(t *testing.T) {
 	}
 }
 
+// list is a verb of its own, and the only one that prints rather than opening
+// something. It prints the worktrees remove's listing offers, no more.
+func TestListPrints(t *testing.T) {
+	worktrees := []work.Candidate{
+		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true},
+		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+	}
+	elsewhere := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+
+	var out strings.Builder
+	err := execute(t, []string{"list"}, &out, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)})
+	if err != nil {
+		t.Fatalf("work list: %v", err)
+	}
+	// spike carries no title, so it neither pads nor widens the column.
+	want := "bd-1  Do a thing\nspike\n"
+	if out.String() != want {
+		t.Errorf("work list printed %q; want %q", out.String(), want)
+	}
+
+	// A repository that will not answer is one line on stderr and exit 1.
+	if err := execute(t, []string{"list"}, io.Discard, front{worktrees: stub(nil, errCancelled)}); err == nil {
+		t.Error("work list on a silent repository: want an error")
+	}
+}
+
+// A row states what to retype and, where an adapter named one, the title, lined
+// up behind the widest name that has one.
+func TestLines(t *testing.T) {
+	got := lines([]work.Candidate{
+		{Target: work.Target{Kind: work.KindBead, ID: "bd-longer", Name: "bd-longer"}, Label: "Other", Open: true},
+		{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this", Open: true},
+		// A plain worktree is named by its branch and says nothing more.
+		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		// An untitled name is not padded, so it does not set the column either.
+		{Target: work.Target{Kind: work.KindBead, ID: "bd-untitled-and-longest", Name: "bd-untitled-and-longest"}, Open: true},
+	})
+	want := []string{
+		"bd-longer  Other",
+		"pr-7       Review this",
+		"spike",
+		"bd-untitled-and-longest",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("lines() = %q; want %q", got, want)
+	}
+}
+
+// With nothing open there is nothing to print, which is not an error.
+func TestLinesOfNothing(t *testing.T) {
+	if got := lines(nil); len(got) != 0 {
+		t.Errorf("lines(nil) = %q; want nothing", got)
+	}
+}
+
 func TestVersionFlag(t *testing.T) {
 	var out strings.Builder
 	err := execute(t, []string{"--version"}, &out, front{})
@@ -245,6 +302,9 @@ func TestCommandRejects(t *testing.T) {
 		// remove declares --force and nothing else, so a root flag is unknown to it.
 		{"a root flag on remove", []string{"remove", "scratch", "--shell"}},
 		{"removing two worktrees at once", []string{"remove", "scratch", "other"}},
+		// Listing takes no argument: a name to filter on is switch's.
+		{"list with a name", []string{"list", "scratch"}},
+		{"a root flag on list", []string{"list", "--shell"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},

@@ -24,6 +24,7 @@ func TestDispatch(t *testing.T) {
 		{"switch", []string{"switch", "bd-1"}, []string{"switch", "bd-1"}},
 		{"add", []string{"add", "scratch"}, []string{"add", "scratch"}},
 		{"remove", []string{"remove", "--force"}, []string{"remove", "--force"}},
+		{"list", []string{"list"}, []string{"list"}},
 		{"init", []string{"init", "fish"}, []string{"init", "fish"}},
 		{"help", []string{"help", "add"}, []string{"help", "add"}},
 

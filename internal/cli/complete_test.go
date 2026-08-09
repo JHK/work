@@ -35,7 +35,7 @@ func TestCompleteBarePosition(t *testing.T) {
 	}
 	out := complete(t, front{candidates: stub(listed, nil)}, "")
 	offered := names(rows(out))
-	for _, verb := range []string{"switch", "add", "remove", "init"} {
+	for _, verb := range []string{"switch", "add", "remove", "list", "init"} {
 		if !slices.Contains(offered, verb) {
 			t.Errorf("completing the bare position gave %q; want a %s row", offered, verb)
 		}
@@ -105,6 +105,18 @@ func TestCompleteAdd(t *testing.T) {
 	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "add", "")
 	if got := rows(out); got != nil {
 		t.Errorf("completing add gave %q; want nothing", got)
+	}
+	assertNoFileComp(t, out)
+}
+
+// A tab press after list offers nothing: it takes no argument, and a file name
+// is not one either.
+func TestCompleteList(t *testing.T) {
+	listed := []work.Candidate{{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true}}
+
+	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "list", "")
+	if got := rows(out); got != nil {
+		t.Errorf("completing list gave %q; want nothing", got)
 	}
 	assertNoFileComp(t, out)
 }

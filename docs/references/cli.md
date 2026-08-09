@@ -7,6 +7,7 @@
 | [`work switch [<identifier>]`](#switch) | enters the worktree an [identifier](#identifiers) names, creating it if there is none |
 | [`work add <name>`](#add) | creates a worktree on a new branch of that name and opens it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
+| [`work list`](#list) | prints the worktrees open |
 | [`work init fish`](#init) | prints the shell integration |
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`switch`](#switch) |
@@ -32,6 +33,12 @@ Creating one for a ticket [vets and claims it](tickets.md); `--no-claim` decline
 With no name, [the picker](#the-picker) offers the worktrees alone.
 
 `--force` takes a worktree with modified or untracked files and a branch not merged into the main checkout, which are refused without it. Both are weighed before anything is removed. The worktree the shell is standing in is refused either way.
+
+### list
+
+`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the name the same worktree is retyped as, then the title bd gives the bead behind it, lined up in a column. A [missing bd](tools.md) costs the titles alone. gh is not asked, so a pull request's worktree prints as its name alone, as does one bd cannot name.
+
+It takes no argument; a name to filter on is [`switch`](#switch)'s. With nothing open it prints nothing.
 
 ### init
 
@@ -78,7 +85,7 @@ What [`init`](#init)'s integration offers at each position:
 | [`remove`](#remove)'s name | the worktrees |
 | [`add`](#add)'s name | nothing |
 
-A second word completes nothing. A repository that will not answer completes nothing, and no error reaches the shell.
+A second word completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell.
 
 ## Opening
 
@@ -104,6 +111,6 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 `work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 
-[`remove`](#remove) hands over to nothing: what went is named on stdout.
+[`remove`](#remove) and [`list`](#list) hand over to nothing: what went, and what is open, are printed on stdout.
 
 Which command each path runs is `internal/work/handoff.go`.
