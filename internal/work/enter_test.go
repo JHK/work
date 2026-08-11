@@ -251,7 +251,6 @@ func TestEnterCreatesAndOpensOn(t *testing.T) {
 	t.Setenv("SHELL", "/usr/bin/fish")
 	t.Setenv("VISUAL", "vi")
 	repo := initRepo(t)
-	base := gitCmd(t, repo, "rev-parse", "HEAD")
 	e, err := Open(repo)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -270,9 +269,9 @@ func TestEnterCreatesAndOpensOn(t *testing.T) {
 		{"pr-7-agent", "", Options{Action: ActionAgent}, launcher},
 		{"pr-7-shell", "", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
 		{"pr-7-editor", "", Options{Action: ActionEditor}, []string{"vi", filepath.Join(repo, defaultDir, "pr-7-editor")}},
-		{"pr-7-diff", "", Options{Action: ActionDiff}, []string{"git", "diff", base}},
+		{"pr-7-diff", "", Options{Action: ActionDiff}, diffCmd},
 		{"pr-7-created-shell", ActionShell, Options{}, []string{"/usr/bin/fish"}},
-		{"pr-7-created-diff", ActionDiff, Options{}, []string{"git", "diff", base}},
+		{"pr-7-created-diff", ActionDiff, Options{}, diffCmd},
 		{"pr-7-flagged-over-created", ActionShell, Options{Action: ActionAgent}, launcher},
 	}
 	for _, tt := range tests {
@@ -295,16 +294,19 @@ func TestEnterCreatesAndOpensOn(t *testing.T) {
 	}
 }
 
-// The diff is against the point the worktree's branch forked from, so what has
-// landed on the main checkout since is not in it and the worktree's own work is,
-// committed and uncommitted alike.
+// The base is a revision work hands over for git to resolve, and what git makes
+// of it is the merge-base: what has landed on the main checkout since is not in
+// the diff and the worktree's own work is.
 func TestEnterDiffsAgainstTheBase(t *testing.T) {
 	repo := initRepo(t)
-	base := gitCmd(t, repo, "rev-parse", "HEAD")
 	wt := filepath.Join(repo, defaultDir, "bd-1")
 	gitCmd(t, repo, "worktree", "add", "-b", "bd-1", wt)
-	gitCmd(t, wt, "commit", "--allow-empty", "-m", "the worktree's own work")
-	gitCmd(t, repo, "commit", "--allow-empty", "-m", "the main checkout has moved on")
+	writeFile(t, filepath.Join(wt, "own"), "the worktree's own work")
+	gitCmd(t, wt, "add", ".")
+	gitCmd(t, wt, "commit", "-m", "the worktree's own work")
+	writeFile(t, filepath.Join(repo, "later"), "the main checkout has moved on")
+	gitCmd(t, repo, "add", ".")
+	gitCmd(t, repo, "commit", "-m", "the main checkout has moved on")
 
 	e, err := Open(repo)
 	if err != nil {
@@ -316,7 +318,12 @@ func TestEnterDiffsAgainstTheBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("enter with a diff: %v", err)
 	}
-	if want := []string{"git", "diff", base}; !slices.Equal(got.Handoff.Run, want) {
-		t.Errorf("enter with a diff runs %q; want %q", got.Handoff.Run, want)
+	if !slices.Equal(got.Handoff.Run, diffCmd) {
+		t.Fatalf("enter with a diff runs %q; want %q", got.Handoff.Run, diffCmd)
+	}
+	// Run what it rendered: the three-dot form is what keeps the main checkout's
+	// own commit out, and git is what enforces that rather than work.
+	if files := gitCmd(t, wt, append([]string{"diff", "--name-only"}, got.Handoff.Run[2:]...)...); files != "own" {
+		t.Errorf("the diff covers %q; want the worktree's own work alone", files)
 	}
 }

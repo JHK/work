@@ -51,12 +51,12 @@ func (e Env) Provision(s State) error {
 	// was read off, which the idempotence above has already returned for.
 	case KindPlain:
 		// No ticket to name it after and no tracker to ask: git alone, forking the
-		// branch from what the main checkout has at HEAD.
-		if err := git.NewWorktree(e.Repo, s.Path, branch); err != nil {
+		// branch from what the checkout work was invoked in has at HEAD.
+		if err := git.NewWorktree(e.Checkout, s.Path, branch); err != nil {
 			return err
 		}
 	default:
-		if err := beads.CreateWorktree(e.Repo, s.Path, branch); err != nil {
+		if err := beads.CreateWorktree(e.Checkout, s.Path, branch); err != nil {
 			return err
 		}
 	}

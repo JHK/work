@@ -35,16 +35,6 @@ func Root(dir string) (string, error) {
 	return commonDir, nil
 }
 
-// Base reports the commit the worktree at dir forked from: the merge-base of
-// what it has checked out and what the main checkout has. What has landed on the
-// main checkout since is on the far side of it, so a diff against it is the
-// worktree's own work and nothing else.
-func Base(dir string) (string, error) {
-	// git names the main checkout's head from any worktree of the repository,
-	// whether or not that checkout is on a branch.
-	return git(dir, "merge-base", "HEAD", "main-worktree/HEAD")
-}
-
 // SameDir reports whether two paths name the same directory.
 func SameDir(a, b string) bool {
 	return resolve(a) == resolve(b)
@@ -107,14 +97,6 @@ func HasBranch(repo, branch string) bool {
 	return err == nil
 }
 
-// Merged reports whether a branch has landed on the main checkout's HEAD. git
-// branch -d asks a different question, weighing the branch against its upstream
-// wherever it has one, so this gate is work's own and not git's.
-func Merged(repo, branch string) bool {
-	_, err := git(repo, "merge-base", "--is-ancestor", "refs/heads/"+branch, "HEAD")
-	return err == nil
-}
-
 // origin is the one remote work reads: a pull request is fetched from it, so it
 // is the repository whose pull requests are worth offering.
 const origin = "origin"
@@ -141,38 +123,43 @@ func AddWorktree(repo, path, branch string) error {
 }
 
 // NewWorktree checks a branch of its own out into a new worktree, forked from
-// what the main checkout has at HEAD. git refuses a branch that already exists,
-// which is what asserts the name is free.
-func NewWorktree(repo, path, branch string) error {
-	return add(repo, path, "-b", branch)
+// what the checkout at from has at HEAD. git refuses a branch that already
+// exists, which is what asserts the name is free.
+func NewWorktree(from, path, branch string) error {
+	return add(from, path, "-b", branch)
 }
 
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
 // one with modified or untracked files unless force.
 func RemoveWorktree(repo, path string, force bool) error {
-	args := []string{"worktree", "remove", path}
+	return forced(repo, force, "worktree", "remove", path)
+}
+
+// DeleteBranch deletes a local branch. Without force git refuses one whose work
+// has not landed, which it judges only once no worktree holds the branch;
+// nothing here asks the question first.
+func DeleteBranch(repo, branch string, force bool) error {
+	return forced(repo, force, "branch", "--delete", branch)
+}
+
+// forced runs a git command that takes --force, which git accepts after the
+// positional as readily as before it.
+func forced(dir string, force bool, args ...string) error {
 	if force {
 		args = append(args, "--force")
 	}
-	_, err := git(repo, args...)
+	_, err := git(dir, args...)
 	return err
 }
 
-// DeleteBranch deletes a local branch, whether or not it is merged: the caller
-// weighs that with [Merged], -d weighing something else. git refuses while a
-// worktree still has the branch checked out.
-func DeleteBranch(repo, branch string) error {
-	_, err := git(repo, "branch", "-D", branch)
-	return err
-}
-
-// add makes the directory the worktree goes in, then adds it. git takes its
-// options after the path as readily as before it.
-func add(repo, path string, args ...string) error {
+// add makes the directory the worktree goes in, then adds it. -q leaves the
+// progress line off stderr, where a failure's own message is read from. git
+// takes its options after the path as readily as before it.
+func add(dir, path string, args ...string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	_, err := git(repo, append([]string{"worktree", "add", path}, args...)...)
+	_, err := git(dir, append([]string{"worktree", "add", "-q", path}, args...)...)
 	return err
 }
 

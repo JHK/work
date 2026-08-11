@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/JHK/work-cli/internal/config"
-	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/sessions"
 )
 
@@ -61,16 +60,16 @@ func (e Env) editorOn(name, path string) ([]string, error) {
 }
 
 // Diff renders the command the worktree's own work is shown with. The base is
-// read here rather than in values, being open.diff's value alone.
+// set here rather than in values, being open.diff's value alone.
 func (e Env) Diff(s State) ([]string, error) {
 	l := values(s)
-	base, err := git.Base(s.Path)
-	if err != nil {
-		return nil, err
-	}
 	l.Base = base
 	return e.Config.Open.Diff(l)
 }
+
+// base is a revision for git to resolve: three dots is the merge-base with the
+// main checkout, which git names from any worktree of the repository.
+const base = "main-worktree/HEAD..."
 
 // Launch renders the command a fresh worktree opens on, which the target's kind
 // chooses between.

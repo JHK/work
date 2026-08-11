@@ -20,7 +20,7 @@ Values are validated after the merge and before anything is created.
 
 | Key | Default | Names |
 |---|---|---|
-| `worktree.directory` | `.worktrees` | a directory inside the repository root, where a new worktree is created |
+| `worktree.directory` | `.worktrees` | a directory inside the main checkout, where a new worktree is created |
 | `branch.ticket` | `{{.ID}}{{with .Slug}}-{{.}}{{end}}` | the branch a ticket's worktree checks out |
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
 | `action.create` | `agent` | the [action](#actions) a newly created worktree opens on |
@@ -76,7 +76,7 @@ An `[agent]` or `[open]` value is the argv of a command run without a shell, one
 | `.Session` | `agent.resume-session` | the conversation the worktree carries, empty where it carries several |
 | `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
-| `.Base` | `open.diff` | the commit the worktree's branch forked from: its merge-base with what the main checkout has |
+| `.Base` | `open.diff` | `main-worktree/HEAD...`, a revision git resolves: the three-dot form is the merge-base of what the worktree has checked out and what the main checkout has |
 
 [`work config edit`](cli.md#config) renders `open.editor` against the user's settings file, where `.Dir` is that file and `.Name` is `config.toml`.
 

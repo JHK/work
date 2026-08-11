@@ -18,6 +18,10 @@ import (
 // defaultDir is where worktrees go with nothing configured.
 var defaultDir = config.Default().Worktree.Directory
 
+// diffCmd is what open.diff renders to: a revision for git to resolve, the same
+// one whatever the worktree is.
+var diffCmd = []string{"git", "diff", "main-worktree/HEAD..."}
+
 // An Env carrying no settings answers for the compiled-in defaults, which is
 // what the tests with no repository to read settings from want.
 func TestResolve(t *testing.T) {
@@ -297,6 +301,57 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 	}
 	if !git.SameDir(e.Repo, repo) {
 		t.Errorf("Open(%q).Repo = %q, want %q", wt, e.Repo, repo)
+	}
+}
+
+// A new branch forks from the checkout work was invoked in, so a worktree asked
+// for from inside another starts from the work under foot rather than from what
+// the main checkout happens to have. It still lands under the main checkout's
+// worktree directory. Both verbs fork the same way, git alone for a name of the
+// user's own and bd for a ticket.
+func TestForkFromTheCurrentCheckout(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/fish")
+	repo := initRepo(t)
+	base := gitCmd(t, repo, "rev-parse", "HEAD")
+	under := filepath.Join(repo, defaultDir, "under-foot")
+	gitCmd(t, repo, "worktree", "add", "-b", "under-foot", under)
+	gitCmd(t, under, "commit", "--allow-empty", "-m", "not on main yet")
+	ahead := gitCmd(t, under, "rev-parse", "HEAD")
+
+	// in_progress and named by the listing, so entering the ticket asks bd neither
+	// for the bead itself nor for its readiness; untitled, so its branch is its id.
+	shim(t, map[string]string{"list": `[{"id":"one","status":"in_progress","issue_type":"task","acceptance_criteria":"It works"}]`})
+
+	// add asks for a name of its own, switch for a ticket.
+	add := func(e Env, name string) (Candidate, error) { return e.Create(name) }
+	tests := []struct {
+		name string
+		find func(Env, string) (Candidate, error)
+	}{
+		{"scratch", add},
+		{"one", Env.Resolve},
+	}
+	e, err := Open(under)
+	if err != nil {
+		t.Fatalf("Open(%q): %v", under, err)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := tt.find(e, tt.name)
+			if err != nil {
+				t.Fatalf("finding %q: %v", tt.name, err)
+			}
+			got, err := e.Enter(c, Options{Action: ActionShell})
+			if err != nil {
+				t.Fatalf("Enter(%q): %v", tt.name, err)
+			}
+			if want := filepath.Join(repo, defaultDir, tt.name); !git.SameDir(got.State.Path, want) {
+				t.Errorf("created at %q; want %q under the main checkout", got.State.Path, want)
+			}
+			if head := gitCmd(t, repo, "rev-parse", tt.name); head != ahead {
+				t.Errorf("branch %s is at %q; want the checkout under foot at %q rather than the main checkout's %q", tt.name, head, ahead, base)
+			}
+		})
 	}
 }
 
@@ -585,8 +640,17 @@ func shim(t *testing.T, answers map[string]string) func() []string {
 	}
 	write("git", fmt.Sprintf("#!/bin/sh\nprintf 'git %%s\\n' \"$*\" >> %q\nexec %q \"$@\"\n", log, realGit), 0o755)
 	// bd is answered rather than run: the beads are the test's, and there is no
-	// tracker database here to hold them.
-	write("bd", fmt.Sprintf("#!/bin/sh\nprintf 'bd %%s\\n' \"$*\" >> %q\ncat %q/answer-\"$1\" 2>/dev/null\nexit 0\n", log, dir), 0o755)
+	// tracker database here to hold them. Creating a worktree is the exception,
+	// carried out the way the real bd carries it out — git worktree add, run
+	// wherever bd stands — because that is what settles the fork point.
+	write("bd", fmt.Sprintf(`#!/bin/sh
+printf 'bd %%s\n' "$*" >> %[1]q
+if [ "$1" = worktree ]; then
+	exec git worktree add "$3" -b "$5"
+fi
+cat %[2]q/answer-"$1" 2>/dev/null
+exit 0
+`, log, dir), 0o755)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	return func() []string {

@@ -18,7 +18,7 @@
 
 ### switch
 
-`work switch <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, a pull request's on the head fetched for it.
+`work switch <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none — forked from the `HEAD` of the checkout the shell is standing in, a pull request's on the head fetched for it.
 
 With no identifier, [the picker](#the-picker) offers every worktree open, and the open pull requests of `origin` and ready beads that have none.
 
@@ -26,7 +26,7 @@ Creating one for a ticket [vets and claims it](tickets.md); `--no-claim` decline
 
 ### add
 
-`work add <name>` creates a worktree on a new branch spelled exactly as the name is, forked from the main checkout's `HEAD` and asking no tracker, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named. A branch already holding the name is refused.
+`work add <name>` creates a worktree on a new branch spelled exactly as the name is, forked from the `HEAD` of the checkout the shell is standing in and asking no tracker, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named. A branch already holding the name is refused.
 
 ### remove
 
@@ -34,7 +34,7 @@ Creating one for a ticket [vets and claims it](tickets.md); `--no-claim` decline
 
 With no name, [the picker](#the-picker) offers the worktrees alone.
 
-`--force` takes a worktree with modified or untracked files and a branch not merged into the main checkout, which are refused without it. Both are weighed before anything is removed. The worktree the shell is standing in is refused either way.
+`--force` takes a worktree with modified or untracked files and a branch whose work `git branch -d` will not delete, which are refused without it. A dirty worktree is refused before anything is removed; a refused branch is refused with the worktree already gone, git judging a branch only once no worktree holds it. The worktree the shell is standing in is refused either way.
 
 ### list
 
@@ -111,7 +111,7 @@ What a worktree is handed to, for one invocation, ahead of what [`action.create`
 | `--agent` | the [`agent` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
 | `--shell` | [`open.shell`](configuration.md#keys), one just created included |
 | `--editor` | [`open.editor`](configuration.md#keys) |
-| `--diff` | [`open.diff`](configuration.md#keys), its work against the point its branch forked from, committed and uncommitted alike |
+| `--diff` | [`open.diff`](configuration.md#keys), its work against its merge-base with the main checkout, committed and uncommitted alike |
 | `--ask` | [the screen](#the-screen), and on to the action picked there; needs fzf |
 
 ### The screen

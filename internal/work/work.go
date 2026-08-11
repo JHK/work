@@ -45,6 +45,7 @@ type Target struct {
 // agent it asks what a worktree already carries.
 type Env struct {
 	Repo          string
+	Checkout      string // where work was invoked, whose HEAD a new branch forks from
 	Config        config.Config
 	Conversations sessions.Conversations
 }
@@ -60,7 +61,7 @@ func Open(dir string) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Config: cfg, Conversations: sessions.Claude{}}, nil
+	return Env{Repo: repo, Checkout: dir, Config: cfg, Conversations: sessions.Claude{}}, nil
 }
 
 // State is everything knowable about a target on entry, less what an existing

@@ -48,9 +48,11 @@ func Claim(repo, id string) error {
 	return err
 }
 
-// CreateWorktree adds a worktree wired to the repository's shared database.
-func CreateWorktree(repo, path, branch string) error {
-	_, err := bd(repo, "worktree", "create", path, "--branch", branch)
+// CreateWorktree adds a worktree wired to the repository's shared database,
+// forked from what the checkout at from has at HEAD: bd takes no fork point of
+// its own, so the git worktree add underneath reads HEAD where bd stands.
+func CreateWorktree(from, path, branch string) error {
+	_, err := bd(from, "worktree", "create", path, "--branch", branch)
 	return err
 }
 
@@ -65,6 +67,6 @@ func decode(out string, err error) ([]Bead, error) {
 	return beads, nil
 }
 
-func bd(repo string, args ...string) (string, error) {
-	return run.Output(repo, "bd", args...)
+func bd(dir string, args ...string) (string, error) {
+	return run.Output(dir, "bd", args...)
 }

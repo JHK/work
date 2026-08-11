@@ -38,7 +38,7 @@ func TestCreateBareWorktree(t *testing.T) {
 		{"scratch-agent", Options{Action: ActionAgent}, append(session, "--name=scratch-agent")},
 		{"scratch-shell", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
 		{"scratch-editor", Options{Action: ActionEditor}, []string{"vi", filepath.Join(e.Repo, defaultDir, "scratch-editor")}},
-		{"scratch-diff", Options{Action: ActionDiff}, []string{"git", "diff", base}},
+		{"scratch-diff", Options{Action: ActionDiff}, diffCmd},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

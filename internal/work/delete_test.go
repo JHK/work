@@ -54,8 +54,8 @@ func TestDeleteCostsNoTracker(t *testing.T) {
 	}
 }
 
-// Both of git's gates are weighed before anything is removed, so a refusal
-// leaves the worktree standing rather than half a deletion.
+// A dirty worktree is refused by the removal itself, before it touches
+// anything, so nothing is half deleted.
 func TestDeleteRefuses(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -75,15 +75,6 @@ func TestDeleteRefuses(t *testing.T) {
 				writeFile(t, filepath.Join(path, "new"), "loose")
 			},
 			"modified or untracked files",
-		},
-		{
-			"a branch not fully merged",
-			func(t *testing.T, path string) {
-				writeFile(t, filepath.Join(path, "new"), "committed")
-				gitCmd(t, path, "add", ".")
-				gitCmd(t, path, "commit", "-m", "ahead")
-			},
-			"not fully merged",
 		},
 	}
 	for _, tt := range tests {
@@ -134,37 +125,71 @@ func TestDeleteRefuses(t *testing.T) {
 	}
 }
 
-// The gate is the branch against the main checkout, so an upstream it has
-// diverged from is not a second one: git branch -d would weigh that instead and
-// refuse with the worktree already gone.
-func TestDeleteTakesABranchItsUpstreamHasLeftBehind(t *testing.T) {
-	repo := initRepo(t)
-	noTracker(t)
-	gitCmd(t, repo, "branch", "elsewhere")
-	path := filepath.Join(repo, defaultDir, "scratch")
-	gitCmd(t, repo, "worktree", "add", "-b", "scratch", path)
-	writeFile(t, filepath.Join(path, "new"), "committed")
-	gitCmd(t, path, "add", ".")
-	gitCmd(t, path, "commit", "-m", "landed")
-	gitCmd(t, repo, "merge", "--no-ff", "-m", "merge", "scratch")
-	// A local branch stands in for the remote one: what makes it an upstream is
-	// the configuration, not where it sits.
-	gitCmd(t, repo, "config", "branch.scratch.remote", ".")
-	gitCmd(t, repo, "config", "branch.scratch.merge", "refs/heads/elsewhere")
+// Whether a branch's work has landed is git's to judge, and git judges it only
+// once no worktree holds the branch: the worktree goes first, and the branch
+// stays behind with git's refusal. git weighs the branch against its upstream
+// where it has one, so one merged into the main checkout is refused all the
+// same — the question is never work's own. --force takes it either way.
+func TestDeleteLeavesABranchGitWillNotDelete(t *testing.T) {
+	tests := []struct {
+		name string
+		land func(t *testing.T, repo string)
+	}{
+		{"work that never landed", func(*testing.T, string) {}},
+		{"work landed on the main checkout but not on its upstream", func(t *testing.T, repo string) {
+			gitCmd(t, repo, "branch", "elsewhere")
+			gitCmd(t, repo, "merge", "--no-ff", "-m", "merge", "scratch")
+			// A local branch stands in for the remote one: what makes it an upstream
+			// is the configuration, not where it sits.
+			gitCmd(t, repo, "config", "branch.scratch.remote", ".")
+			gitCmd(t, repo, "config", "branch.scratch.merge", "refs/heads/elsewhere")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := initRepo(t)
+			noTracker(t)
+			path := filepath.Join(repo, defaultDir, "scratch")
+			gitCmd(t, repo, "worktree", "add", "-b", "scratch", path)
+			gitCmd(t, path, "commit", "--allow-empty", "-m", "ahead")
+			tt.land(t, repo)
 
-	e, err := Open(repo)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	c, err := e.Resolve("scratch")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if _, err := e.Delete(c, false); err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
-	if branches := gitCmd(t, repo, "branch", "--list", "scratch"); branches != "" {
-		t.Errorf("the worktree went and branch scratch stayed: %q", branches)
+			e, err := Open(repo)
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			c, err := e.Resolve("scratch")
+			if err != nil {
+				t.Fatalf("Resolve: %v", err)
+			}
+
+			// git's own words, and the removal it took to reach them owned up to.
+			_, err = e.Delete(c, false)
+			if err == nil || !strings.Contains(err.Error(), "merged") ||
+				!strings.Contains(err.Error(), "removed worktree") || !strings.Contains(err.Error(), "--force") {
+				t.Fatalf("Delete() = %v; want git's refusal, the removal owned up to and --force named", err)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Errorf("%s is still there: %v", path, err)
+			}
+			if branches := gitCmd(t, repo, "branch", "--list", "scratch"); branches == "" {
+				t.Fatal("the branch went despite git's refusal")
+			}
+
+			// --force is --delete --force, which asks nothing. Deleting a branch needs
+			// its worktree gone and the refusal already took that one, so the same
+			// branch is checked out afresh.
+			gitCmd(t, repo, "worktree", "add", path, "scratch")
+			if c, err = e.Resolve("scratch"); err != nil {
+				t.Fatalf("Resolve: %v", err)
+			}
+			if _, err := e.Delete(c, true); err != nil {
+				t.Fatalf("Delete(force): %v", err)
+			}
+			if branches := gitCmd(t, repo, "branch", "--list", "scratch"); branches != "" {
+				t.Errorf("--force left branch scratch behind: %q", branches)
+			}
+		})
 	}
 }
 
