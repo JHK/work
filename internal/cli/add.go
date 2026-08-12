@@ -9,15 +9,15 @@ import (
 // addCommand is the verb that brings a worktree of the user's own name into
 // being. It carries the open-on flags, opening something, and a tab press after
 // it offers nothing, the name being new.
-func addCommand(run func(o options, name string) error) *cobra.Command {
+func addCommand(sys work.Systems, run func(o options, name string) error) *cobra.Command {
 	var o options
 
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Create a worktree on a new branch of that name and open it",
 		Long: `Create a worktree on a new branch spelled exactly as the name is, forked from
-the main checkout. No tracker is asked, and a branch already holding the name is
-refused.
+the checkout the shell is standing in. No tracker is asked, and a branch already
+holding the name is refused.
 
 The worktree opens on what action.create names. Re-enter it later with the name
 alone.`,
@@ -26,14 +26,14 @@ alone.`,
 			return run(o, args[0])
 		},
 	}
-	openOn(cmd, &o)
+	openOn(cmd, &o, sys.Openers)
 
 	return cmd
 }
 
 // add makes the worktree the name asks for and hands the terminal over to it.
 func add(env work.Env, o options, name string) error {
-	c, err := env.Create(name)
+	c, err := env.Add(name)
 	if err != nil {
 		return err
 	}

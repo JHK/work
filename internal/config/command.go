@@ -6,13 +6,19 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Agent is what a worktree is handed over to. Each key falls back to
-// defaultAgent on its own, so a config pointing work at another agent sets every
-// one of them: the agent that starts a conversation is the one that returns to
-// it.
-type Agent struct {
+// Claude is the agent's table: whether the action runs at all, and the commands
+// it runs. Each command falls back to defaultClaude on its own, so a config
+// pointing the action at another binary sets every one of them: what starts a
+// conversation is what returns to it. An unset command is the compiled-in one,
+// so a Config that never reached Load still names something to run; whether the
+// action runs at all is [Shipped]'s to say, this table holding only the commands
+// it would run.
+type Claude struct {
+	Enabled                 bool
 	StartTicketCommand      Command `toml:"start-ticket"`
 	StartPullRequestCommand Command `toml:"start-pull-request"`
 	StartSessionCommand     Command `toml:"start-session"`
@@ -20,88 +26,56 @@ type Agent struct {
 }
 
 const (
-	startTicketKey      = "agent.start-ticket"
-	startPullRequestKey = "agent.start-pull-request"
-	startSessionKey     = "agent.start-session"
-	resumeSessionKey    = "agent.resume-session"
+	startTicketKey      = "claude.start-ticket"
+	startPullRequestKey = "claude.start-pull-request"
+	startSessionKey     = "claude.start-session"
+	resumeSessionKey    = "claude.resume-session"
 )
 
-// Launch is everything a command may be rendered with. Which of these a key
-// actually has is its launchValues; a template naming any other is refused.
-type Launch struct {
-	Name    string // what the target is retyped as, or the file config edit opens
-	Dir     string // the worktree the process has already changed into, or that file
-	ID      string // the ticket id
-	Title   string // the ticket title
-	Number  string // the pull request number
-	Session string // the one conversation the worktree carries, empty where it carries several
-	Shell   string // $SHELL, or /bin/sh
-	Editor  string // $VISUAL, else $EDITOR
-	Base    string // the commit the worktree's branch forked from
-}
-
 // StartTicket is the command a fresh ticket worktree opens on.
-func (a Agent) StartTicket(l Launch) ([]string, error) {
-	return a.startTicket().render(l)
+func (c Claude) StartTicket() Command {
+	return c.StartTicketCommand.or(defaultClaude.StartTicketCommand)
 }
 
 // StartPullRequest is the command a fresh pull request worktree opens on.
-func (a Agent) StartPullRequest(l Launch) ([]string, error) {
-	return a.startPullRequest().render(l)
+func (c Claude) StartPullRequest() Command {
+	return c.StartPullRequestCommand.or(defaultClaude.StartPullRequestCommand)
 }
 
 // StartSession is the command a worktree that carries no conversation opens on.
-func (a Agent) StartSession(l Launch) ([]string, error) {
-	return a.startSession().render(l)
+func (c Claude) StartSession() Command {
+	return c.StartSessionCommand.or(defaultClaude.StartSessionCommand)
 }
 
 // ResumeSession is the command that returns to the conversation a worktree
-// carries. An empty .Session drops the element that placed it, so the one
-// conversation is returned to outright and several reach the agent's own list.
-func (a Agent) ResumeSession(l Launch) ([]string, error) {
-	return a.resumeSession().render(l)
-}
-
-// An unset command is the compiled-in one, as it is below, so a Config that
-// never reached Load still names something to run.
-func (a Agent) startTicket() Command {
-	return a.StartTicketCommand.or(defaultAgent.StartTicketCommand)
-}
-
-func (a Agent) startPullRequest() Command {
-	return a.StartPullRequestCommand.or(defaultAgent.StartPullRequestCommand)
-}
-
-func (a Agent) startSession() Command {
-	return a.StartSessionCommand.or(defaultAgent.StartSessionCommand)
-}
-
-func (a Agent) resumeSession() Command {
-	return a.ResumeSessionCommand.or(defaultAgent.ResumeSessionCommand)
+// carries. An empty Session drops the element that placed it, so the one
+// conversation is returned to outright and several reach claude's own list.
+func (c Claude) ResumeSession() Command {
+	return c.ResumeSessionCommand.or(defaultClaude.ResumeSessionCommand)
 }
 
 // validate judges each command against the values its key renders with, and
 // names the key work cannot use the value of.
-func (a *Agent) validate() (string, error) {
-	if err := a.StartTicketCommand.bind(startTicketValues); err != nil {
+func (c *Claude) validate() (string, error) {
+	if err := c.StartTicketCommand.bind(startTicketValues); err != nil {
 		return startTicketKey, err
 	}
-	if err := a.StartPullRequestCommand.bind(startPullRequestValues); err != nil {
+	if err := c.StartPullRequestCommand.bind(startPullRequestValues); err != nil {
 		return startPullRequestKey, err
 	}
-	if err := a.StartSessionCommand.bind(startSessionValues); err != nil {
+	if err := c.StartSessionCommand.bind(startSessionValues); err != nil {
 		return startSessionKey, err
 	}
-	if err := a.ResumeSessionCommand.bind(resumeSessionValues); err != nil {
+	if err := c.ResumeSessionCommand.bind(resumeSessionValues); err != nil {
 		return resumeSessionKey, err
 	}
 	return "", nil
 }
 
-// defaultAgent is the session work opened before any of this was a setting,
+// defaultClaude is the session work opened before any of this was a setting,
 // less the review prompt a pull request used to get, which is the reviewer's to
 // choose.
-var defaultAgent = Agent{
+var defaultClaude = Claude{
 	StartTicketCommand: mustCommand(startTicketValues,
 		"claude", "--permission-mode", "auto",
 		"--name={{.ID}}: {{.Title}}",
@@ -121,7 +95,8 @@ var defaultAgent = Agent{
 
 // Open is what a worktree is handed over to when no session is started. The
 // keys owe each other nothing, so the table is named for the verb rather than
-// for what any of them reaches.
+// for what any of them reaches. An unset command is the compiled-in one, as
+// [Claude]'s are.
 type Open struct {
 	ShellCommand  Command `toml:"shell"`
 	EditorCommand Command `toml:"editor"`
@@ -134,26 +109,15 @@ const (
 	diffKey   = "open.diff"
 )
 
-// Shell is the command an existing worktree is entered with, and the one
-// --shell hands over to.
-func (o Open) Shell(l Launch) ([]string, error) {
-	return o.shell().render(l)
-}
+// Shell is the command an existing worktree is entered with, and the one --shell
+// hands over to.
+func (o Open) Shell() Command { return o.ShellCommand.or(defaultOpen.ShellCommand) }
 
 // Editor is the command --editor hands the worktree to.
-func (o Open) Editor(l Launch) ([]string, error) {
-	return o.editor().render(l)
-}
+func (o Open) Editor() Command { return o.EditorCommand.or(defaultOpen.EditorCommand) }
 
 // Diff is the command --diff hands the worktree to.
-func (o Open) Diff(l Launch) ([]string, error) {
-	return o.diff().render(l)
-}
-
-// An unset command is the compiled-in one, as [Agent]'s are.
-func (o Open) shell() Command  { return o.ShellCommand.or(defaultOpen.ShellCommand) }
-func (o Open) editor() Command { return o.EditorCommand.or(defaultOpen.EditorCommand) }
-func (o Open) diff() Command   { return o.DiffCommand.or(defaultOpen.DiffCommand) }
+func (o Open) Diff() Command { return o.DiffCommand.or(defaultOpen.DiffCommand) }
 
 func (o *Open) validate() (string, error) {
 	if err := o.ShellCommand.bind(shellValues); err != nil {
@@ -174,8 +138,10 @@ func (o *Open) validate() (string, error) {
 var defaultOpen = Open{
 	ShellCommand:  mustCommand(shellValues, "{{.Shell}}"),
 	EditorCommand: mustCommand(editorValues, "{{.Editor}}", "{{.Dir}}"),
-	// Not the three-dot form, which would leave uncommitted work out.
-	DiffCommand: mustCommand(diffValues, "git", "diff", "{{.Base}}"),
+	// --merge-base rather than the three-dot form: given one commit, git diffs the
+	// merge-base against the working tree, where three dots would diff it against
+	// HEAD and leave uncommitted work out.
+	DiffCommand: mustCommand(diffValues, "git", "diff", "--merge-base", "{{.Base}}"),
 }
 
 // Command is a whole command line: one [text/template] per argv element,
@@ -183,12 +149,12 @@ var defaultOpen = Open{
 // bind, once the key the command was read from says.
 type Command struct {
 	parts  []tmpl
-	values launchValues
+	values keyValues
 }
 
-// launchValues are the value names one key's command may place, and the key it
+// keyValues are the value names one key's command may place, and the key it
 // is named by.
-type launchValues struct {
+type keyValues struct {
 	key   string
 	names []string
 }
@@ -198,45 +164,61 @@ type launchValues struct {
 var common = []string{"Name", "Dir"}
 
 var (
-	startTicketValues      = launchValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
-	startPullRequestValues = launchValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
-	startSessionValues     = launchValues{startSessionKey, common}
-	resumeSessionValues    = launchValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
-	shellValues            = launchValues{shellKey, slices.Concat(common, []string{"Shell"})}
-	editorValues           = launchValues{editorKey, slices.Concat(common, []string{"Editor"})}
-	diffValues             = launchValues{diffKey, slices.Concat(common, []string{"Base"})}
+	startTicketValues      = keyValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
+	startPullRequestValues = keyValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
+	startSessionValues     = keyValues{startSessionKey, common}
+	resumeSessionValues    = keyValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
+	shellValues            = keyValues{shellKey, slices.Concat(common, []string{"Shell"})}
+	editorValues           = keyValues{editorKey, slices.Concat(common, []string{"Editor"})}
+	diffValues             = keyValues{diffKey, slices.Concat(common, []string{"Base"})}
 )
 
+// ErrUnsupplied is a value the key places that nothing in the wiring supplied,
+// which is the one refusal a caller choosing between keys may pass over: what it
+// says about the key is that this worktree is not the one that key is for.
+// Everything else a render refuses with is a key that cannot name a command
+// whatever the worktree is.
+var ErrUnsupplied = errors.New("nothing here supplies")
+
 // data is what one render is given: the values the key has and no others, so a
-// template naming another fails rather than quietly rendering nothing.
-func (v launchValues) data(l Launch) map[string]any {
-	data := map[string]any{
-		"Name": l.Name, "Dir": l.Dir,
-		"ID": l.ID, "Title": l.Title, "Number": l.Number, "Session": l.Session,
-		"Shell": l.Shell, "Editor": l.Editor, "Base": l.Base,
+// template naming another fails rather than quietly rendering nothing. A name the
+// key has that nothing supplied is refused here rather than left to the template, so
+// that a value no system in the wiring knows how to supply reads as that rather than
+// as a missing map key.
+func (v keyValues) data(vals worktree.Values) (map[string]any, error) {
+	data := make(map[string]any, len(v.names))
+	for _, name := range v.names {
+		value, supplied := vals[name]
+		if !supplied {
+			return nil, fmt.Errorf("%s: %w {{.%s}}", v.key, ErrUnsupplied, name)
+		}
+		data[name] = value
 	}
-	// Dropping rather than picking: a name here that Launch has no field for leaves
-	// the map short, which bind refuses, instead of rendering as <no value>.
-	maps.DeleteFunc(data, func(name string, _ any) bool {
-		return !slices.Contains(v.names, name)
-	})
-	return data
+	return data, nil
+}
+
+// mark is a value standing in for one that has not been supplied: the shortest any
+// real value is, so a command rendering with it renders with anything.
+const mark = "x"
+
+// fill is every value the key has, set to the one mark. Binding renders both arms a
+// key makes, an empty one and a filled one, and [Command.Applies] fills the names no
+// source has supplied yet.
+func (v keyValues) fill(value string) worktree.Values {
+	vals := make(worktree.Values, len(v.names))
+	for _, name := range v.names {
+		vals[name] = value
+	}
+	return vals
 }
 
 // list is how the values read in a refusal.
-func (v launchValues) list() string {
+func (v keyValues) list() string {
 	out := make([]string, len(v.names))
 	for i, name := range v.names {
 		out[i] = "{{." + name + "}}"
 	}
 	return strings.Join(out, ", ")
-}
-
-// filledLaunch stands for a target carrying every value, so that binding renders
-// the arms an empty one would skip.
-var filledLaunch = Launch{
-	Name: "x", Dir: "x", ID: "x", Title: "x", Number: "x",
-	Session: "x", Shell: "x", Editor: "x", Base: "x",
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as
@@ -274,7 +256,7 @@ func parseCommand(texts []string) (Command, error) {
 }
 
 // mustCommand binds a compiled-in default, which cannot be at fault.
-func mustCommand(v launchValues, texts ...string) Command {
+func mustCommand(v keyValues, texts ...string) Command {
 	c, err := parseCommand(texts)
 	if err == nil {
 		err = c.bind(v)
@@ -289,12 +271,15 @@ func mustCommand(v launchValues, texts ...string) Command {
 // cannot name a command. Every value is rendered both set and unset, so a
 // template that cannot render at all is refused at load rather than at the
 // handoff.
-func (c *Command) bind(v launchValues) error {
+func (c *Command) bind(v keyValues) error {
 	if len(c.parts) == 0 {
 		return errors.New("names no command to run")
 	}
-	for _, probe := range []Launch{{}, filledLaunch} {
-		data := v.data(probe)
+	for _, probe := range []worktree.Values{v.fill(""), v.fill(mark)} {
+		data, err := v.data(probe)
+		if err != nil {
+			return err
+		}
 		for _, p := range c.parts {
 			if _, err := p.execute(data); err != nil {
 				return fmt.Errorf("%w; the values here are %s", err, v.list())
@@ -313,11 +298,29 @@ func (c Command) or(def Command) Command {
 	return c
 }
 
-// render builds the argv, dropping every element that renders to nothing, so an
+// Applies reports whether the values in hand leave a command to run, standing in
+// for every value no source has supplied yet. It is how a tool the machine does not
+// have is told apart from one whose values are still coming: an unset editor is
+// supplied as nothing and refused here, while a merge-base that only exists once
+// the worktree does is not supplied at all and stood in for.
+func (c Command) Applies(vals worktree.Values) error {
+	probe := c.values.fill(mark)
+	// What a source actually supplied wins over the stand-in, so a value supplied
+	// empty is judged as the empty thing it is.
+	maps.Copy(probe, vals)
+	_, err := c.Render(probe)
+	return err
+}
+
+// Render builds the argv, dropping every element that renders to nothing, so an
 // optional flag is one element rather than a pair. bind settled which values are
-// named here, and refused every command that could fail to render for them.
-func (c Command) render(l Launch) ([]string, error) {
-	data := c.values.data(l)
+// named here, and refused every command that could fail to render for them; what
+// is left to fail is a value nothing supplied.
+func (c Command) Render(vals worktree.Values) ([]string, error) {
+	data, err := c.values.data(vals)
+	if err != nil {
+		return nil, err
+	}
 	argv := make([]string, 0, len(c.parts))
 	for i, p := range c.parts {
 		s, err := p.execute(data)

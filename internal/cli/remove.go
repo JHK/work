@@ -19,9 +19,9 @@ func removeCommand(run func(force bool, target string) error, list func() ([]wor
 		Long: `Remove a worktree: git removes it and deletes the branch it had checked out. No
 tracker is asked.
 
-A worktree with modified or untracked files and a branch not fully merged are
-each refused; --force takes both. The worktree you are standing in is refused
-either way.
+The worktree and its branch go together or neither goes. A worktree with modified
+or untracked files is refused, and so is a branch whose work has not landed;
+--force takes both. The worktree you are standing in is refused either way.
 
 With no name, choose among the repository's worktrees. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),

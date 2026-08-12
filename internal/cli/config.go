@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/settings"
 )
 
 // configCommand is the verb that answers for the settings. It runs nothing
@@ -43,8 +43,8 @@ repository's .work.toml.
 
 Templates print as they are written; rendering one needs a target.
 
-Outside a repository the printed configuration is your file over the defaults,
-and it says .work.toml went unread.`,
+A repository is what the layers are read against, so outside one there is nothing
+to print and the refusal is git's.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd.OutOrStdout())
@@ -52,11 +52,11 @@ and it says .work.toml went unread.`,
 	}
 }
 
-// dump prints the settings of the repository the shell stands in, or the user's
-// alone where it stands outside one. Nothing is printed of a configuration work
-// would refuse to load.
+// dump prints the settings of the repository the shell stands in. Nothing is
+// printed where git names no repository, or of a configuration work would refuse
+// to load.
 func dump(out io.Writer) error {
-	text, err := work.Settings(".")
+	text, err := settings.Dump(".")
 	if err != nil {
 		return err
 	}
@@ -91,8 +91,8 @@ Nothing runs after: the terminal is the editor's from here.`,
 
 // edit opens the user's settings file and hands the terminal over to the editor,
 // which the settings of the repository the shell stands in are what name.
-func edit() error {
-	h, err := work.EditSettings(".")
+func (v verbs) edit() error {
+	h, err := settings.Edit(".", v.wire)
 	if err != nil {
 		return err
 	}

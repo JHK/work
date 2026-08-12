@@ -8,6 +8,10 @@ import (
 	"github.com/JHK/work-cli/internal/run"
 )
 
+// Command is the tracker itself, which both halves of the system are switched
+// off without.
+const Command = "bd"
+
 // Bead carries the fields work needs to name a worktree and judge whether the
 // ticket can be worked. bd reports far more; the rest is the tracker's business.
 type Bead struct {
@@ -68,5 +72,5 @@ func decode(out string, err error) ([]Bead, error) {
 }
 
 func bd(dir string, args ...string) (string, error) {
-	return run.Output(dir, "bd", args...)
+	return run.Output(dir, Command, args...)
 }

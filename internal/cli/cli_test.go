@@ -6,8 +6,71 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
+
+func TestMain(m *testing.M) { testenv.Main(m) }
+
+// opener is one action a worktree opens on, saying no more than the command line
+// reads of one. It spells no flag, so it is named by the flag its own name
+// spells.
+type opener struct{ name string }
+
+func (o opener) Name() string                  { return o.name }
+func (o opener) Applies(worktree.Values) error { return nil }
+
+func (o opener) Open(worktree.Tree, worktree.Values) (worktree.Handoff, error) {
+	return worktree.Handoff{}, nil
+}
+
+// spelt is an opener that spells the flag it answers to rather than leaving the
+// spelling to its name.
+type spelt struct {
+	opener
+	flag, usage string
+}
+
+func (s spelt) Flag() (string, string) { return s.flag, s.usage }
+
+// action is one thing a worktree coming into being means. It spells no flag, so
+// nothing declines it.
+type action struct{ name string }
+
+func (a action) Name() string            { return a.name }
+func (a action) Run(worktree.Tree) error { return nil }
+
+// declined is an action a flag calls off.
+type declined struct {
+	action
+	flag, usage string
+}
+
+func (d declined) Flag() (string, string) { return d.flag, d.usage }
+
+// wired stands in for what cmd/work hands the front end, spelling the flags the
+// command line records. That the binary's own systems spell these is cmd/work's
+// to say; what this package answers for is the tree they make. The claude
+// spelling is load-bearing here: it is the one an action was renamed to, which
+// is where the flag it used to answer to comes from.
+func wired() work.Systems {
+	return work.Systems{
+		Openers: []work.Opener{
+			spelt{opener{"claude"}, "claude", "hand the worktree to claude"},
+			opener{"shell"},
+			opener{"editor"},
+			opener{"diff"},
+		},
+		Actions: []work.Action{action{"mise"}, declined{action{"beads"}, "no-claim", "do not claim the ticket"}},
+	}
+}
+
+// same reports whether two readings of the flags name the same actions.
+func same(a, b options) bool {
+	return a.open == b.open && slices.Equal(a.skip, b.skip)
+}
 
 // The bare form arrives at switch as it was typed, whatever stands in the first
 // position: a name, a flag, or nothing. Which flag names which action is
@@ -21,10 +84,11 @@ func TestCommandFlags(t *testing.T) {
 	}{
 		{"nothing at all", nil, options{}, ""},
 		{"an identifier alone", []string{"bd-1"}, options{}, "bd-1"},
-		{"a flag before the identifier", []string{"--shell", "bd-1"}, options{shell: true}, "bd-1"},
-		{"a flag in place of one", []string{"--shell"}, options{shell: true}, ""},
-		// --no-claim says nothing about which command opens, so it combines with each.
-		{"a shell that does not claim", []string{"--shell", "--no-claim", "bd-1"}, options{shell: true, noClaim: true}, "bd-1"},
+		{"a flag before the identifier", []string{"--shell", "bd-1"}, options{open: "shell"}, "bd-1"},
+		{"a flag in place of one", []string{"--shell"}, options{open: "shell"}, ""},
+		// A flag declining an action says nothing about which command opens, so it
+		// combines with each.
+		{"a shell that does not claim", []string{"--shell", "--no-claim", "bd-1"}, options{open: "shell", skip: []string{"beads"}}, "bd-1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,34 +101,59 @@ func TestCommandFlags(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
-			if got != tt.want || target != tt.target {
+			if !same(got, tt.want) || target != tt.target {
 				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
 			}
 		})
 	}
 }
 
-// The flags are five, the action they name is one. Which flag sets which field
-// is TestCommandFlags' to say; two at once never reach here, cobra having
-// refused them.
-func TestFlagsNameOneAction(t *testing.T) {
+// The command line spells the systems it was wired with and holds no list of its
+// own, so one wired in cmd/work is reachable by a flag without this package
+// knowing it exists. An opener's flag names it; an action's declines it.
+func TestTheWiredSystemsNameTheFlags(t *testing.T) {
+	sys := work.Systems{
+		Openers: []work.Opener{opener{"novel"}, spelt{opener{"terse"}, "spelt-out", "a flag of its own"}},
+		Actions: []work.Action{action{"quiet"}, declined{action{"noisy"}, "no-noise", "leave it alone"}},
+	}
+
+	sw, _, err := command(stubVersion, sys, front{}).Find([]string{"switch"})
+	if err != nil {
+		t.Fatalf("finding switch: %v", err)
+	}
+	for _, name := range []string{"novel", "spelt-out", "no-noise"} {
+		if sw.Flags().Lookup(name) == nil {
+			t.Errorf("switch does not declare --%s", name)
+		}
+	}
+	// The name an opener spelling its own flag goes by, and the two systems that
+	// spelled no flag at all: an action with none runs whenever a worktree does.
+	for _, name := range []string{"terse", "quiet", "noisy"} {
+		if sw.Flags().Lookup(name) != nil {
+			t.Errorf("switch declares --%s, which nothing spelled", name)
+		}
+	}
+
 	tests := []struct {
-		name string
-		opts options
-		want work.Action
+		args []string
+		want options
 	}{
-		{"nothing named", options{}, work.ActionUnnamed},
-		{"agent", options{agent: true}, work.ActionAgent},
-		{"shell", options{shell: true}, work.ActionShell},
-		{"editor", options{editor: true}, work.ActionEditor},
-		{"diff", options{diff: true}, work.ActionDiff},
-		{"ask", options{ask: true}, work.ActionAsk},
-		{"no claim names none", options{noClaim: true}, work.ActionUnnamed},
+		{[]string{"switch", "--novel", "bd-1"}, options{open: "novel"}},
+		{[]string{"switch", "--spelt-out", "bd-1"}, options{open: "terse"}},
+		{[]string{"switch", "--no-noise", "bd-1"}, options{skip: []string{"noisy"}}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.opts.action(); got != tt.want {
-				t.Errorf("%+v names %s; want %s", tt.opts, got, tt.want)
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			var got options
+			err := executeOn(t, sys, tt.args, io.Discard, front{enter: func(o options, _ string) error {
+				got = o
+				return nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if !same(got, tt.want) {
+				t.Errorf("Execute(%q) = %+v; want %+v", tt.args, got, tt.want)
 			}
 		})
 	}
@@ -81,16 +170,16 @@ func TestSwitchFlags(t *testing.T) {
 	}{
 		{"an identifier of its own", []string{"switch", "bd-1"}, options{}, "bd-1"},
 		{"no identifier", []string{"switch"}, options{}, ""},
-		{"named before the identifier", []string{"switch", "--shell", "bd-1"}, options{shell: true}, "bd-1"},
-		{"named after the identifier", []string{"switch", "bd-1", "--shell"}, options{shell: true}, "bd-1"},
-		{"in the editor", []string{"switch", "--editor", "bd-1"}, options{editor: true}, "bd-1"},
-		{"diffed", []string{"switch", "--diff", "bd-1"}, options{diff: true}, "bd-1"},
-		{"handed to the agent", []string{"switch", "--agent", "bd-1"}, options{agent: true}, "bd-1"},
-		{"asking what to open on", []string{"switch", "--ask", "bd-1"}, options{ask: true}, "bd-1"},
-		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{noClaim: true}, "bd-1"},
+		{"named before the identifier", []string{"switch", "--shell", "bd-1"}, options{open: "shell"}, "bd-1"},
+		{"named after the identifier", []string{"switch", "bd-1", "--shell"}, options{open: "shell"}, "bd-1"},
+		{"in the editor", []string{"switch", "--editor", "bd-1"}, options{open: "editor"}, "bd-1"},
+		{"diffed", []string{"switch", "--diff", "bd-1"}, options{open: "diff"}, "bd-1"},
+		{"handed to claude", []string{"switch", "--claude", "bd-1"}, options{open: "claude"}, "bd-1"},
+		{"asking what to open on", []string{"switch", "--ask", "bd-1"}, options{open: string(config.ActionAsk)}, "bd-1"},
+		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{skip: []string{"beads"}}, "bd-1"},
 		// Every flag stands without an identifier too, the picker naming one.
-		{"an action for the picker's target", []string{"switch", "--editor"}, options{editor: true}, ""},
-		{"declining the picker's claim", []string{"switch", "--no-claim"}, options{noClaim: true}, ""},
+		{"an action for the picker's target", []string{"switch", "--editor"}, options{open: "editor"}, ""},
+		{"declining the picker's claim", []string{"switch", "--no-claim"}, options{skip: []string{"beads"}}, ""},
 		// The verbs shadow these names in the bare position; switch reaches them.
 		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
 		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
@@ -111,7 +200,7 @@ func TestSwitchFlags(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
-			if got != tt.want || target != tt.target {
+			if !same(got, tt.want) || target != tt.target {
 				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
 			}
 		})
@@ -121,18 +210,36 @@ func TestSwitchFlags(t *testing.T) {
 // The bare form is a dispatch, not a second registration: every flag it takes
 // is declared once, on the verb it reaches.
 func TestOpenOnFlagsAreSwitchs(t *testing.T) {
-	root := command(stubVersion, front{})
+	root := command(stubVersion, wired(), front{})
 	sw, _, err := root.Find([]string{"switch"})
 	if err != nil {
 		t.Fatalf("finding switch: %v", err)
 	}
-	for _, name := range []string{"agent", "shell", "editor", "diff", "ask", "no-claim"} {
+	for _, name := range []string{"claude", "shell", "editor", "diff", "ask", "no-claim"} {
 		if root.Flags().Lookup(name) != nil {
 			t.Errorf("--%s is still declared on the root", name)
 		}
 		if sw.Flags().Lookup(name) == nil {
 			t.Errorf("switch does not declare --%s", name)
 		}
+	}
+}
+
+// A flag an action used to answer to is refused with the one it answers to now,
+// wherever the set is carried, and is offered by nothing.
+func TestTheRenamedFlagIsRefusedByItsNewName(t *testing.T) {
+	for _, args := range [][]string{{"bd-1", "--agent"}, {"switch", "--agent", "bd-1"}, {"add", "--agent", "scratch"}} {
+		err := execute(t, args, io.Discard, front{})
+		if err == nil || !strings.Contains(err.Error(), "--claude") {
+			t.Errorf("Execute(%q) = %v; want a refusal naming --claude", args, err)
+		}
+	}
+	sw, _, err := command(stubVersion, wired(), front{}).Find([]string{"switch"})
+	if err != nil {
+		t.Fatalf("finding switch: %v", err)
+	}
+	if flag := sw.Flags().Lookup("agent"); flag == nil || !flag.Hidden {
+		t.Errorf("--agent is %+v; want a hidden flag", flag)
 	}
 }
 
@@ -145,12 +252,12 @@ func TestAddFlags(t *testing.T) {
 		want options
 	}{
 		{"a name of its own", []string{"add", "scratch"}, options{}},
-		{"named before the name", []string{"add", "--shell", "scratch"}, options{shell: true}},
-		{"named after the name", []string{"add", "scratch", "--shell"}, options{shell: true}},
-		{"in the editor", []string{"add", "--editor", "scratch"}, options{editor: true}},
-		{"diffed", []string{"add", "--diff", "scratch"}, options{diff: true}},
-		{"handed to the agent", []string{"add", "--agent", "scratch"}, options{agent: true}},
-		{"asking what to open on", []string{"add", "--ask", "scratch"}, options{ask: true}},
+		{"named before the name", []string{"add", "--shell", "scratch"}, options{open: "shell"}},
+		{"named after the name", []string{"add", "scratch", "--shell"}, options{open: "shell"}},
+		{"in the editor", []string{"add", "--editor", "scratch"}, options{open: "editor"}},
+		{"diffed", []string{"add", "--diff", "scratch"}, options{open: "diff"}},
+		{"handed to claude", []string{"add", "--claude", "scratch"}, options{open: "claude"}},
+		{"asking what to open on", []string{"add", "--ask", "scratch"}, options{open: string(config.ActionAsk)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -163,7 +270,7 @@ func TestAddFlags(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
-			if got != tt.want || name != "scratch" {
+			if !same(got, tt.want) || name != "scratch" {
 				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, name, tt.want, "scratch")
 			}
 		})
@@ -259,10 +366,10 @@ func TestConfigWithoutASubVerb(t *testing.T) {
 // something. It prints the worktrees remove's listing offers, no more.
 func TestListPrints(t *testing.T) {
 	worktrees := []work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true},
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 	}
-	elsewhere := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
 
 	var out strings.Builder
 	err := execute(t, []string{"list"}, &out, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)})
@@ -285,12 +392,12 @@ func TestListPrints(t *testing.T) {
 // up behind the widest name that has one.
 func TestLines(t *testing.T) {
 	got := lines([]work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-longer", Name: "bd-longer"}, Label: "Other", Open: true},
-		{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this", Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-longer", Name: "bd-longer", Label: "Other"}, Open: true},
+		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}, Open: true},
 		// A plain worktree is named by its branch and says nothing more.
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 		// An untitled name is not padded, so it does not set the column either.
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-untitled-and-longest", Name: "bd-untitled-and-longest"}, Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-untitled-and-longest", Name: "bd-untitled-and-longest"}, Open: true},
 	})
 	want := []string{
 		"bd-longer  Other",
@@ -332,11 +439,11 @@ func TestCommandRejects(t *testing.T) {
 		{"a shell and an editor at once", []string{"bd-1", "--shell", "--editor"}},
 		{"a shell and a diff at once", []string{"bd-1", "--shell", "--diff"}},
 		{"an editor and a diff at once", []string{"bd-1", "--editor", "--diff"}},
-		{"an agent and a shell at once", []string{"bd-1", "--agent", "--shell"}},
-		{"an agent and an editor at once", []string{"bd-1", "--agent", "--editor"}},
-		{"an agent and a diff at once", []string{"bd-1", "--agent", "--diff"}},
+		{"claude and a shell at once", []string{"bd-1", "--claude", "--shell"}},
+		{"claude and an editor at once", []string{"bd-1", "--claude", "--editor"}},
+		{"claude and a diff at once", []string{"bd-1", "--claude", "--diff"}},
 		{"asking and naming an action at once", []string{"bd-1", "--ask", "--shell"}},
-		{"asking and an agent at once", []string{"bd-1", "--ask", "--agent"}},
+		{"asking and claude at once", []string{"bd-1", "--ask", "--claude"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"two identifiers on switch", []string{"switch", "bd-1", "bd-2"}},
 		{"two actions on switch at once", []string{"switch", "bd-1", "--shell", "--editor"}},
@@ -379,14 +486,15 @@ func TestCommandRejects(t *testing.T) {
 	}
 }
 
-// A row states what to retype and what kind of thing it is, and the names line
-// up whether or not a worktree exists.
+// A row states what to retype and what kind of thing it is, under the mark the
+// resolver that answered for it draws itself with, and the names line up whether
+// or not a worktree exists.
 func TestLabels(t *testing.T) {
 	bead := func(id, title string, open bool) work.Candidate {
-		return work.Candidate{Target: work.Target{Kind: work.KindBead, ID: id, Name: id}, Label: title, Open: open}
+		return work.Candidate{Place: worktree.Place{Source: "beads", ID: id, Name: id, Label: title}, Icon: "◆", Open: open}
 	}
 	pr := func(n, title string, open bool) work.Candidate {
-		return work.Candidate{Target: work.Target{Kind: work.KindPR, ID: n, Name: "pr-" + n}, Label: title, Open: open}
+		return work.Candidate{Place: worktree.Place{Source: "github", ID: n, Name: "pr-" + n, Label: title}, Icon: "⇄", Open: open}
 	}
 
 	got := labels([]work.Candidate{
@@ -394,9 +502,12 @@ func TestLabels(t *testing.T) {
 		bead("bd-1", "Do a thing", false),
 		pr("7", "Review this", true),
 		// A plain worktree is named by its branch and says nothing more.
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Icon: "◇", Open: true},
 		bead("bd-untitled-and-longest", "", false), // bd could not say
 		pr("9", "", false), // nor could gh
+		// A resolver that named no mark leaves the column empty rather than the row
+		// short, so the names still line up under one another.
+		{Place: worktree.Place{Source: "undrawn", ID: "x", Name: "elsewhere"}},
 	})
 	want := []string{
 		highlight + "⎇ ◆ bd-longer" + reset + "  ·  Other",
@@ -405,6 +516,7 @@ func TestLabels(t *testing.T) {
 		highlight + "⎇ ◇ spike" + reset,
 		"  ◆ bd-untitled-and-longest",
 		"  ⇄ pr-9",
+		"    elsewhere",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d rows; want %d", len(got), len(want))
@@ -422,9 +534,16 @@ const (
 )
 
 // execute puts args through the tree the way [Execute] does, dispatch included,
-// standing in for whatever the case left unnamed: a verb it did not expect to
-// run fails the test rather than passing silently.
+// over the systems the command line records.
 func execute(t *testing.T, args []string, out io.Writer, f front) error {
+	t.Helper()
+	return executeOn(t, wired(), args, out, f)
+}
+
+// executeOn is the same over a wiring of the case's own, standing in for
+// whatever it left unnamed: a verb it did not expect to run fails the test
+// rather than passing silently.
+func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f front) error {
 	t.Helper()
 	if f.enter == nil {
 		f.enter = func(options, string) error { t.Error("entered a worktree"); return nil }
@@ -447,8 +566,33 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 	if f.worktrees == nil {
 		f.worktrees = stub(nil, nil)
 	}
-	cmd := command(stubVersion, f)
+	cmd := command(stubVersion, sys, f)
 	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)
 	return run(cmd, args)
+}
+
+// Every verb that reaches the core reaches it through the wiring the call
+// carries, so two wirings in one process each answer for their own systems.
+// Parked in a package-level var, whichever was assigned last would answer for
+// both, and which systems a verb reads would depend on what set the var up.
+func TestEachCallCarriesItsOwnWiring(t *testing.T) {
+	t.Chdir(testenv.InitRepo(t))
+
+	var asked []string
+	wire := func(name string) work.Wiring {
+		return func(string, string, config.Config) work.Systems {
+			asked = append(asked, name)
+			return work.Systems{}
+		}
+	}
+	if _, err := (verbs{wire: wire("first")}).listing(); err != nil {
+		t.Fatalf("listing: %v", err)
+	}
+	if _, err := (verbs{wire: wire("second")}).worktreeListing(); err != nil {
+		t.Fatalf("worktreeListing: %v", err)
+	}
+	if want := []string{"first", "second"}; !slices.Equal(asked, want) {
+		t.Errorf("the wirings asked were %q; want %q", asked, want)
+	}
 }

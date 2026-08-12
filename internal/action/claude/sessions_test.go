@@ -1,4 +1,4 @@
-package sessions
+package claude
 
 import (
 	"os"
@@ -27,9 +27,9 @@ func TestBucket(t *testing.T) {
 }
 
 func TestListMissingBucket(t *testing.T) {
-	got, err := Claude{Home: t.TempDir()}.List("/nowhere")
+	got, err := recorded{home: t.TempDir()}.list("/nowhere")
 	if err != nil || got != nil {
-		t.Errorf("List() = %v, %v; want no sessions and no error", got, err)
+		t.Errorf("list() = %v, %v; want no conversations and no error", got, err)
 	}
 }
 
@@ -41,13 +41,13 @@ func TestListOrder(t *testing.T) {
 	write(t, home, dir, "newest", []string{`{"type":"user"}`}, time.Unix(300, 0))
 	write(t, home, dir, "middle", []string{`{"type":"user"}`}, time.Unix(200, 0))
 
-	got, err := Claude{Home: home}.List(dir)
+	got, err := recorded{home: home}.list(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Session{{ID: "newest"}, {ID: "middle"}, {ID: "oldest"}}
+	want := []string{"newest", "middle", "oldest"}
 	if !slices.Equal(got, want) {
-		t.Errorf("List() = %+v, want %+v", got, want)
+		t.Errorf("list() = %q, want %q", got, want)
 	}
 }
 
@@ -67,12 +67,12 @@ func TestListHidesPrintMode(t *testing.T) {
 		`{"type":"user","entrypoint":"cli","message":"what is \"entrypoint\":\"sdk-cli\"?"}`,
 	}, time.Unix(100, 0))
 
-	got, err := Claude{Home: home}.List(dir)
+	got, err := recorded{home: home}.list(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID != "interactive" {
-		t.Errorf("List() = %+v, want the interactive transcript alone", got)
+	if len(got) != 1 || got[0] != "interactive" {
+		t.Errorf("list() = %q, want the interactive transcript alone", got)
 	}
 }
 
@@ -89,12 +89,12 @@ func TestListHidesPrintModeBehindAnOversizedLine(t *testing.T) {
 	}, time.Unix(100, 0))
 	write(t, home, dir, "interactive", []string{`{"type":"user","entrypoint":"cli"}`}, time.Unix(200, 0))
 
-	got, err := Claude{Home: home}.List(dir)
+	got, err := recorded{home: home}.list(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID != "interactive" {
-		t.Errorf("List() = %+v, want the interactive transcript alone", got)
+	if len(got) != 1 || got[0] != "interactive" {
+		t.Errorf("list() = %q, want the interactive transcript alone", got)
 	}
 }
 

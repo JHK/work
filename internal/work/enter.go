@@ -2,162 +2,203 @@ package work
 
 import (
 	"errors"
+	"fmt"
+	"slices"
 
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Action is what a worktree is handed over to. One worktree opens on one
-// command, so a front end names one of these and cannot name two. It is the
-// settings' own type: a flag and an [action] key name the one set of actions,
-// and the names they go by are the settings' to refuse.
-type Action = config.ActionName
+// ask is the name in the action namespace that names no action: it stands for the
+// choice between the ones that do, which the core settles before any of them runs.
+// It cannot be an action itself, because an action is handed a worktree that
+// exists and a screen dismissed has to leave nothing created.
+const ask = string(config.ActionAsk)
 
-const (
-	// ActionUnnamed is no action named, which leaves the moment's own key to
-	// settle it: action.create for a worktree about to be made, action.enter for
-	// one already there.
-	ActionUnnamed Action = ""
-	ActionAgent          = config.ActionAgent  // the agent, on whatever the worktree already carries
-	ActionShell          = config.ActionShell  // open.shell, a worktree just created included
-	ActionEditor         = config.ActionEditor // open.editor
-	ActionDiff           = config.ActionDiff   // open.diff
-	// ActionAsk is the choice between the four above, put to the person entering.
-	// It names no command of its own, so it never reaches the handoff.
-	ActionAsk = config.ActionAsk
-)
-
-// Ask puts the choice between the actions offered and returns the one chosen.
+// Ask puts the choice between the actions offered and returns the name chosen.
 // Drawing it is the front end's, so work names the offer and nothing more.
-type Ask func(offer []Action) (Action, error)
+type Ask func(offer []string) (string, error)
 
-// Options are the choices a front end makes on the way in, beyond the target
+// Options are the choices a front end makes on the way in, beyond the place
 // itself.
 type Options struct {
-	Action  Action // what the worktree is handed over to
-	Ask     Ask    // the screen ActionAsk reaches; nothing can ask without one
-	NoClaim bool   // create the worktree without claiming the bead
+	Open string   // the action the worktree opens on, empty for the moment's own key
+	Ask  Ask      // the screen ask reaches; nothing can ask without one
+	Skip []string // actions not to run, under the names they go by
 }
 
-// Entry is what Enter arrived at: the handoff to run, and the target it was
-// reached through, which a front end reads for what it wants to show.
-type Entry struct {
-	Handoff Handoff
-	State   State
-}
-
-// Enter takes a place to work through to the handoff, vetting, provisioning and
-// claiming along the way, and spares git and bd the questions finding it already
-// answered. Creating a worktree is the moment work on that target begins.
-func (e Env) Enter(c Candidate, o Options) (Entry, error) {
-	return e.enter(e.inspectAt(c), o)
-}
-
-// opensOn is the action to hand the worktree to: the one the front end named,
-// else the one the moment's key holds. Either may be ask, which settles it no
-// further: the screen does.
-func (e Env) opensOn(s State, o Options) Action {
-	switch {
-	case o.Action != ActionUnnamed:
-		return o.Action
-	case s.Exists:
-		return e.Config.Action.Enter()
-	default:
-		return e.Config.Action.Create()
+// Enter takes a place to work through to the handoff, preparing, creating and
+// acting along the way, and spares the resolvers the questions finding it already
+// answered.
+func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
+	// Every candidate comes from a resolver, so one without is a front end that made
+	// its own rather than a place to work.
+	if c.by == nil {
+		return worktree.Handoff{}, errors.New("no system answers for this place")
 	}
-}
+	place := c.Place
 
-// offer are the actions the screen chooses between: never ask, which is the
-// screen itself, and no editor where nothing can name one, so what is offered is
-// what will run. The order is the one they are drawn in.
-func (e Env) offer(s State) []Action {
-	out := []Action{ActionAgent, ActionShell}
-	if _, err := e.Editor(s); err == nil {
-		out = append(out, ActionEditor)
-	}
-	return append(out, ActionDiff)
-}
-
-// enter takes an inspected target the rest of the way.
-func (e Env) enter(s State, o Options) (Entry, error) {
-	action := e.opensOn(s, o)
-
-	// Ahead of the vetting, wherever the editor was named outright: one that cannot
-	// be named leaves nothing created or claimed, and the screen leaves it off
-	// instead. Every other command is rendered once there is a worktree to run it
-	// in, a diff having no merge-base until the branch exists.
-	if action == ActionEditor {
-		if _, err := e.Editor(s); err != nil {
-			return Entry{}, err
-		}
-	}
-
-	// Work on a ticket begins with its worktree, whatever that worktree opens on,
-	// so the vetting runs wherever one is about to be created and no flag reaches
-	// past it. Only the claim it guards is declinable.
-	vetting := !s.Exists && s.Target.Kind == KindBead
-	if vetting {
-		if s.TicketErr != nil {
-			return Entry{}, s.TicketErr
-		}
-		reason, err := vetBead(s.Bead, e.readiness(s))
-		if err != nil {
-			return Entry{}, err
-		}
-		if reason != "" {
-			return Entry{}, errors.New(reason)
-		}
-	}
-
-	// Past the vetting, so a ticket that cannot be worked is refused rather than
-	// asked about, and ahead of the provisioning, so a screen dismissed here
-	// leaves nothing created and nothing claimed.
-	if action == ActionAsk {
-		if o.Ask == nil {
-			return Entry{}, errors.New("nothing here can ask which action to open on; name one with a flag")
-		}
-		chosen, err := o.Ask(e.offer(s))
-		if err != nil {
-			return Entry{}, err
-		}
-		// A screen answering with ask or with nothing has settled nothing, and the
-		// launcher below is no answer to fall through to.
-		if chosen == ActionAsk || chosen == ActionUnnamed {
-			return Entry{}, errors.New("the screen named no action to open on")
-		}
-		action = chosen
-	}
-
-	if err := e.Provision(s); err != nil {
-		return Entry{}, err
-	}
-
-	if vetting && !o.NoClaim {
-		if err := e.Claim(s.Target); err != nil {
-			return Entry{}, err
-		}
-	}
-
-	// The launcher is what the agent means for a worktree only just created: there
-	// is nothing there to enter yet, and no conversation to return to.
-	render := e.Launch
-	switch action {
-	case ActionShell:
-		render = e.Shell
-	case ActionEditor:
-		render = e.Editor
-	case ActionDiff:
-		render = e.Diff
-	case ActionAgent:
-		if s.Exists {
-			render = e.Agent
-		}
-	}
-	// Past the provisioning and the claim, so a command that will not render leaves
-	// the worktree made and the ticket claimed, as one that will not start does.
-	// The editor alone was rendered ahead of both, and renders the same twice.
-	run, err := render(s)
+	// Named ahead of everything, so that a name no action goes by is refused before
+	// anything is asked of a tracker. Whether the action applies is judged below,
+	// once there are values to judge it against.
+	opener, err := e.named(c, o)
 	if err != nil {
-		return Entry{}, err
+		return worktree.Handoff{}, err
 	}
-	return Entry{State: s, Handoff: Handoff{Dir: s.Path, Run: run}}, nil
+
+	// Only a worktree about to be made is prepared: the branch and the refusal are
+	// what making one needs, and re-entering one needs neither. This is where a
+	// ticket that cannot be worked is refused, and it holds whatever the worktree
+	// would have opened on and whichever actions were declined.
+	if !c.Open {
+		if place, err = c.by.Prepare(place); err != nil {
+			return worktree.Handoff{}, err
+		}
+		// Completing a place is the one moment a resolver may still change its name,
+		// and the name is about to become a directory: the rule is the core's wherever
+		// a name reaches a path.
+		if err := checkName(place.Name); err != nil {
+			return worktree.Handoff{}, err
+		}
+	}
+
+	// The values a worktree that may not exist yet can already be described by,
+	// gathered once for both ways an action is settled: an action a flag named and one
+	// the screen chose are judged against the same account of the place. A source that
+	// can only answer from inside a worktree supplies nothing here, which is what tells
+	// a tool the machine does not have from a value still coming.
+	t := worktree.Tree{Place: place, Path: c.path, By: c.by}
+	vals := e.values(t)
+
+	// Past the refusal, so a place that cannot be worked is never asked about, and
+	// ahead of the creation, so an action that cannot run and a screen dismissed both
+	// leave nothing created and nothing claimed.
+	if opener == nil {
+		if opener, err = e.chosen(vals, o); err != nil {
+			return worktree.Handoff{}, err
+		}
+	} else if err := opener.Applies(vals); err != nil {
+		return worktree.Handoff{}, err
+	}
+
+	if !c.Open {
+		t.Path, t.Created = e.path(place.Name), true
+		if err := c.by.Create(place, t.Path); err != nil {
+			return worktree.Handoff{}, err
+		}
+		// Gathered again now that there is a worktree, so the sources that could only
+		// answer from inside one are asked where they can answer. A worktree that was
+		// already there was never described without one.
+		vals = e.values(t)
+	}
+
+	// Every action the worktree coming into being means, in the order they were
+	// wired. A worktree that was already there means none of them.
+	if t.Created {
+		for _, a := range e.Systems.Actions {
+			if slices.Contains(o.Skip, a.Name()) {
+				continue
+			}
+			if err := a.Run(t); err != nil {
+				return worktree.Handoff{}, err
+			}
+		}
+	}
+
+	// Past the creation and the actions, so a command that will not render leaves the
+	// worktree made and the ticket claimed, as one that will not start does.
+	return opener.Open(t, vals)
+}
+
+// Handoff is the command the named action makes of a tree, rendered against the
+// values every source supplies for it. It is the sequence's last step alone, for
+// a caller holding something to hand over that no resolver made and no action
+// runs on: nothing is prepared, created or acted on here.
+func (e Env) Handoff(t worktree.Tree, action string) (worktree.Handoff, error) {
+	op, err := e.opener(action)
+	if err != nil {
+		return worktree.Handoff{}, err
+	}
+	return op.Open(t, e.values(t))
+}
+
+// named is the action a flag or the moment's own key named, or nil where that
+// name is the screen: action.create for a worktree about to be made,
+// action.enter for one already there.
+func (e Env) named(c Candidate, o Options) (Opener, error) {
+	name := o.Open
+	if name == "" {
+		if c.Open {
+			name = string(e.Config.Action.Enter())
+		} else {
+			name = string(e.Config.Action.Create())
+		}
+	}
+	if name == ask {
+		return nil, nil
+	}
+	return e.opener(name)
+}
+
+// chosen puts the offer to the screen and returns the action it came back with.
+func (e Env) chosen(vals worktree.Values, o Options) (Opener, error) {
+	if o.Ask == nil {
+		return nil, errors.New("nothing here can ask which action to open on; name one with a flag")
+	}
+	offer, err := e.offer(vals)
+	if err != nil {
+		return nil, err
+	}
+	if len(offer) == 0 {
+		return nil, errors.New("no action applies to this worktree")
+	}
+	name, err := o.Ask(offer)
+	if err != nil {
+		return nil, err
+	}
+	// A screen answering with the screen, or with nothing, has settled nothing, and
+	// there is no action to fall through to.
+	if name == ask || name == "" {
+		return nil, errors.New("the screen named no action to open on")
+	}
+	return e.opener(name)
+}
+
+// offer are the actions the screen chooses between: the ones the values in hand
+// leave a command to run, so what is offered is what will run. The order is the one
+// they were wired in, which is the one they are drawn in.
+//
+// Only [worktree.ErrAbsent] leaves an action off: an action refusing for any other
+// reason has failed rather than found nothing to hand the worktree to, and stops the
+// run where it would otherwise vanish from the screen.
+func (e Env) offer(vals worktree.Values) ([]string, error) {
+	var out []string
+	for _, op := range e.Systems.Openers {
+		err := op.Applies(vals)
+		if errors.Is(err, worktree.ErrAbsent) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, op.Name())
+	}
+	return out, nil
+}
+
+// opener is the action that goes by a name, and is where a name no action goes by
+// is refused. A name one of the switched-off systems goes by is refused as that
+// rather than as a name work has never heard of.
+func (e Env) opener(name string) (Opener, error) {
+	for _, op := range e.Systems.Openers {
+		if op.Name() == name {
+			return op, nil
+		}
+	}
+	for _, s := range e.Systems.Disabled {
+		if s.Name() == name {
+			return nil, errors.New(off(name))
+		}
+	}
+	return nil, fmt.Errorf("nothing here goes by the action %q", name)
 }

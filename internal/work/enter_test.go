@@ -2,328 +2,266 @@ package work
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
-	"github.com/JHK/work-cli/internal/sessions"
+	"github.com/JHK/work-cli/internal/testenv"
 )
 
-// The vetting guards the claim, so it runs wherever a ticket's worktree is
-// about to be created, whatever the invocation opens on and whether or not it
-// will claim. The repository here is not one, so anything reaching the
-// provisioning fails rather than making a worktree.
-func TestEnterVetsEveryWay(t *testing.T) {
-	t.Setenv("VISUAL", "vi")
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
-	s := State{
-		Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"},
-		Bead:   beads.Bead{ID: "bd-1", Status: "closed", Type: "task", AcceptanceCriteria: "It works"},
+// opening is the wiring of [env] with two openers a key or a flag can name and a
+// third the machine has nothing to hand a worktree to, and with each moment's own
+// key named rather than left to the first opener.
+func opening(t *testing.T, s *steps, create, enter string) (Env, *resolver) {
+	t.Helper()
+	e, r, _ := env(t, s,
+		&opener{steps: s, name: "first"},
+		&opener{steps: s, name: "second"},
+		&opener{steps: s, name: "missing", absent: true},
+	)
+	e.Config.Action = config.Action{CreateName: config.ActionName(create), EnterName: config.ActionName(enter)}
+	return e, r
+}
+
+// adopt puts a worktree on the branch the resolver answers for, so that entering
+// it is a re-entry rather than a creation.
+func adopt(t *testing.T, e Env, r *resolver) Candidate {
+	t.Helper()
+	testenv.Git(t, e.Repo, "worktree", "add", "-b", r.adopts, filepath.Join(e.Repo, defaultDir, "a"))
+	c, err := e.Resolve(adopted)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if !c.Open {
+		t.Fatalf("Resolve = %+v; want the worktree already there", c.Place)
+	}
+	return c
+}
+
+// Which key names the action is the moment's own: action.create for a worktree
+// about to be made, action.enter for one already there.
+func TestTheMomentDecidesWhichKeyNamesTheAction(t *testing.T) {
+	var s steps
+	e, r := opening(t, &s, "second", "first")
+
+	fresh, err := e.Resolve("x")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if _, err := e.Enter(fresh, Options{}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if !slices.Contains(s.seen, "open second") {
+		t.Errorf("a fresh worktree ran %q; want the action action.create names", s.seen)
 	}
 
-	tests := []struct {
-		name string
-		opts Options
-	}{
-		{"a session", Options{}},
-		{"an agent", Options{Action: ActionAgent}},
-		{"a shell", Options{Action: ActionShell}},
-		{"an editor", Options{Action: ActionEditor}},
-		{"a diff", Options{Action: ActionDiff}},
-		{"no claim", Options{NoClaim: true}},
-		{"a shell and no claim", Options{Action: ActionShell, NoClaim: true}},
-		// The screen comes after the vetting, so a ticket that cannot be worked is
-		// refused rather than asked about first.
-		{"a screen", Options{Action: ActionAsk, Ask: func([]Action) (Action, error) {
-			t.Error("asked which action to open on despite the ticket being refused")
-			return ActionShell, nil
-		}}},
+	s.seen = nil
+	if _, err := e.Enter(adopt(t, e, r), Options{}); err != nil {
+		t.Fatalf("Enter: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := e.enter(s, tt.opts)
-			if err == nil || !strings.Contains(err.Error(), "already closed") {
-				t.Errorf("enter(%+v) = %v; want the closed bead refused, saying which rule it broke", tt.opts, err)
-			}
-		})
+	if !slices.Equal(s.seen, []string{"open first"}) {
+		t.Errorf("a worktree already there ran %q; want the action action.enter names, alone", s.seen)
 	}
 }
 
-// A worktree that already exists is re-entered whatever the flags say about
-// claiming: there is nothing to vet, nothing to create and nothing to claim.
-// What it opens on is action.enter's to name, and a flag wins over it.
-func TestEnterOpensOn(t *testing.T) {
-	t.Setenv("SHELL", "/usr/bin/fish")
-	t.Setenv("VISUAL", "vi")
-	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
+// What a repository that configured nothing opens on, with no key naming an
+// action and no flag given: a shell either way, work being a cd first. The
+// systems are what a repository asks for, so neither moment may fall to one of
+// them, and neither is offered an Ask, so a default naming the screen would be a
+// refusal here rather than a handover.
+func TestTheDefaultActionsAreReachedWithNoSystemOn(t *testing.T) {
+	var s steps
+	shell := string(config.ActionShell)
+	e, r := opening(t, &s, "", "")
+	e.Systems.Openers = []Opener{&opener{steps: &s, name: shell}}
 
-	tests := []struct {
-		name  string
-		enter Action // unset where the flags name the action
-		opts  Options
-		want  []string
-	}{
-		{"asked for outright", "", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
-		{"the shell action.enter names", ActionShell, Options{}, []string{"/usr/bin/fish"}},
-		{"no claim changes nothing", ActionShell, Options{NoClaim: true}, []string{"/usr/bin/fish"}},
-		{"an editor", "", Options{Action: ActionEditor}, []string{"vi", "/wt"}},
-		{"the agent, on what the worktree carries", "", Options{Action: ActionAgent}, []string{"claude", "--resume", "s1"}},
-		{"the agent action.enter names", ActionAgent, Options{}, []string{"claude", "--resume", "s1"}},
-		{"the editor action.enter names", ActionEditor, Options{}, []string{"vi", "/wt"}},
-		{"a flag over action.enter", ActionAgent, Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
+	fresh, err := e.Resolve("x")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.Default()
-			cfg.Action.EnterName = tt.enter
-			e := Env{
-				Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: cfg,
-				Conversations: stubConversations{list: []sessions.Session{{ID: "s1"}}},
-			}
+	if _, err := e.Enter(fresh, Options{}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if !slices.Contains(s.seen, "open "+shell) {
+		t.Errorf("a worktree just created ran %q; want the action.create a repository configures nothing for", s.seen)
+	}
 
-			got, err := e.enter(s, tt.opts)
-			if err != nil {
-				t.Fatalf("enter(%+v) on action.enter %q: %v", tt.opts, tt.enter, err)
-			}
-			if !slices.Equal(got.Handoff.Run, tt.want) {
-				t.Errorf("enter(%+v) on action.enter %q runs %q; want %q", tt.opts, tt.enter, got.Handoff.Run, tt.want)
-			}
-		})
+	s.seen = nil
+	if _, err := e.Enter(adopt(t, e, r), Options{}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if !slices.Equal(s.seen, []string{"open " + shell}) {
+		t.Errorf("a worktree already there ran %q; want that same action.enter, alone", s.seen)
 	}
 }
 
-// A worktree that already exists is asked about unless something named the
-// action: the screen is offered the four, in that order, and the worktree opens
-// on what came back.
-func TestEnterAsksWhichAction(t *testing.T) {
-	t.Setenv("SHELL", "/usr/bin/fish")
-	t.Setenv("VISUAL", "vi")
-	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
+// A flag naming the action wins over whichever key the moment would have read.
+func TestAFlagWinsOverTheKey(t *testing.T) {
+	var s steps
+	e, r := opening(t, &s, "first", "first")
 
-	tests := []struct {
-		name   string
-		enter  Action // unset where the default is what is under test
-		opts   Options
-		chosen Action
-		want   []string
-	}{
-		{"by default", "", Options{}, ActionShell, []string{"/usr/bin/fish"}},
-		{"the editor chosen", "", Options{}, ActionEditor, []string{"vi", "/wt"}},
-		{"the agent chosen", "", Options{}, ActionAgent, []string{"claude", "--resume", "s1"}},
-		{"--ask over a key naming an action", ActionShell, Options{Action: ActionAsk}, ActionEditor, []string{"vi", "/wt"}},
+	fresh, _ := e.Resolve("x")
+	if _, err := e.Enter(fresh, Options{Open: "second"}); err != nil {
+		t.Fatalf("Enter: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.Default()
-			cfg.Action.EnterName = tt.enter
-			e := Env{
-				Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: cfg,
-				Conversations: stubConversations{list: []sessions.Session{{ID: "s1"}}},
-			}
+	if !slices.Contains(s.seen, "open second") {
+		t.Errorf("a fresh worktree ran %q; want the action the flag named", s.seen)
+	}
 
-			var offered []Action
+	s.seen = nil
+	if _, err := e.Enter(adopt(t, e, r), Options{Open: "second"}); err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if !slices.Equal(s.seen, []string{"open second"}) {
+		t.Errorf("a worktree already there ran %q; want the action the flag named", s.seen)
+	}
+}
+
+// The screen is reached by ask, whether the flag or the key spells it, and what
+// came back wins over the key that would otherwise have settled it.
+func TestAskReachesTheScreenWhicheverNamedIt(t *testing.T) {
+	for _, tt := range []struct {
+		name, enter string
+		opts        Options
+	}{
+		{"the key", ask, Options{}},
+		{"the flag over a key naming an action", "first", Options{Open: ask}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var s steps
+			e, r := opening(t, &s, "first", tt.enter)
+			c := adopt(t, e, r)
+
+			var offered []string
 			opts := tt.opts
-			opts.Ask = func(offer []Action) (Action, error) {
+			opts.Ask = func(offer []string) (string, error) {
 				offered = offer
-				return tt.chosen, nil
+				return "second", nil
 			}
-			got, err := e.enter(s, opts)
-			if err != nil {
-				t.Fatalf("enter(%+v) on action.enter %q: %v", tt.opts, tt.enter, err)
+			if _, err := e.Enter(c, opts); err != nil {
+				t.Fatalf("Enter: %v", err)
 			}
-			if want := []Action{ActionAgent, ActionShell, ActionEditor, ActionDiff}; !slices.Equal(offered, want) {
+			// The offer is what will run, in the order the openers were wired, and the
+			// action the machine has nothing for is not on it.
+			if want := []string{"first", "second"}; !slices.Equal(offered, want) {
 				t.Errorf("the screen was offered %q; want %q", offered, want)
 			}
-			if !slices.Equal(got.Handoff.Run, tt.want) {
-				t.Errorf("choosing %q runs %q; want %q", tt.chosen, got.Handoff.Run, tt.want)
+			if !slices.Equal(s.seen, []string{"open second"}) {
+				t.Errorf("the run ran %q; want the action the screen chose", s.seen)
 			}
 		})
-	}
-}
-
-// The screen offers what will run, so an editor neither the settings nor the
-// environment can name between them is left off it rather than offered and then
-// refused.
-func TestEnterOffersNoEditorItCannotName(t *testing.T) {
-	t.Setenv("SHELL", "/usr/bin/fish")
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "")
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
-	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
-
-	var offered []Action
-	_, err := e.enter(s, Options{Ask: func(offer []Action) (Action, error) {
-		offered = offer
-		return ActionShell, nil
-	}})
-	if err != nil {
-		t.Fatalf("enter: %v", err)
-	}
-	if want := []Action{ActionAgent, ActionShell, ActionDiff}; !slices.Equal(offered, want) {
-		t.Errorf("the screen was offered %q; want %q", offered, want)
-	}
-}
-
-// Dismissing the screen is a choice not made: the error reaches the front end,
-// and the worktree it would have opened is not there to open.
-func TestEnterAsksBeforeCreating(t *testing.T) {
-	repo := initRepo(t)
-	gitCmd(t, repo, "branch", "pr-7")
-	e, err := Open(repo)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	path := filepath.Join(repo, defaultDir, "pr-7")
-	s := State{Target: Target{Kind: KindPR, ID: "7", Name: "pr-7"}, Path: path}
-
-	dismissed := errors.New("dismissed")
-	_, err = e.enter(s, Options{
-		Action: ActionAsk,
-		Ask:    func([]Action) (Action, error) { return ActionUnnamed, dismissed },
-	})
-	if !errors.Is(err, dismissed) {
-		t.Errorf("enter with the screen dismissed = %v; want it passed back", err)
-	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("%s exists; want a dismissed screen to have created nothing", path)
 	}
 }
 
 // The screen is what settles ask, so a front end with none, and one whose screen
 // settled nothing, are both refused rather than handed an action work chose for
-// them: the launcher below is no answer to fall through to.
-func TestEnterRefusesAnUnsettledScreen(t *testing.T) {
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: config.Default()}
-	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: "/wt", Exists: true}
-	answering := func(a Action) Ask {
-		return func([]Action) (Action, error) { return a, nil }
+// them: there is no action to fall through to.
+func TestAnUnsettledScreenIsRefused(t *testing.T) {
+	answering := func(name string) Ask {
+		return func([]string) (string, error) { return name, nil }
 	}
-
 	tests := []struct {
 		name string
-		opts Options
+		ask  Ask
 		want string
 	}{
-		{"no screen at all", Options{}, "name one with a flag"},
-		{"a screen answering ask", Options{Ask: answering(ActionAsk)}, "named no action"},
-		{"a screen answering nothing", Options{Ask: answering(ActionUnnamed)}, "named no action"},
+		{"no screen at all", nil, "name one with a flag"},
+		{"a screen answering ask", answering(ask), "named no action"},
+		{"a screen answering nothing", answering(""), "named no action"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := e.enter(s, tt.opts)
+			var s steps
+			e, r := opening(t, &s, "first", ask)
+			c := adopt(t, e, r)
+
+			_, err := e.Enter(c, Options{Ask: tt.ask})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("enter = %v; want it refused, saying %q", err, tt.want)
+				t.Errorf("Enter = %v; want it refused, saying %q", err, tt.want)
 			}
 		})
 	}
 }
 
-// The editor is rendered ahead of the vetting whichever named it, so a key
-// naming it on a machine with no editor leaves nothing created or claimed, as
-// the flag does.
-func TestEnterRefusesAConfiguredEditorFirst(t *testing.T) {
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "")
-	cfg := config.Default()
-	cfg.Action.CreateName = ActionEditor
-	e := Env{Repo: filepath.Join(t.TempDir(), "not-a-repo"), Config: cfg}
-	s := State{
-		Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"},
-		Bead:   beads.Bead{ID: "bd-1", Status: "open", Type: "task", AcceptanceCriteria: "It works"},
-	}
+// A name no action goes by is refused ahead of everything, so a typo costs
+// nothing and no tracker is asked about a run that cannot finish.
+func TestANameNoActionGoesByIsRefusedFirst(t *testing.T) {
+	var s steps
+	e, _ := opening(t, &s, "first", "first")
 
-	_, err := e.enter(s, Options{})
-	if err == nil || !strings.Contains(err.Error(), "open.editor") {
-		t.Errorf("enter = %v; want the editor refused before anything is created", err)
+	c, _ := e.Resolve("x")
+	_, err := e.Enter(c, Options{Open: "nobody"})
+	if err == nil || !strings.Contains(err.Error(), `goes by the action "nobody"`) {
+		t.Fatalf("Enter = %v; want the name refused", err)
+	}
+	if len(s.seen) != 0 {
+		t.Errorf("naming no action left %q behind; want nothing run at all", s.seen)
 	}
 }
 
-// A worktree only just created opens on what action.create names, the launcher
-// by default rather than the shell an existing one gets, and --agent leaves
-// that alone: there is no conversation to return to yet. A pull request is the
-// target here, its branch already local, so provisioning is git's alone and
-// neither bd nor gh is asked anything.
-func TestEnterCreatesAndOpensOn(t *testing.T) {
-	t.Setenv("SHELL", "/usr/bin/fish")
-	t.Setenv("VISUAL", "vi")
-	repo := initRepo(t)
-	e, err := Open(repo)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	// An agent that would be consulted fails the case rather than answering it.
-	e.Conversations = stubConversations{err: errors.New("a fresh worktree carries none")}
+// A key naming an action the machine has nothing to hand a worktree to is
+// refused where the flag naming it is: before anything is created, so nothing is
+// left made or claimed.
+func TestAKeyNamingAnAbsentActionIsRefusedBeforeCreating(t *testing.T) {
+	var s steps
+	e, _ := opening(t, &s, "missing", "first")
 
-	launcher := []string{"claude", "--name=PR #7"}
+	c, _ := e.Resolve("x")
+	if _, err := e.Enter(c, Options{}); err == nil {
+		t.Fatal("Enter: want the absent action refused")
+	}
+	// The preparation ran, being what the values are judged against and free of
+	// consequence either way; nothing past it did.
+	if !slices.Equal(s.seen, []string{"prepare"}) {
+		t.Errorf("a key naming an absent action left %q behind; want the preparation alone", s.seen)
+	}
+}
+
+// The refusal guards the creation, so it holds whatever the invocation opens on
+// and whether or not it declines an action.
+func TestAPlaceThatCannotBeWorkedIsRefusedEveryWayIn(t *testing.T) {
 	tests := []struct {
-		branch string
-		create Action // unset where the flags name the action
-		opts   Options
-		want   []string
+		name string
+		opts Options
 	}{
-		{"pr-7-unnamed", "", Options{}, launcher},
-		{"pr-7-agent", "", Options{Action: ActionAgent}, launcher},
-		{"pr-7-shell", "", Options{Action: ActionShell}, []string{"/usr/bin/fish"}},
-		{"pr-7-editor", "", Options{Action: ActionEditor}, []string{"vi", filepath.Join(repo, defaultDir, "pr-7-editor")}},
-		{"pr-7-diff", "", Options{Action: ActionDiff}, diffCmd},
-		{"pr-7-created-shell", ActionShell, Options{}, []string{"/usr/bin/fish"}},
-		{"pr-7-created-diff", ActionDiff, Options{}, diffCmd},
-		{"pr-7-flagged-over-created", ActionShell, Options{Action: ActionAgent}, launcher},
+		{"the key's own action", Options{}},
+		{"an action named by a flag", Options{Open: "second"}},
+		{"an action declined", Options{Skip: []string{"first"}}},
+		{"an action named and declined", Options{Open: "second", Skip: []string{"first"}}},
+		{"a screen", Options{Open: ask}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.branch, func(t *testing.T) {
-			// One branch per case: each worktree is provisioned for real, and a branch
-			// is checked out once.
-			gitCmd(t, repo, "branch", tt.branch)
-			e.Config.Action.CreateName = tt.create
-			path := filepath.Join(repo, defaultDir, tt.branch)
-			s := State{Target: Target{Kind: KindPR, ID: "7", Name: tt.branch}, Path: path}
+		t.Run(tt.name, func(t *testing.T) {
+			var s steps
+			e, r := opening(t, &s, "first", "first")
+			r.refuses = errors.New("x is blocked by an open dependency")
 
-			got, err := e.enter(s, tt.opts)
-			if err != nil {
-				t.Fatalf("enter(%+v) on action.create %q: %v", tt.opts, tt.create, err)
+			opts := tt.opts
+			opts.Ask = func([]string) (string, error) {
+				t.Error("asked which action to open on despite the place being refused")
+				return "first", nil
 			}
-			if !slices.Equal(got.Handoff.Run, tt.want) {
-				t.Errorf("enter(%+v) on action.create %q runs %q; want %q", tt.opts, tt.create, got.Handoff.Run, tt.want)
+			c, _ := e.Resolve("x")
+			if _, err := e.Enter(c, opts); err == nil || !strings.Contains(err.Error(), "open dependency") {
+				t.Errorf("Enter = %v; want the refusal, saying which rule it broke", err)
+			}
+			if !slices.Equal(s.seen, []string{"prepare"}) {
+				t.Errorf("the run left %q behind; want the preparation alone", s.seen)
 			}
 		})
 	}
 }
 
-// The base is a revision work hands over for git to resolve, and what git makes
-// of it is the merge-base: what has landed on the main checkout since is not in
-// the diff and the worktree's own work is.
-func TestEnterDiffsAgainstTheBase(t *testing.T) {
-	repo := initRepo(t)
-	wt := filepath.Join(repo, defaultDir, "bd-1")
-	gitCmd(t, repo, "worktree", "add", "-b", "bd-1", wt)
-	writeFile(t, filepath.Join(wt, "own"), "the worktree's own work")
-	gitCmd(t, wt, "add", ".")
-	gitCmd(t, wt, "commit", "-m", "the worktree's own work")
-	writeFile(t, filepath.Join(repo, "later"), "the main checkout has moved on")
-	gitCmd(t, repo, "add", ".")
-	gitCmd(t, repo, "commit", "-m", "the main checkout has moved on")
+// A front end that made its own place rather than resolving one has no resolver
+// to prepare or create with, which is the one thing the sequence cannot do
+// without.
+func TestAPlaceNoResolverAnsweredForIsRefused(t *testing.T) {
+	var s steps
+	e, _ := opening(t, &s, "first", "first")
 
-	e, err := Open(repo)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	s := State{Target: Target{Kind: KindBead, ID: "bd-1", Name: "bd-1"}, Path: wt, Exists: true}
-
-	got, err := e.enter(s, Options{Action: ActionDiff})
-	if err != nil {
-		t.Fatalf("enter with a diff: %v", err)
-	}
-	if !slices.Equal(got.Handoff.Run, diffCmd) {
-		t.Fatalf("enter with a diff runs %q; want %q", got.Handoff.Run, diffCmd)
-	}
-	// Run what it rendered: the three-dot form is what keeps the main checkout's
-	// own commit out, and git is what enforces that rather than work.
-	if files := gitCmd(t, wt, append([]string{"diff", "--name-only"}, got.Handoff.Run[2:]...)...); files != "own" {
-		t.Errorf("the diff covers %q; want the worktree's own work alone", files)
+	if _, err := e.Enter(Candidate{}, Options{}); err == nil {
+		t.Error("Enter with a place no resolver answered for: want it refused")
 	}
 }

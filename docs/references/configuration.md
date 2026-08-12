@@ -13,6 +13,7 @@ Refused at load, each naming the file it came from:
 
 - an unknown key
 - a key whose case does not match
+- a table or an [action](#actions) under a name a rename replaced, refused with the name it goes by now
 
 Values are validated after the merge and before anything is created.
 
@@ -20,20 +21,36 @@ Values are validated after the merge and before anything is created.
 
 | Key | Default | Names |
 |---|---|---|
+| `<system>.enabled` | `false` | whether that [system](#systems) runs at all |
 | `worktree.directory` | `.worktrees` | a directory inside the main checkout, where a new worktree is created |
 | `branch.ticket` | `{{.ID}}{{with .Slug}}-{{.}}{{end}}` | the branch a ticket's worktree checks out |
 | `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
-| `action.create` | `agent` | the [action](#actions) a newly created worktree opens on |
-| `action.enter` | `ask` | the [action](#actions) an existing worktree opens on |
-| `agent.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
-| `agent.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
-| `agent.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
-| `agent.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
+| `action.create` | `shell` | the [action](#actions) a newly created worktree opens on |
+| `action.enter` | `shell` | the [action](#actions) an existing worktree opens on |
+| `claude.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
+| `claude.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
+| `claude.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
+| `claude.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
 | `open.shell` | [below](#commands) | the command the `shell` action hands the worktree to, `--shell` included |
 | `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
 | `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
+
+## Systems
+
+What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell`, `editor` and `diff` are there to open on. Everything reached beyond git is a [system](systems.md), and a repository turns on the ones it works with:
+
+```toml
+[beads]
+enabled = true
+
+[claude]
+enabled = true
+# claude.* is read whether or not this is
+```
+
+One name carries a system wherever it appears: the table its own keys sit in, its rows, its flags, and the key a refusal names. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
 
 ## Branch patterns
 
@@ -55,7 +72,7 @@ An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, 
 
 | Value | Hands the worktree to |
 |---|---|
-| `agent` | what [`--agent`](cli.md#open-on-flags) hands it to |
+| `claude` | what [`--claude`](cli.md#open-on-flags) hands it to |
 | `shell` | `open.shell` |
 | `editor` | `open.editor` |
 | `diff` | `open.diff` |
@@ -65,22 +82,22 @@ An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, 
 
 ## Commands
 
-An `[agent]` or `[open]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
+A `[claude]` or `[open]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
 
 | Value | Rendered by | Is |
 |---|---|---|
 | `.Name` | every command | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |
 | `.Dir` | every command | the worktree, which the process has already changed into |
-| `.ID`, `.Title` | `agent.start-ticket` | the ticket id and its title |
-| `.Number` | `agent.start-pull-request` | the pull request number |
-| `.Session` | `agent.resume-session` | the conversation the worktree carries, empty where it carries several |
+| `.ID`, `.Title` | `claude.start-ticket` | the ticket id and its title |
+| `.Number` | `claude.start-pull-request` | the pull request number |
+| `.Session` | `claude.resume-session` | the conversation the worktree carries, empty where it carries several |
 | `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
 | `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
-| `.Base` | `open.diff` | `main-worktree/HEAD...`, a revision git resolves: the three-dot form is the merge-base of what the worktree has checked out and what the main checkout has |
+| `.Base` | `open.diff` | `main-worktree/HEAD`, a revision git resolves: the head of the main checkout. The default pairs it with `--merge-base`, which diffs the merge-base of that and the worktree's head against the working tree, uncommitted work included |
 
 [`work config edit`](cli.md#config) renders `open.editor` against the user's settings file, where `.Dir` is that file and `.Name` is `config.toml`.
 
-An empty `.Session` drops the element that placed it, so `agent.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
+An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 
 Refused at load:
 
@@ -92,7 +109,7 @@ A command whose first element renders to nothing is refused at the handoff inste
 The defaults, which rest on [`claude`'s own behaviour](claude.md):
 
 ```toml
-[agent]
+[claude]
 start-ticket = [
   "claude", "--permission-mode", "auto",
   "--name={{.ID}}: {{.Title}}",
@@ -105,5 +122,5 @@ resume-session = ["claude", "--resume", "{{.Session}}"]
 [open]
 shell = ["{{.Shell}}"]
 editor = ["{{.Editor}}", "{{.Dir}}"]
-diff = ["git", "diff", "{{.Base}}"]
+diff = ["git", "diff", "--merge-base", "{{.Base}}"]
 ```

@@ -1,8 +1,11 @@
-// Package sessions defines what work asks an agent about a worktree, and
-// answers it for Claude Code. [Claude] rests entirely on undocumented
+package claude
+
+// Which conversations a worktree already carries is the one thing this action
+// cannot read from the settings, and reading it rests entirely on undocumented
 // internals: the path-mangling scheme behind [bucket], and the entrypoint the
-// events inside the JSONL transcripts carry.
-package sessions
+// events inside the JSONL transcripts carry. It lives here because it is knowledge
+// about Claude Code and nothing else, so an agent answering the same question for
+// itself would answer it its own way.
 
 import (
 	"bufio"
@@ -18,29 +21,23 @@ import (
 	"unicode/utf16"
 )
 
-// Session is one resumable transcript.
-type Session struct {
-	ID string
+// transcripts are the conversations a worktree carries, newest first. Only what
+// the agent would return to counts, so whatever its own picker hides is left out.
+// It is an interface so that a test can answer for a directory it did not write.
+type transcripts interface {
+	list(dir string) ([]string, error)
 }
 
-// Conversations is what work needs of an agent beyond a command to run: which
-// conversations a worktree carries, newest first. Only what the agent would
-// return to counts, so an implementation leaves out whatever its own picker
-// hides.
-type Conversations interface {
-	List(dir string) ([]Session, error)
+// recorded reads the transcripts Claude Code writes under home.
+type recorded struct {
+	home string // user home directory; empty means os.UserHomeDir
 }
 
-// Claude reads the transcripts Claude Code writes under Home.
-type Claude struct {
-	Home string // user home directory; empty means os.UserHomeDir
-}
-
-// List reports the sessions recorded for the given working directory, most
-// recently touched first. A directory that was never worked in has none, which
-// is not an error.
-func (c Claude) List(dir string) ([]Session, error) {
-	home := c.Home
+// list reports the conversations recorded for the given working directory, most
+// recently touched first. A directory that was never worked in has none, which is
+// not an error.
+func (c recorded) list(dir string) ([]string, error) {
+	home := c.home
 	if home == "" {
 		var err error
 		if home, err = os.UserHomeDir(); err != nil {
@@ -75,9 +72,9 @@ func (c Claude) List(dir string) ([]Session, error) {
 	// Stable, so that transcripts sharing a timestamp do not reorder between runs.
 	slices.SortStableFunc(files, func(a, b file) int { return b.mod.Compare(a.mod) })
 
-	var out []Session
+	var out []string
 	for _, f := range files {
-		out = append(out, Session{ID: strings.TrimSuffix(f.name, ".jsonl")})
+		out = append(out, strings.TrimSuffix(f.name, ".jsonl"))
 	}
 	return out, nil
 }

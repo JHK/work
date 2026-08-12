@@ -8,23 +8,25 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // errCancelled reports a choice the user declined to make. It exits non-zero
 // without a message: nothing happened, and nothing went wrong.
 var errCancelled = errors.New("cancelled")
 
+// options are what the flags settled, in the names the systems go by rather than
+// a field per system: which action the worktree opens on, and which of the ones
+// that would otherwise run were declined.
 type options struct {
-	agent   bool
-	shell   bool
-	editor  bool
-	diff    bool
-	ask     bool
-	noClaim bool
+	open string
+	skip []string
 }
 
 // front is what the command tree calls once cobra has read the flags: a
@@ -39,28 +41,20 @@ type front struct {
 	worktrees  func() ([]work.Candidate, error)
 }
 
-// action is the one the flags named. Cobra has already refused two at once, so
-// the order here only settles what nothing can ask for.
-func (o options) action() work.Action {
-	switch {
-	case o.agent:
-		return work.ActionAgent
-	case o.shell:
-		return work.ActionShell
-	case o.editor:
-		return work.ActionEditor
-	case o.diff:
-		return work.ActionDiff
-	case o.ask:
-		return work.ActionAsk
-	}
-	return work.ActionUnnamed
+// verbs answers the front's calls against the wiring Execute was handed, so that
+// the systems reach the core through the call that needs them and cmd/work stays
+// the only place they are named.
+type verbs struct{ wire work.Wiring }
+
+// repository is the one the shell stands in, with its systems wired.
+func (v verbs) repository() (work.Env, error) {
+	return work.Open(".", v.wire)
 }
 
 // performEnter brings a worktree into being in the repository the shell stands
 // in and hands the terminal over to it.
-func performEnter(o options, target string) error {
-	env, err := work.Open(".")
+func (v verbs) performEnter(o options, target string) error {
+	env, err := v.repository()
 	if err != nil {
 		return err
 	}
@@ -69,8 +63,8 @@ func performEnter(o options, target string) error {
 
 // performAdd brings a worktree of the user's own name into being in the
 // repository the shell stands in and hands the terminal over to it.
-func performAdd(o options, name string) error {
-	env, err := work.Open(".")
+func (v verbs) performAdd(o options, name string) error {
+	env, err := v.repository()
 	if err != nil {
 		return err
 	}
@@ -78,8 +72,8 @@ func performAdd(o options, name string) error {
 }
 
 // performRemove takes a worktree out of the repository the shell stands in.
-func performRemove(force bool, target string) error {
-	env, err := work.Open(".")
+func (v verbs) performRemove(force bool, target string) error {
+	env, err := v.repository()
 	if err != nil {
 		return err
 	}
@@ -87,9 +81,10 @@ func performRemove(force bool, target string) error {
 }
 
 // Execute runs work and returns the process exit status.
-func Execute(version string) int {
-	f := front{enter: performEnter, add: performAdd, remove: performRemove, dump: dump, edit: edit, candidates: listing, worktrees: worktreeListing}
-	if err := run(command(version, f), os.Args[1:]); err != nil {
+func Execute(version string, wire work.Wiring) int {
+	v := verbs{wire: wire}
+	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: v.edit, candidates: v.listing, worktrees: v.worktreeListing}
+	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -105,10 +100,23 @@ func run(cmd *cobra.Command, args []string) error {
 	return cmd.Execute()
 }
 
+// naming is the systems as the command line spells them. A flag set is settled
+// before there is a repository to read, so the wiring is asked without one, which
+// [work.Wiring] is what holds it to: nothing is taken from what comes back but
+// the names the systems go by and the flags they answer to, which no repository
+// decides.
+//
+// It asks for every system work ships rather than the ones a repository enabled,
+// so --help reads the same everywhere and a flag whose system is off is refused
+// with the key that puts it back rather than read as a flag work never had.
+func naming(wire work.Wiring) work.Systems {
+	return wire("", "", config.Shipped())
+}
+
 // command builds the command tree, calling the verb front once the flags are
 // valid and answering a tab press from its listings. The root runs nothing
 // itself: [dispatch] has already sent the bare form to switch.
-func command(version string, f front) *cobra.Command {
+func command(version string, sys work.Systems, f front) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "work",
 		Short: "A smarter cd for git worktrees",
@@ -127,7 +135,7 @@ An identifier in the first position, or none at all, is work switch.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), switchCommand(f.enter, f.candidates), addCommand(f.add), removeCommand(f.remove, f.worktrees), listCommand(f.worktrees), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), listCommand(f.worktrees), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
@@ -136,17 +144,79 @@ An identifier in the first position, or none at all, is work switch.`,
 	return cmd
 }
 
-// openOn gives a command the flags that name what a worktree opens on. Every
-// verb that opens something carries the same set, so one place declares them and
-// one place excludes them against each other.
-func openOn(cmd *cobra.Command, o *options) {
-	flags := cmd.Flags()
-	flags.BoolVar(&o.agent, "agent", false, "hand the worktree to its agent")
-	flags.BoolVar(&o.shell, "shell", false, "hand the worktree to open.shell, your login shell by default")
-	flags.BoolVar(&o.editor, "editor", false, "hand the worktree to open.editor, $VISUAL else $EDITOR by default")
-	flags.BoolVar(&o.diff, "diff", false, "hand the worktree to open.diff, its diff against the fork point by default")
-	flags.BoolVar(&o.ask, "ask", false, "choose what the worktree opens on from the actions that apply")
-	cmd.MarkFlagsMutuallyExclusive("agent", "shell", "editor", "diff", "ask")
+// openOn gives a command the flags that name what a worktree opens on: one per
+// action wired, under the spelling that action answers to, and one more for the
+// screen, whose name no action goes by. Every verb that opens something carries
+// the same set, so one place declares them and one place excludes them against
+// each other.
+func openOn(cmd *cobra.Command, o *options, openers []work.Opener) {
+	exclusive := make([]string, 0, len(openers)+1)
+	for _, op := range openers {
+		name, usage := spelling(op)
+		exclusive = append(exclusive, name)
+		boolFlag(cmd, name, usage, func() { o.open = op.Name() })
+		// What was renamed is the action; the refusal names the flag that reaches it
+		// today, which is the spelling it answers to rather than the name behind it.
+		for _, was := range config.Renamed(config.ActionName(op.Name())) {
+			renamedFlag(cmd, string(was), name)
+		}
+	}
+	screen := string(config.ActionAsk)
+	exclusive = append(exclusive, screen)
+	boolFlag(cmd, screen, "choose what the worktree opens on from the actions that apply", func() { o.open = screen })
+	cmd.MarkFlagsMutuallyExclusive(exclusive...)
+}
+
+// decline gives a command the flags that call off an action that would otherwise
+// run. Every action runs, so what an action's own flag can say is that this
+// worktree is not its business, which is the other way round from an opener's.
+// An action spelling no flag runs whenever a worktree comes into being.
+func decline(cmd *cobra.Command, o *options, actions []work.Action) {
+	for _, a := range actions {
+		f, ok := a.(worktree.Flagged)
+		if !ok {
+			continue
+		}
+		name, usage := f.Flag()
+		boolFlag(cmd, name, usage, func() { o.skip = append(o.skip, a.Name()) })
+	}
+}
+
+// spelling is the flag an opener answers to and the line --help shows for it. An
+// opener that spells neither is named by the flag its own name spells, there
+// being nothing else it is called.
+func spelling(op work.Opener) (name, usage string) {
+	if f, ok := op.(worktree.Flagged); ok {
+		return f.Flag()
+	}
+	return op.Name(), ""
+}
+
+// boolFlag declares a flag that stands for itself and calls set where it was
+// given. A value spelled out is read, so a flag given false settles nothing, as
+// a plain bool flag does.
+func boolFlag(cmd *cobra.Command, name, usage string, set func()) {
+	cmd.Flags().BoolFunc(name, usage, func(v string) error {
+		on, err := strconv.ParseBool(v)
+		if err != nil {
+			return err
+		}
+		if on {
+			set()
+		}
+		return nil
+	})
+}
+
+// renamedFlag keeps the spelling an action used to answer to, refused with the
+// one it answers to now rather than left to read as a flag work never had. It is
+// hidden, so nothing offers a name that only fails.
+func renamedFlag(cmd *cobra.Command, was, now string) {
+	cmd.Flags().BoolFunc(was, "", func(string) error {
+		return fmt.Errorf("this flag is now --%s", now)
+	})
+	// The error is a flag that was not declared, and one just was.
+	_ = cmd.Flags().MarkHidden(was)
 }
 
 // firstArg is the name a verb was given, empty where it was left out for the

@@ -21,7 +21,7 @@ Then one line in `config.fish`:
 work init fish | source
 ```
 
-`git` is the only dependency. Other [tooling](docs/references/tools.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
+`git` is the only dependency. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
 
 ## Use
 
@@ -32,7 +32,7 @@ work
 Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
 - **With a worktree:** what you set it to open on, a shell by default.
-- **Without one:** the worktree is created, the ticket claimed, and the configured launcher invoked in it.
+- **Without one:** the worktree is created first, then opens the same way.
 
 ```
 work <name>
@@ -42,11 +42,11 @@ A worktree name, a ticket id or a pull request skips the chooser. See also [the 
 
 ## Still in development
 
-What ships is locked to one instance of each integration, and [a missing one](docs/references/tools.md) fails its path rather than degrading it.
+What ships is locked to one instance of each integration, and [a missing one](docs/references/systems.md) fails its path rather than degrading it.
 
-- **The tracker is `bd`.** It names, vets and claims, and it creates the worktree too, so a ticket resolves nowhere without it.
-- **A pull request is a GitHub pull request on `origin`.** The branch is fetched from that one remote in that one forge's ref layout.
-- **The shell is fish.** `work init fish` is the only integration it prints.
+- **The resolvers are `beads` and `github`.** A ticket is a bead over `bd`; a pull request one of `origin`'s, fetched in that one forge's ref layout.
+- **The agent opener is `claude`.**
+- **The shell integration is fish.**
 - **The picker is `fzf`.** The no-argument form needs it.
 
 ## License

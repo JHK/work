@@ -10,15 +10,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // A row completes to what the user would retype, and says what it is in the
 // column beside it.
 func TestCompletions(t *testing.T) {
 	got := completions([]work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true},
-		{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"},
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
+		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 	})
 	want := []string{"bd-1\tDo a thing", "pr-7\tReview this", "spike"}
 	if !slices.Equal(got, want) {
@@ -30,8 +31,8 @@ func TestCompletions(t *testing.T) {
 // switch's own completion now, and a file name is never one either.
 func TestCompleteBarePosition(t *testing.T) {
 	listed := []work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"},
-		{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"},
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}},
+		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}},
 	}
 	out := complete(t, front{candidates: stub(listed, nil)}, "")
 	offered := names(rows(out))
@@ -53,10 +54,10 @@ func TestCompleteBarePosition(t *testing.T) {
 // there being only one identifier.
 func TestCompleteSwitch(t *testing.T) {
 	listed := []work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"},
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 	}
-	worktrees := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+	worktrees := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
 
 	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(worktrees, nil)}, "switch", "")
 	want := []string{"bd-1\tDo a thing", "spike"}
@@ -84,10 +85,10 @@ func TestCompleteSwitch(t *testing.T) {
 // tickets and pull requests the identifier completes to, and not a file name.
 func TestCompleteRemove(t *testing.T) {
 	worktrees := []work.Candidate{
-		{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true},
-		{Target: work.Target{Kind: work.KindPlain, ID: "/elsewhere", Name: "spike"}, Open: true},
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 	}
-	elsewhere := []work.Candidate{{Target: work.Target{Kind: work.KindPR, ID: "7", Name: "pr-7"}, Label: "Review this"}}
+	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
 
 	out := complete(t, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)}, "remove", "")
 	want := []string{"bd-1\tDo a thing", "spike"}
@@ -100,7 +101,7 @@ func TestCompleteRemove(t *testing.T) {
 // A tab press after add offers nothing: the name is new, so no listing has it,
 // and a file name is not one either.
 func TestCompleteAdd(t *testing.T) {
-	listed := []work.Candidate{{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing"}}
+	listed := []work.Candidate{{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}}}
 
 	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "add", "")
 	if got := rows(out); got != nil {
@@ -112,7 +113,7 @@ func TestCompleteAdd(t *testing.T) {
 // A tab press after list offers nothing: it takes no argument, and a file name
 // is not one either.
 func TestCompleteList(t *testing.T) {
-	listed := []work.Candidate{{Target: work.Target{Kind: work.KindBead, ID: "bd-1", Name: "bd-1"}, Label: "Do a thing", Open: true}}
+	listed := []work.Candidate{{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true}}
 
 	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "list", "")
 	if got := rows(out); got != nil {
@@ -124,7 +125,7 @@ func TestCompleteList(t *testing.T) {
 // Completion offers the declared flags, so a flag work no longer declares is a
 // flag it no longer offers.
 func TestGoneFlags(t *testing.T) {
-	f := command(stubVersion, front{}).Flags()
+	f := command(stubVersion, wired(), front{}).Flags()
 	for _, name := range []string{"model", "effort", "delete", "force", "create"} {
 		if f.Lookup(name) != nil {
 			t.Errorf("--%s is still declared", name)

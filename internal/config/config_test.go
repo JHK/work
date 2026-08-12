@@ -7,7 +7,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/JHK/work-cli/internal/testenv"
+	"github.com/JHK/work-cli/internal/worktree"
 )
+
+func TestMain(m *testing.M) { testenv.Main(m) }
 
 // What a user spells out, which no other test may derive from the code: the two
 // file names, and the branches the defaults name.
@@ -35,13 +40,12 @@ func TestLoadLayers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, home := t.TempDir(), t.TempDir()
-			t.Setenv("XDG_CONFIG_HOME", home)
+			repo, home := t.TempDir(), testenv.Home(t)
 			if tt.user != "" {
-				write(t, filepath.Join(home, userRelPath), directory(tt.user))
+				testenv.Write(t, filepath.Join(home, userRelPath), directory(tt.user))
 			}
 			if tt.repo != "" {
-				write(t, filepath.Join(repo, repoFile), directory(tt.repo))
+				testenv.Write(t, filepath.Join(repo, repoFile), directory(tt.repo))
 			}
 
 			got, err := Load(repo)
@@ -59,8 +63,7 @@ func TestLoadLayers(t *testing.T) {
 // present but empty changes nothing.
 func TestLoadLeavesUnnamedKeys(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), "[worktree]\n[branch]\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[worktree]\n[branch]\n")
 
 	got, err := Load(repo)
 	if err != nil {
@@ -113,8 +116,7 @@ func TestDefaultBranches(t *testing.T) {
 // after its worktree was made still finds it.
 func TestConfiguredBranchesMatch(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), branch(`feature/{{.ID}}-{{.Slug}}`, `review/{{.Number}}`))
+	testenv.Write(t, filepath.Join(repo, repoFile), branch(`feature/{{.ID}}-{{.Slug}}`, `review/{{.Number}}`))
 
 	c, err := Load(repo)
 	if err != nil {
@@ -144,33 +146,33 @@ func TestConfiguredBranchesMatch(t *testing.T) {
 	}
 }
 
-// A zero Agent is the compiled-in commands, so an Env built without a loaded
+// A zero Claude is the compiled-in commands, so an Env built without a loaded
 // Config still names something to run.
-func TestDefaultAgentCommands(t *testing.T) {
-	var a Agent
-	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7", Session: "s1"}
+func TestDefaultClaudeCommands(t *testing.T) {
+	var c Claude
+	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "ID": "bd-42", "Title": "Port work to Go", "Number": "7", "Session": "s1"}
 
 	tests := []struct {
 		name string
-		got  func(Launch) ([]string, error)
+		got  func() Command
 		want []string
 	}{
-		{"start-ticket", a.StartTicket,
+		{"start-ticket", c.StartTicket,
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-42: Port work to Go", "/start bd-42"},
 		},
-		{"start-pull-request", a.StartPullRequest,
+		{"start-pull-request", c.StartPullRequest,
 			[]string{"claude", "--name=PR #7"},
 		},
-		{"start-session", a.StartSession,
+		{"start-session", c.StartSession,
 			[]string{"claude", "--permission-mode", "auto", "--name=bd-42"},
 		},
-		{"resume-session", a.ResumeSession,
+		{"resume-session", c.ResumeSession,
 			[]string{"claude", "--resume", "s1"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.got(l)
+			got, err := tt.got().Render(l)
 			if err != nil {
 				t.Fatalf("%s: %v", tt.name, err)
 			}
@@ -185,31 +187,39 @@ func TestDefaultAgentCommands(t *testing.T) {
 // two that read it, and git for the diff.
 func TestDefaultOpenCommands(t *testing.T) {
 	var o Open
-	l := Launch{Name: "bd-42", Dir: "/w", Shell: "/usr/bin/fish", Editor: "gvim", Base: "abc123"}
+	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "Shell": "/usr/bin/fish", "Editor": "gvim", "Base": "abc123"}
 
-	got, err := o.Shell(l)
+	got, err := o.Shell().Render(l)
 	if want := []string{"/usr/bin/fish"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
 	}
-	got, err = o.Editor(l)
+	got, err = o.Editor().Render(l)
 	if want := []string{"gvim", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
 	}
-	got, err = o.Diff(l)
-	if want := []string{"git", "diff", "abc123"}; err != nil || !reflect.DeepEqual(got, want) {
+	got, err = o.Diff().Render(l)
+	if want := []string{"git", "diff", "--merge-base", "abc123"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
 	}
 }
 
-// An unset [action] key is what work did before either was a setting, so a
-// Config that never reached Load names an action either way.
+// An unset [action] key names an action even on a Config that never reached
+// Load, and names one no system has to be on for: what these keys fall to is
+// what a repository that configured nothing opens on, which the systems it never
+// asked for cannot refuse.
 func TestDefaultActions(t *testing.T) {
 	var a Action
-	if got := a.Create(); got != ActionAgent {
-		t.Errorf("Create() = %q, want %q", got, ActionAgent)
+	if got := a.Create(); got != ActionShell {
+		t.Errorf("Create() = %q, want %q", got, ActionShell)
 	}
-	if got := a.Enter(); got != ActionAsk {
-		t.Errorf("Enter() = %q, want %q", got, ActionAsk)
+	if got := a.Enter(); got != ActionShell {
+		t.Errorf("Enter() = %q, want %q", got, ActionShell)
+	}
+	d := Default().Action
+	for _, name := range SystemNames() {
+		if d.Create() == ActionName(name) || d.Enter() == ActionName(name) {
+			t.Errorf("an unset [action] key opens on %q, which %s = true is what puts there", name, SystemKey(name))
+		}
 	}
 }
 
@@ -217,8 +227,7 @@ func TestDefaultActions(t *testing.T) {
 // other to the default.
 func TestConfiguredActions(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"editor\"\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"editor\"\n")
 
 	c, err := Load(repo)
 	if err != nil {
@@ -227,17 +236,16 @@ func TestConfiguredActions(t *testing.T) {
 	if got := c.Action.Enter(); got != ActionEditor {
 		t.Errorf("action.enter = %q, want %q", got, ActionEditor)
 	}
-	if got := c.Action.Create(); got != ActionAgent {
-		t.Errorf("action.create = %q, want the default %q", got, ActionAgent)
+	if got := c.Action.Create(); got != ActionShell {
+		t.Errorf("action.create = %q, want the default %q", got, ActionShell)
 	}
 }
 
 // Ask is a value of both keys, so a worktree of either moment can be asked
-// about, and the moment a key does not name is left asking on its own default.
+// about, and the moment a key does not name is left on its own default.
 func TestAskIsAnAction(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), "[action]\ncreate = \"ask\"\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\ncreate = \"ask\"\n")
 
 	c, err := Load(repo)
 	if err != nil {
@@ -246,8 +254,8 @@ func TestAskIsAnAction(t *testing.T) {
 	if got := c.Action.Create(); got != ActionAsk {
 		t.Errorf("action.create = %q, want %q", got, ActionAsk)
 	}
-	if got := c.Action.Enter(); got != ActionAsk {
-		t.Errorf("action.enter = %q, want the default %q", got, ActionAsk)
+	if got := c.Action.Enter(); got != ActionShell {
+		t.Errorf("action.enter = %q, want the default %q", got, ActionShell)
 	}
 }
 
@@ -255,14 +263,13 @@ func TestAskIsAnAction(t *testing.T) {
 // tool it names wants it.
 func TestConfiguredDiffCommand(t *testing.T) {
 	repo := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), "[open]\ndiff = [\"difft\", \"--\", \"{{.Base}}\", \"{{.Dir}}\"]\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[open]\ndiff = [\"difft\", \"--\", \"{{.Base}}\", \"{{.Dir}}\"]\n")
 
 	c, err := Load(repo)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	got, err := c.Open.Diff(Launch{Dir: "/w", Base: "abc123"})
+	got, err := c.Open.Diff().Render(worktree.Values{"Name": "", "Dir": "/w", "Base": "abc123"})
 	if want := []string{"difft", "--", "abc123", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
 	}
@@ -270,10 +277,9 @@ func TestConfiguredDiffCommand(t *testing.T) {
 
 // A command is the user's, whatever it launches, and nothing requires it to be
 // an agent: one naming no session value at all is a plain command line.
-func TestConfiguredAgentCommands(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), `[agent]
+func TestConfiguredClaudeCommands(t *testing.T) {
+	home := testenv.Home(t)
+	testenv.Write(t, filepath.Join(home, userRelPath), `[claude]
 start-ticket = ["agent", "--session={{.Name}} in {{.Dir}}", "work {{.ID}}"]
 start-pull-request = ["make", "review"]
 resume-session = ["agent", "--continue"]
@@ -283,9 +289,9 @@ resume-session = ["agent", "--continue"]
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	l := Launch{Name: "bd-42", Dir: "/w", ID: "bd-42", Title: "Port work to Go", Number: "7"}
+	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "ID": "bd-42", "Title": "Port work to Go", "Number": "7", "Session": ""}
 
-	got, err := c.Agent.StartTicket(l)
+	got, err := c.Claude.StartTicket().Render(l)
 	if err != nil {
 		t.Fatalf("StartTicket: %v", err)
 	}
@@ -293,7 +299,7 @@ resume-session = ["agent", "--continue"]
 		t.Errorf("StartTicket() = %q, want %q", got, want)
 	}
 
-	got, err = c.Agent.StartPullRequest(l)
+	got, err = c.Claude.StartPullRequest().Render(l)
 	if err != nil {
 		t.Fatalf("StartPullRequest: %v", err)
 	}
@@ -304,22 +310,21 @@ resume-session = ["agent", "--continue"]
 
 // A first element rendering to nothing leaves no command, which only a render
 // can find out: the value it needed is one the invocation carries.
-func TestAgentCommandRendersNothing(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), "[agent]\nresume-session = [\"{{.Session}}\", \"--continue\"]\n")
+func TestClaudeCommandRendersNothing(t *testing.T) {
+	home := testenv.Home(t)
+	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nresume-session = [\"{{.Session}}\", \"--continue\"]\n")
 
 	c, err := Load(t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got, err := c.Agent.ResumeSession(Launch{Session: "s1"}); err != nil {
+	if got, err := c.Claude.ResumeSession().Render(worktree.Values{"Name": "", "Dir": "", "Session": "s1"}); err != nil {
 		t.Fatalf("ResumeSession with a session: %v", err)
 	} else if got[0] != "s1" {
 		t.Errorf("ResumeSession() = %q, want the session as the command", got)
 	}
 
-	_, err = c.Agent.ResumeSession(Launch{})
+	_, err = c.Claude.ResumeSession().Render(worktree.Values{"Name": "", "Dir": "", "Session": ""})
 	if err == nil || !strings.Contains(err.Error(), resumeSessionKey) {
 		t.Errorf("ResumeSession() with no session = %v, want it to name %q", err, resumeSessionKey)
 	}
@@ -328,18 +333,17 @@ func TestAgentCommandRendersNothing(t *testing.T) {
 // Every table layers the same way, commands included: the repository's file sets
 // one the user's also set, and wins.
 func TestLoadLayersCommands(t *testing.T) {
-	repo, home := t.TempDir(), t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), "[agent]\nstart-ticket = [\"mine\", \"--flag\", \"{{.ID}}\"]\n")
+	repo, home := t.TempDir(), testenv.Home(t)
+	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nstart-ticket = [\"mine\", \"--flag\", \"{{.ID}}\"]\n")
 	// Shorter than the user's, so a command layered element by element rather than
 	// replaced whole would leave the user's tail behind.
-	write(t, filepath.Join(repo, repoFile), "[agent]\nstart-ticket = [\"ours\", \"{{.ID}}\"]\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[claude]\nstart-ticket = [\"ours\", \"{{.ID}}\"]\n")
 
 	c, err := Load(repo)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	got, err := c.Agent.StartTicket(Launch{ID: "bd-42"})
+	got, err := c.Claude.StartTicket().Render(worktree.Values{"Name": "", "Dir": "", "ID": "bd-42", "Title": ""})
 	if err != nil {
 		t.Fatalf("StartTicket: %v", err)
 	}
@@ -353,6 +357,41 @@ func TestLoadLayersCommands(t *testing.T) {
 func TestZeroWorktreeIsTheDefault(t *testing.T) {
 	if got := (Worktree{}).Dir(); got != defaultDir {
 		t.Errorf("Worktree{}.Dir() = %q, want %q", got, defaultDir)
+	}
+}
+
+// No system runs until a file asks for it, and a system's own table is what asks
+// for that one system.
+func TestSystemsRunOnlyWhereSwitchedOn(t *testing.T) {
+	systems := []struct {
+		name string
+		on   func(Config) bool
+	}{
+		{"github", func(c Config) bool { return c.Github.Enabled }},
+		{"beads", func(c Config) bool { return c.Beads.Enabled }},
+		{"mise", func(c Config) bool { return c.Mise.Enabled }},
+		{"claude", func(c Config) bool { return c.Claude.Enabled }},
+	}
+	for _, s := range systems {
+		if s.on(Default()) {
+			t.Errorf("%s runs with nothing configured; want the worktrees alone until a file asks for it", s.name)
+		}
+	}
+	for _, tt := range systems {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			testenv.Write(t, filepath.Join(repo, repoFile), "["+tt.name+"]\nenabled = true\n")
+
+			c, err := Load(repo)
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			for _, s := range systems {
+				if got, want := s.on(c), s.name == tt.name; got != want {
+					t.Errorf("switching %s on left %s %v; want %v", tt.name, s.name, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -381,23 +420,28 @@ func TestLoadRefusals(t *testing.T) {
 		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
+		{"a system work does not have", "[linear]\nenabled = true\n", "unknown setting"},
 		{"an unknown action key", "[action]\nopen = \"shell\"\n", "unknown setting"},
 		{"an action nothing goes by", "[action]\ncreate = \"launcher\"\n", "is not an action"},
 		{"an action named for its flag", "[action]\nenter = \"--shell\"\n", "is not an action"},
 		{"the unnamed action, which is no action", "[action]\nenter = \"unnamed\"\n", "is not an action"},
 		{"an action that is not a string", "[action]\ncreate = 3\n", "create"},
 		{"an action in another case", "[action]\nenter = \"Shell\"\n", "is not an action"},
-		{"an unknown command key", "[agent]\nstart = [\"claude\"]\n", "unknown setting"},
-		{"a command that is not a list", "[agent]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
-		{"a list of something other than strings", "[agent]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
-		{"a template that does not parse", "[agent]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
-		{"no command at all", "[agent]\nstart-ticket = []\n", "names no command"},
-		{"a value the key does not have", "[agent]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[agent]\nresume-session = [\"claude\", \"{{.Branch}}\"]\n", resumeSessionKey},
+		// A file written before a rename is told the new spelling rather than that
+		// what it names is unknown.
+		{"an action under the name it used to go by", "[action]\ncreate = \"agent\"\n", `"agent" is now "claude"`},
+		{"a table under the name it used to go by", "[agent]\nstart-ticket = [\"claude\"]\n", "the [agent] table is now [claude]"},
+		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
+		{"a command that is not a list", "[claude]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
+		{"a list of something other than strings", "[claude]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
+		{"a template that does not parse", "[claude]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", startTicketKey},
+		{"no command at all", "[claude]\nstart-ticket = []\n", "names no command"},
+		{"a value the key does not have", "[claude]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
+		{"a value no key has", "[claude]\nresume-session = [\"claude\", \"{{.Branch}}\"]\n", resumeSessionKey},
 		// The two work once placed itself, and now has no more than any other name.
-		{"a model or an effort", "[agent]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", startTicketKey},
+		{"a model or an effort", "[claude]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", startTicketKey},
 		// Only the arm a target with a session reaches names it.
-		{"a value named inside a branch", "[agent]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
+		{"a value named inside a branch", "[claude]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
 		// Each of the three carries its own value alone, so none can place another's.
 		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
 		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},
@@ -407,8 +451,7 @@ func TestLoadRefusals(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := t.TempDir()
-			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-			write(t, filepath.Join(repo, repoFile), tt.body)
+			testenv.Write(t, filepath.Join(repo, repoFile), tt.body)
 
 			_, err := Load(repo)
 			if err == nil {
@@ -423,9 +466,8 @@ func TestLoadRefusals(t *testing.T) {
 
 // Each file is decoded on its own, so the refusals above are the user's too.
 func TestLoadRefusesTheUsersFile(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), "[agent]\nstart = [\"claude\"]\n")
+	home := testenv.Home(t)
+	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nstart = [\"claude\"]\n")
 
 	_, err := Load(t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "unknown setting") {
@@ -440,8 +482,7 @@ func TestLoadRefusesADirectorySymlinkedOut(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(repo, "trees")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(repo, repoFile), directory("trees"))
+	testenv.Write(t, filepath.Join(repo, repoFile), directory("trees"))
 
 	_, err := Load(repo)
 	if err == nil || !strings.Contains(err.Error(), "resolves outside") {
@@ -458,8 +499,7 @@ func TestLoadAllowsASymlinkedRepository(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(real, "trees"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	write(t, filepath.Join(real, repoFile), directory("trees"))
+	testenv.Write(t, filepath.Join(real, repoFile), directory("trees"))
 
 	if _, err := Load(link); err != nil {
 		t.Errorf("Load() = %v, want a repository behind a symlink to load", err)
@@ -469,10 +509,9 @@ func TestLoadAllowsASymlinkedRepository(t *testing.T) {
 // A value the repository replaces is never the one work uses, so it is not the
 // one judged: only what the merge arrives at has to be usable.
 func TestLoadValidatesTheMergedValue(t *testing.T) {
-	repo, home := t.TempDir(), t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
-	write(t, filepath.Join(home, userRelPath), directory("/tmp/trees"))
-	write(t, filepath.Join(repo, repoFile), directory("trees"))
+	repo, home := t.TempDir(), testenv.Home(t)
+	testenv.Write(t, filepath.Join(home, userRelPath), directory("/tmp/trees"))
+	testenv.Write(t, filepath.Join(repo, repoFile), directory("trees"))
 
 	got, err := Load(repo)
 	if err != nil {
@@ -486,10 +525,9 @@ func TestLoadValidatesTheMergedValue(t *testing.T) {
 // Two files can carry the same unusable value, so the message names the one that
 // did rather than leaving the reader to guess.
 func TestLoadNamesTheFileAtFault(t *testing.T) {
-	repo, home := t.TempDir(), t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
+	repo, home := t.TempDir(), testenv.Home(t)
 	user := filepath.Join(home, userRelPath)
-	write(t, user, directory("/tmp/trees"))
+	testenv.Write(t, user, directory("/tmp/trees"))
 
 	_, err := Load(repo)
 	if err == nil || !strings.Contains(err.Error(), user) {
@@ -503,14 +541,4 @@ func directory(dir string) string {
 
 func branch(ticket, pullRequest string) string {
 	return fmt.Sprintf("[branch]\nticket = %q\npull-request = %q\n", ticket, pullRequest)
-}
-
-func write(t *testing.T, path, body string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }

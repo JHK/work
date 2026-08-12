@@ -1,7 +1,7 @@
-// Package work is the core beneath every front end: it resolves an identifier
-// to a target, reports whether that target already has a worktree, and takes
-// entering one from vetting through provisioning and claiming to the handoff.
-// A front end supplies the options and presents the result; the policy is here.
+// Package work is the core beneath every front end. It knows worktrees and the
+// sequence: ask the resolvers what an identifier is, make the worktree if it is
+// not there, hand it to an action. A ticket, a pull request, an agent, an editor
+// and mise all sit behind the two seams it declares here.
 package work
 
 import (
@@ -11,48 +11,132 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
-	"github.com/JHK/work-cli/internal/forge"
 	"github.com/JHK/work-cli/internal/git"
-	"github.com/JHK/work-cli/internal/sessions"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Kind distinguishes the namespaces an identifier can land in.
-type Kind int
+// Resolver is the near seam: it says which places are its own, offers the picker
+// its candidates, and creates the worktree. Everything a tracker or a forge knows is
+// behind it.
+type Resolver interface {
+	worktree.System
 
-const (
-	KindBead Kind = iota
-	KindPR
-	// KindPlain is a worktree whose branch names neither: one discovered under a
-	// branch nothing else answers for, or one asked for by name outright. Having no
-	// ticket, it is neither vetted nor claimed.
-	KindPlain
-)
+	// Identify names the place behind what the core is holding: an identifier a person
+	// typed, or a worktree the repository has open. A resolver reads which by
+	// [worktree.Open.None]. Where the core holds a worktree it may hold an identifier
+	// as well, which is one to confirm rather than to read: the question is then
+	// whether that worktree is that place's, and answering it must not need what
+	// naming the worktree from its branch alone would.
+	//
+	// It asks as little as it can, because every reading goes through here: a tracker
+	// that cannot be reached must not cost a worktree that is already open, and an
+	// identifier is read into a place rather than checked against the system behind
+	// it, which is [Resolver.Prepare]'s and runs only where a worktree is about to be
+	// made.
+	//
+	// [worktree.ErrUnknown] means this resolver does not answer for what it was shown,
+	// and the next one is asked. Whether a system that cannot be reached counts as not
+	// recognising something is the resolver's call; the core sees the one bit either
+	// way. Every other error stops the run.
+	Identify(id string, o worktree.Open) (worktree.Place, error)
 
-// Target is one resolved place to work.
-type Target struct {
-	Kind Kind
-	ID   string // bead id, pull request number, or, for a plain worktree, its path
-	Name string // what a row shows and the user retypes: the bead id, pr-<n>, or the branch
+	// Offer lists the places worth starting, whether or not they have a worktree.
+	Offer() ([]worktree.Place, error)
+
+	// Prepare completes a place a worktree is about to be made for, naming the
+	// branch, or says why no worktree may be made for it. Both are free of
+	// consequence, so the core runs it ahead of any screen: a place that cannot be
+	// worked is refused rather than asked about.
+	Prepare(p worktree.Place) (worktree.Place, error)
+
+	// Create checks the place's branch out into a worktree at path.
+	Create(p worktree.Place, path string) error
 }
 
-// Env holds the repository work operates on, the settings it reads, and the
-// agent it asks what a worktree already carries.
+// Action is the far seam, in the half that runs because a worktree came into
+// being: trusting its mise config, claiming the ticket it was made for. Every one
+// of them runs, in order, and none of them runs on the way back into a worktree
+// that was already there.
+type Action interface {
+	worktree.System
+	Run(t worktree.Tree) error
+}
+
+// Opener is the far seam's other half: the one action a worktree opens on. It
+// renders the command work replaces itself with, and exactly one per run does.
+type Opener interface {
+	worktree.System
+
+	// Applies says whether the values gathered so far leave this a command to run,
+	// returning [worktree.ErrAbsent] where they do not, which [worktree.Absent]
+	// carries on a refusal of the action's own. It is asked before anything
+	// is created, so what it refuses is left off the screen and refused outright
+	// where a flag named it. Every other error stops the run, whether the screen or
+	// a flag reached this action.
+	Applies(vals worktree.Values) error
+
+	// Open renders the handoff from the values every source supplied. Rendering is
+	// free of consequence, so it runs after the worktree exists and nothing depends
+	// on it having run.
+	//
+	// The values are the core's, gathered once and shown to every opener: an action
+	// with a name of its own to place renders against a copy rather than writing into
+	// what it was handed.
+	Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error)
+}
+
+// Systems are the implementations behind the seams, in the order they are asked.
+// cmd/work is the only place they are named.
+type Systems struct {
+	Resolvers []Resolver
+	Actions   []Action
+	Openers   []Opener
+
+	// Sources are asked what they know about a worktree, whichever resolver answered
+	// for it. The resolver that did is asked first and separately, its answer
+	// describing the one place it resolved; these describe any worktree, the
+	// environment and git among them.
+	Sources []worktree.Source
+
+	// Named is the one resolver a verb reaches by name rather than through the
+	// chain: add's, which is handed a name of the user's own rather than an
+	// identifier to recognise. A verb that says which system it means is the one
+	// thing a chain cannot express.
+	Named Resolver
+
+	// Disabled are the systems the settings left out, in the order they would have
+	// been asked in. Nothing is wired to them and nothing is asked of them beyond one
+	// question, and only of those that can answer it at all: whether an identifier
+	// nothing here answered for is spelled as one of theirs, so that a system
+	// switched off reads as switched off rather than as work not knowing what it was
+	// given.
+	Disabled []worktree.System
+}
+
+// Wiring names the systems for a repository once its settings are read.
+// checkout is where work was invoked, whose HEAD a new branch forks from; the
+// worktree itself still lands under repo.
+//
+// A front end settles what it offers before it knows either, so it asks with
+// neither and reads the names and flags off what comes back. Wiring a system is
+// therefore naming it: what a system reaches for, it reaches for when asked a
+// question and not when it is built.
+type Wiring func(repo, checkout string, cfg config.Config) Systems
+
+// Env is the repository work operates on, the settings it reads, and the systems
+// behind its seams.
 type Env struct {
-	Repo          string
-	Checkout      string // where work was invoked, whose HEAD a new branch forks from
-	Config        config.Config
-	Conversations sessions.Conversations
+	Repo    string
+	Config  config.Config
+	Systems Systems
 }
 
-// Open finds the repository containing dir, reads its settings, and names the
-// agent behind them.
-func Open(dir string) (Env, error) {
+// Open finds the repository containing dir, reads its settings and wires the
+// systems that answer for it.
+func Open(dir string, wire Wiring) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
 		return Env{}, err
@@ -61,63 +145,16 @@ func Open(dir string) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Checkout: dir, Config: cfg, Conversations: sessions.Claude{}}, nil
+	return Env{Repo: repo, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
 }
 
-// State is everything knowable about a target on entry, less what an existing
-// worktree makes moot.
-type State struct {
-	Target    Target
-	Path      string // where the worktree is, or where it would be created
-	Exists    bool
-	Bead      beads.Bead
-	Ready     bool  // bd has already been heard to call this bead workable
-	TicketErr error // bd could not answer for this target
-}
+// The name becomes a directory of its own and an argument to git, so it may not
+// traverse, and may not open with a dash. It is the core's rule because the core
+// owns the paths, whatever a resolver would like to call a place.
+var worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
-var (
-	prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]+)(?:[/?#].*)?$`)
-	// The name becomes a directory of its own and an argument to bd and git, so it
-	// may not traverse, and may not open with a dash.
-	worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-)
-
-// Resolve maps an identifier to the place it names and to the worktree that
-// place already has. One listing serves both readings: the name is read off the
-// listing where a worktree answers to it and guessed where none does, and either
-// way the worktree is found by its branch.
-func (e Env) Resolve(arg string) (Candidate, error) {
-	if arg == "" {
-		return Candidate{}, errors.New("no target given")
-	}
-	// Nothing is known where git or bd would not answer: a worktree of a bead
-	// nothing can name is merely a plain one.
-	worktrees, known, _ := e.opened()
-	t, err := e.named(arg, worktrees, known)
-	if err != nil {
-		return Candidate{}, err
-	}
-	w := e.located(t, worktrees, known)
-	return Candidate{Target: t, Open: w.Path != "", path: w.Path, branch: w.Branch, bead: record(known, t)}, nil
-}
-
-// Create is the place a name of the user's own makes: a worktree with no ticket
-// and no pull request behind it, on a branch spelled exactly as the name is.
-// Nothing is guessed and nothing is asked of bd. The name is asserted free, a
-// branch already holding it being a worktree to re-enter rather than create.
-// This is the one plain target without a worktree; every other is discovered.
-func (e Env) Create(name string) (Candidate, error) {
-	if err := checkName(name); err != nil {
-		return Candidate{}, err
-	}
-	if git.HasBranch(e.Repo, name) {
-		return Candidate{}, fmt.Errorf("branch %s already exists; enter its worktree with work %s", name, name)
-	}
-	return Candidate{Target: Target{Kind: KindPlain, ID: e.worktreePath(name), Name: name}}, nil
-}
-
-// checkName holds a name to the worktree-name rule, and is how breaking it
-// reads wherever it is broken.
+// checkName holds a name to the worktree-name rule, and is how breaking it reads
+// wherever it is broken.
 func checkName(name string) error {
 	if !worktreeName.MatchString(name) {
 		return fmt.Errorf("%q is not a usable worktree name", name)
@@ -125,324 +162,290 @@ func checkName(name string) error {
 	return nil
 }
 
-// named is the target an identifier stands for: a worktree already listed under
-// the name is that worktree, whatever guess would make of the name, so that what
-// the picker and the completion show is entered by retyping it.
-func (e Env) named(arg string, worktrees []git.Worktree, known []beads.Bead) (Target, error) {
-	for _, w := range worktrees {
-		if t := e.targetAt(w, known); t.Name == arg {
-			return t, nil
-		}
-	}
-	return e.guess(arg)
+// Candidate is one place to work, whether it was offered or asked for by name:
+// the place a resolver made of it, the worktree it already has, and the resolver
+// to go back to for the rest of what only that resolver knows.
+type Candidate struct {
+	worktree.Place
+	Open bool   // a worktree for it already exists
+	Icon string // the mark that resolver draws its rows with, empty where it named none
+
+	by     Resolver
+	path   string // where that worktree sits
+	branch string // what it has checked out, empty when it is detached
 }
 
-// opened is the one answer every listing starts from: every worktree git
-// reports, and the beads that name them, asked for only where there is a
-// worktree to name. A bd that will not answer costs the names alone.
-func (e Env) opened() ([]git.Worktree, []beads.Bead, error) {
+// Resolve maps an identifier to the place it names and to the worktree that place
+// already has. One listing serves both readings: the name is read off the open
+// worktrees where one answers to it, and the resolvers are asked where none does.
+func (e Env) Resolve(arg string) (Candidate, error) {
+	if arg == "" {
+		return Candidate{}, errors.New("no target given")
+	}
+	open, err := e.Worktrees()
+	if err != nil {
+		return Candidate{}, err
+	}
+	// A worktree already listed under the name is that worktree, whatever a
+	// resolver would make of the name, so that what the picker and the completion
+	// show is entered by retyping it. Several listed under the one name go the way
+	// locate settles them, so naming a place and locating it land in the same one.
+	var named []Candidate
+	for _, c := range open {
+		if c.Name == arg {
+			named = append(named, c)
+		}
+	}
+	if len(named) > 0 {
+		return shortest(named), nil
+	}
+
+	r, p, err := e.identify(arg, worktree.Open{})
+	if err != nil {
+		return Candidate{}, err
+	}
+	// A place no worktree could be made for is one nothing really answered for, so it
+	// is handed over as such.
+	if err := checkName(p.Name); err != nil {
+		return Candidate{}, e.switchedOff(arg, err)
+	}
+	return e.locate(r, p, open)
+}
+
+// switchedOff is the refusal an identifier gets where a system the settings left
+// out is what would have answered for it: not that work cannot read what it was
+// given, but that nothing is wired to read it.
+//
+// It is reached only where nothing usable came back, which is two things. A chain
+// that ran out is one, and a resolver that recognised the identifier and then
+// failed is not: what that one said is what the run stops on. The other is a
+// resolver answering for whatever is left masking one that is off, so the answer
+// the chain did give is judged too.
+//
+// The question is [worktree.Claimant] and never [Resolver.Identify], which is
+// contracted for recognition inside the chain, where the last resolver takes
+// whatever is left: a system asked that one off the chain answers for identifiers
+// that are no more its than anyone's, and a typo would be attributed to it. What a
+// system does claim is put through the name rule as well, so a key is named only
+// where turning that system back on would have made a place.
+func (e Env) switchedOff(id string, err error) error {
+	for _, s := range e.Systems.Disabled {
+		c, ok := s.(worktree.Claimant)
+		if !ok {
+			continue
+		}
+		p, its := c.Claims(id)
+		if !its || checkName(p.Name) != nil {
+			continue
+		}
+		return fmt.Errorf("nothing answers for %q; %s", id, off(s.Name()))
+	}
+	return err
+}
+
+// off is how a system the settings left out reads wherever one is reached: the
+// name it goes by and the key that puts it back, worded once for both seams.
+func off(name string) string {
+	return fmt.Sprintf("%s is off, put it back with %s = true", name, config.SystemKey(name))
+}
+
+// answered stamps a candidate with the resolver that answered for it: the name
+// it is sourced to, the mark a screen draws it with, and the resolver itself for
+// the rest of what only that resolver knows. The name is the core's to put on,
+// being the name it asked under: a resolver restating it would be a second
+// spelling of one thing, and one nothing here checks.
+func answered(r Resolver, c Candidate) Candidate {
+	c.Source, c.by = r.Name(), r
+	if d, ok := r.(worktree.Drawn); ok {
+		c.Icon = d.Icon()
+	}
+	return c
+}
+
+// identify is the chain: the first resolver to answer for what the core is holding
+// owns it, and one that does not recognise it passes it on. Every reading goes
+// through here, so unrecognition means the one thing at every call site.
+func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, error) {
+	for _, r := range e.Systems.Resolvers {
+		p, err := r.Identify(id, o)
+		if errors.Is(err, worktree.ErrUnknown) {
+			continue
+		}
+		if err != nil {
+			return nil, worktree.Place{}, err
+		}
+		return r, p, nil
+	}
+	// The chain ran out, which a worktree never does: the last resolver answers for
+	// whatever is left, so nothing recognising one is the listing failing rather than
+	// a system being off.
+	if o.None() {
+		return nil, worktree.Place{}, e.switchedOff(id, fmt.Errorf("nothing answers for %q", id))
+	}
+	return nil, worktree.Place{}, fmt.Errorf("nothing answers for the worktree at %s", o.Path)
+}
+
+// Add is the place a name of the user's own makes: a worktree with no ticket and
+// no pull request behind it, on a branch spelled exactly as the name is. It names
+// its resolver rather than putting the name through the chain, which would read
+// it as a ticket id.
+func (e Env) Add(name string) (Candidate, error) {
+	if err := checkName(name); err != nil {
+		return Candidate{}, err
+	}
+	p, err := e.Systems.Named.Identify(name, worktree.Open{})
+	if err != nil {
+		return Candidate{}, err
+	}
+	return answered(e.Systems.Named, Candidate{Place: p}), nil
+}
+
+// Worktrees is every worktree the repository has and nothing besides, the main
+// checkout excepted, each under the place the first resolver to answer for it
+// says it stands for: what is already there to reach rather than what could be
+// started. It is the one listing both readings start from.
+func (e Env) Worktrees() ([]Candidate, error) {
 	// Without a repository git would answer for whatever directory the process
 	// happens to be in.
 	if e.Repo == "" {
-		return nil, nil, nil
+		return nil, nil
 	}
-	worktrees, err := git.Linked(e.Repo)
-	if err != nil || len(worktrees) == 0 {
-		return nil, nil, err
+	list, err := git.Linked(e.Repo)
+	if err != nil {
+		return nil, err
 	}
-	known, _ := beads.All(e.Repo)
-	return worktrees, known, nil
-}
-
-// guess reads an identifier no worktree answers to. A bare number, an
-// .../<owner>/<repo>/pull/<n> URL, or a name a pull request's branch pattern
-// could have produced is a pull request; anything else is a bead id.
-func (e Env) guess(arg string) (Target, error) {
-	n := ""
-	if _, err := strconv.ParseUint(arg, 10, 32); err == nil {
-		n = arg
-	} else if m := prURL.FindStringSubmatch(arg); m != nil {
-		n = m[1]
-	} else if number, ok := e.Config.Branch.NumberIn(arg); ok {
-		// The worktree's own name, so that what the picker shows can be retyped.
-		n = number
-	}
-	if n != "" {
-		// Canonicalise, so that 7 and 007 name one worktree and one refspec.
-		i, err := strconv.ParseUint(n, 10, 32)
-		if err != nil || i == 0 {
-			return Target{}, fmt.Errorf("%q is not a pull request number", arg)
+	out := make([]Candidate, 0, len(list))
+	for _, w := range list {
+		o := worktree.Open{Path: w.Path, Branch: w.Branch}
+		c, err := e.adopt(o)
+		if err != nil {
+			return nil, err
 		}
-		return e.prTarget(strconv.FormatUint(i, 10)), nil
+		out = append(out, c)
 	}
-
-	if err := checkName(arg); err != nil {
-		return Target{}, err
-	}
-	return Target{Kind: KindBead, ID: arg, Name: arg}, nil
+	return out, nil
 }
 
-// targetAt reads the target a worktree stands for off the branch it has checked
-// out. known are the beads bd listed; without them a bead's worktree is merely a
-// plain one, which still lists.
-func (e Env) targetAt(w git.Worktree, known []beads.Bead) Target {
-	// Only a branch the guess would name itself is a pull request, so that pr-007,
-	// which it canonicalises to pr-7, does not stand for a worktree elsewhere.
-	if t, err := e.guess(w.Branch); err == nil && t.Kind == KindPR && t.Name == w.Branch {
-		return t
+// adopt is the place an open worktree stands for, from the first resolver that
+// answers for it. The last resolver in the chain answers for whatever is left, so
+// a worktree nothing recognises is still a worktree to reach.
+func (e Env) adopt(o worktree.Open) (Candidate, error) {
+	r, p, err := e.identify("", o)
+	if err != nil {
+		return Candidate{}, err
 	}
-	if id := e.beadID(w.Branch, known); id != "" {
-		return Target{Kind: KindBead, ID: id, Name: id}
-	}
-	return Target{Kind: KindPlain, ID: w.Path, Name: cmp.Or(w.Branch, filepath.Base(w.Path))}
+	return answered(r, Candidate{Place: p, Open: true, path: o.Path, branch: o.Branch}), nil
 }
 
-// beadID names the bead a branch belongs to: the longest known id owning it, so
-// that a branch of one-two's does not fall to one.
-func (e Env) beadID(branch string, known []beads.Bead) string {
-	best := ""
-	for _, b := range known {
-		if len(b.ID) > len(best) && e.Config.Branch.Owns(b.ID, branch) {
-			best = b.ID
+// locate is the worktree a resolved place already has: the resolver that named the
+// place, asked of each worktree the repository has open, whether it is that place's.
+func (e Env) locate(r Resolver, p worktree.Place, open []Candidate) (Candidate, error) {
+	var found []Candidate
+	for _, c := range open {
+		o := worktree.Open{Path: c.path, Branch: c.branch}
+		its, err := r.Identify(p.ID, o)
+		if errors.Is(err, worktree.ErrUnknown) {
+			continue
 		}
-	}
-	return best
-}
-
-// record is the listing's own bead for a target, or the zero bead where the
-// listing did not name it and entering has to ask bd for it.
-func record(known []beads.Bead, t Target) beads.Bead {
-	if t.Kind != KindBead {
-		return beads.Bead{}
-	}
-	for _, b := range known {
-		if b.ID == t.ID {
-			return b
+		if err != nil {
+			return Candidate{}, err
 		}
+		// The place as the resolver describes it on that worktree, which knows the branch
+		// it found the place by rather than the one the place would render today.
+		found = append(found, answered(r, Candidate{Place: its, Open: true, path: c.path, branch: c.branch}))
 	}
-	return beads.Bead{}
+	if len(found) == 0 {
+		return answered(r, Candidate{Place: p}), nil
+	}
+	return shortest(found), nil
 }
 
-// matches reports whether a worktree is the one this target stands for,
-// wherever it happens to sit. A ticket is keyed on the branch, less the branches
-// a longer known id owns, which are that other ticket's; where bd named no ids
-// nothing is longer and the branch alone settles it, as it does for the listing.
-// A plain worktree, having no ticket to be named by, is only itself.
-func (e Env) matches(t Target, w git.Worktree, known []beads.Bead) bool {
-	switch t.Kind {
-	case KindPR:
-		return w.Branch == t.Name
-	case KindPlain:
-		return git.SameDir(w.Path, t.ID)
-	default:
-		return e.Config.Branch.Owns(t.ID, w.Branch) && len(e.beadID(w.Branch, known)) <= len(t.ID)
-	}
-}
-
-// Candidate is one place to work, whether it was offered or asked for by name:
-// a target, how it reads, and what the listing already settled, which entering
-// it takes rather than ask again.
-type Candidate struct {
-	Target Target
-	Label  string // bead or PR title, empty where no adapter named it
-	Open   bool   // a worktree for it already exists
-
-	path   string     // where that worktree sits
-	branch string     // what it has checked out, empty when it is detached
-	ready  bool       // bd listed this bead as ready to work
-	bead   beads.Bead // the record the listing named, zero where none did
+// shortest settles several worktrees answering for one place, which is a repository
+// arranged by hand: the shortest branch takes it, its spelling breaking a tie, so it
+// is settled on the branch and never on git's listing order.
+func shortest(found []Candidate) Candidate {
+	return slices.MinFunc(found, func(a, b Candidate) int {
+		return cmp.Or(cmp.Compare(len(a.branch), len(b.branch)), cmp.Compare(a.branch, b.branch))
+	})
 }
 
 // Candidates lists what the repository offers to work on: every worktree git
-// knows, then the open pull requests and ready beads without one. An adapter
-// that will not answer costs its own rows and its own labels, never the
-// worktrees.
+// knows, then what each resolver offers that has none. A resolver that will not
+// answer costs its own rows, never the worktrees.
 func (e Env) Candidates() ([]Candidate, error) {
 	var (
-		worktrees    []git.Worktree
-		known, ready []beads.Bead
-		pulls        []forge.PR
-		err          error
+		open   []Candidate
+		err    error
+		offers = make([][]worktree.Place, len(e.Systems.Resolvers))
 	)
-	// None of them reads another's answer, so they are issued at once and the
+	// No resolver reads another's answer, so the offers are issued at once and the
 	// wait is the slowest of them rather than their sum.
 	var wg sync.WaitGroup
-	// The one listing serves both the branch matching and the labels.
-	wg.Go(func() { worktrees, known, err = e.opened() })
-	wg.Go(func() { ready, _ = beads.Ready(e.Repo) })
-	wg.Go(func() { pulls, _ = forge.Open(e.Repo, git.OriginURL(e.Repo)) })
+	wg.Go(func() { open, err = e.Worktrees() })
+	for i, r := range e.Systems.Resolvers {
+		wg.Go(func() { offers[i], _ = r.Offer() })
+	}
 	wg.Wait()
 	if err != nil {
 		return nil, err
 	}
-	return e.candidates(worktrees, known, ready, pulls), nil
-}
 
-// Worktrees lists the repository's open worktrees and nothing besides, the main
-// checkout excepted: what is already there to reach, rather than what could be
-// started. bd titles the rows it can name, as it does for the full listing.
-func (e Env) Worktrees() ([]Candidate, error) {
-	worktrees, known, err := e.opened()
-	if err != nil {
-		return nil, err
-	}
-	return e.candidates(worktrees, known, nil, nil), nil
-}
-
-// candidates assembles the list from what the adapters answered, each of which
-// may have answered nothing.
-func (e Env) candidates(worktrees []git.Worktree, known, ready []beads.Bead, pulls []forge.PR) []Candidate {
-	prTitles := make(map[string]string, len(pulls))
-	for _, p := range pulls {
-		prTitles[strconv.Itoa(p.Number)] = p.Title
-	}
-
-	out := make([]Candidate, 0, len(worktrees)+len(pulls)+len(ready))
-	// Keyed on the name, which is what a target of any kind is retyped as, so one
+	// Keyed on the name, which is what a place of any source is retyped as, so one
 	// place to work is offered once however it was found.
-	open := make(map[string]bool, len(worktrees))
-	for _, w := range worktrees {
-		t := e.targetAt(w, known)
-		c := Candidate{Target: t, Open: true, path: w.Path, branch: w.Branch}
-		open[t.Name] = true
-		switch t.Kind {
-		case KindBead:
-			c.bead = record(known, t)
-			c.Label = c.bead.Title
-		case KindPR:
-			c.Label = prTitles[t.ID]
-		}
-		out = append(out, c)
+	out := slices.Clone(open)
+	seen := make(map[string]int, len(out))
+	for i, c := range out {
+		seen[c.Name] = i
 	}
-
-	for _, p := range pulls {
-		t := e.prTarget(strconv.Itoa(p.Number))
-		if open[t.Name] {
-			continue
+	for i, places := range offers {
+		r := e.Systems.Resolvers[i]
+		for _, p := range places {
+			if at, already := seen[p.Name]; already {
+				// Naming a worktree asks as little as it can, so a resolver reading a branch
+				// alone may have no title for the row; the offer beside it is what completes
+				// it, and the dedup would otherwise drop the title along with the row that
+				// carried it. Only the resolver that answered for the worktree completes it:
+				// another's offer of the same name is another place spelled alike.
+				if out[at].Source == r.Name() && out[at].Label == "" {
+					out[at].Label = p.Label
+				}
+				continue
+			}
+			// An offer the core could not make a directory for could be shown but never
+			// retyped.
+			if checkName(p.Name) != nil {
+				continue
+			}
+			seen[p.Name] = len(out)
+			out = append(out, answered(r, Candidate{Place: p}))
 		}
-		out = append(out, Candidate{Target: t, Label: p.Title})
 	}
-
-	for _, b := range ready {
-		// A ready id names a bead outright, so it skips the PR heuristics in Resolve.
-		if !worktreeName.MatchString(b.ID) {
-			continue
-		}
-		t := Target{Kind: KindBead, ID: b.ID, Name: b.ID}
-		if open[t.Name] {
-			continue
-		}
-		// From the ready listing rather than the known one, so what vetting reads is
-		// the snapshot that called the bead ready in the first place.
-		out = append(out, Candidate{Target: t, Label: b.Title, ready: true, bead: b})
-	}
-	return out
+	return out, nil
 }
 
-// located is the worktree a target already has, or the zero worktree for a
-// target without one. Several still matching is a repository arranged by hand:
-// the shortest branch takes it, so it is settled on the branch and never on
-// git's listing order.
-func (e Env) located(t Target, worktrees []git.Worktree, known []beads.Bead) git.Worktree {
-	var found []git.Worktree
-	for _, w := range worktrees {
-		if e.matches(t, w, known) {
-			found = append(found, w)
-		}
-	}
-	if len(found) == 0 {
-		return git.Worktree{}
-	}
-	return slices.MinFunc(found, func(a, b git.Worktree) int {
-		return cmp.Or(cmp.Compare(len(a.Branch), len(b.Branch)), cmp.Compare(a.Branch, b.Branch))
-	})
-}
-
-// prTarget names a pull request by the branch its worktree checks out, which is
-// what a row shows and what the user retypes.
-func (e Env) prTarget(id string) Target {
-	return Target{Kind: KindPR, ID: id, Name: e.Config.Branch.PullRequest(id)}
-}
-
-func (e Env) worktreePath(name string) string {
+// path is where a worktree for a place would be created.
+func (e Env) path(name string) string {
 	return filepath.Join(e.Repo, e.Config.Worktree.Dir(), name)
 }
 
-// inspectAt gathers the state of a candidate the listing already answered for,
-// so that neither git nor bd is asked again. An empty path is a target without a
-// worktree; a zero bead one the listing could not name.
-func (e Env) inspectAt(c Candidate) State {
-	// Only creating a worktree needs a directory chosen for it; an existing one is
-	// entered where git says it is, whatever the setting says today.
-	s := State{Target: c.Target, Path: e.worktreePath(c.Target.Name), Ready: c.ready}
-
-	if c.path != "" {
-		s.Exists, s.Path = true, c.path
+// values are what a command for this worktree renders with: the worktree itself,
+// then whatever the resolver that answered for it knows, then whatever the ambient
+// sources know. The first to supply a name owns it, so the resolver's account of the
+// place it resolved is never overwritten by a source that answers for any worktree.
+//
+// A source that will not answer costs the values it would have supplied and nothing
+// else: what that leaves unrunnable is the command that needed them, which is where
+// the refusal belongs.
+func (e Env) values(t worktree.Tree) worktree.Values {
+	sources := e.Systems.Sources
+	if s, ok := t.By.(worktree.Source); ok {
+		sources = slices.Concat([]worktree.Source{s}, sources)
 	}
-
-	// A worktree that already exists is re-entered rather than created, and only
-	// creating it needs the ticket, so bd is left unasked on the common path.
-	if s.Exists || c.Target.Kind != KindBead {
-		return s
-	}
-	if c.bead.ID != "" {
-		s.Bead = c.bead
-		return s
-	}
-
-	// The listing could not name this one: bd was unreachable, or the id is not
-	// one it knows, which is the error a bad ticket name has to produce.
-	b, err := beads.Show(e.Repo, c.Target.ID)
-	if err != nil {
-		s.TicketErr = err
-		return s
-	}
-	s.Bead = b
-	return s
-}
-
-// vetBead reports why the bead cannot be worked, or "" if it can. ready is
-// asked whether bd currently considers the bead unblocked, and only the last
-// rule asks it, so every verdict reached ahead of it costs no query.
-func vetBead(b beads.Bead, ready func() (bool, error)) (string, error) {
-	switch {
-	case b.Status == "closed":
-		return fmt.Sprintf("%s is already closed", b.ID), nil
-	// Refining an epic is what its worktree is for, and refining is what would
-	// supply the rest.
-	case b.Type == "epic":
-		return "", nil
-	case b.Status == "deferred":
-		return fmt.Sprintf("%s is unrefined; refine it first with /refine %s", b.ID, b.ID), nil
-	// Ahead of the criteria check: /refine would move the bead out of the status
-	// that is the actual blocker.
-	case b.Status != "open" && b.Status != "in_progress":
-		return fmt.Sprintf("%s is %s, not workable", b.ID, b.Status), nil
-	case strings.TrimSpace(b.AcceptanceCriteria) == "":
-		return fmt.Sprintf("%s has no acceptance criteria; refine it first with /refine %s", b.ID, b.ID), nil
-	case b.Status == "open":
-		ok, err := ready()
-		if err != nil {
-			return "", err
-		}
-		if !ok {
-			return fmt.Sprintf("%s is blocked by an open dependency", b.ID), nil
+	vals := worktree.Values{"Name": t.Name, "Dir": t.Path}
+	for _, s := range sources {
+		if supplied, err := s.Supply(t); err == nil {
+			vals.Merge(supplied)
 		}
 	}
-	return "", nil
-}
-
-// readiness is the query vetting spends: whether bd lists the bead as workable.
-// A listing that already said so is spared it.
-func (e Env) readiness(s State) func() (bool, error) {
-	return func() (bool, error) {
-		if s.Ready {
-			return true, nil
-		}
-		list, err := beads.Ready(e.Repo)
-		if err != nil {
-			return false, err
-		}
-		return slices.ContainsFunc(list, func(r beads.Bead) bool { return r.ID == s.Bead.ID }), nil
-	}
+	return vals
 }

@@ -4,7 +4,7 @@
 
 ## The remit is the sequence, not the systems at its ends
 
-The sequence runs over the worktrees of a repository: which ones exist, which one is being asked for, making it exist where it does not, and opening it. That sequence holds whatever tracker files the work and whatever the worktree is opened in.
+The sequence runs over the worktrees of a repository: which ones exist, which one is being asked for, making it exist where it does not, and opening it. A tracker can resolve work to be opened in the worktree, and creating one can trigger an agent session as an action.
 
 ## Isolation is half of what an agent needs
 
@@ -22,7 +22,7 @@ That is convenience where a plain name would have done, and it is the only sourc
 
 An action is what the worktree drains into: the agent session that edits it, the shell someone types in, the editor it opens, the diff read before a review. Agentic work is the case this earns the most, since the session and the context it needs arrive together.
 
-Opening is not the whole of it. A worktree coming into being says work has started and a worktree going away says it has finished, and those are the moments a tracker wants to hear about and the moments a repository's tooling wants to act on, mise trusting the config the tools inside the worktree will look for. An action is handed the worktree along with which moment it is, and decides for itself whether it has anything to do.
+Opening is not the whole of it. A worktree coming into being says work has started, which is the moment a tracker wants to hear about and the moment a repository's tooling wants to act on, mise trusting the config the tools inside the worktree will look for. An action is handed that worktree and decides for itself whether it has anything to do.
 
 ## The core calls both sides without naming them
 

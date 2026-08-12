@@ -8,8 +8,8 @@ import (
 
 // listing is where a tab press on the identifier gets its rows: the same
 // candidates the picker renders.
-func listing() ([]work.Candidate, error) {
-	env, err := work.Open(".")
+func (v verbs) listing() ([]work.Candidate, error) {
+	env, err := v.repository()
 	if err != nil {
 		return nil, err
 	}
@@ -18,8 +18,8 @@ func listing() ([]work.Candidate, error) {
 
 // worktreeListing is what a tab press after remove gets: the repository's
 // worktrees alone, there being nothing else to remove.
-func worktreeListing() ([]work.Candidate, error) {
-	env, err := work.Open(".")
+func (v verbs) worktreeListing() ([]work.Candidate, error) {
+	env, err := v.repository()
 	if err != nil {
 		return nil, err
 	}
@@ -45,10 +45,10 @@ func completions(candidates []work.Candidate) []cobra.Completion {
 	out := make([]cobra.Completion, len(candidates))
 	for i, c := range candidates {
 		if c.Label == "" {
-			out[i] = c.Target.Name
+			out[i] = c.Name
 			continue
 		}
-		out[i] = cobra.CompletionWithDesc(c.Target.Name, c.Label)
+		out[i] = cobra.CompletionWithDesc(c.Name, c.Label)
 	}
 	return out
 }

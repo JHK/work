@@ -18,11 +18,11 @@
 
 ### switch
 
-`work switch <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none — forked from the `HEAD` of the checkout the shell is standing in, a pull request's on the head fetched for it.
+`work switch <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the checkout the shell is standing in.
 
-With no identifier, [the picker](#the-picker) offers every worktree open, and the open pull requests of `origin` and ready beads that have none.
+With no identifier, [the picker](#the-picker) offers every worktree open.
 
-Creating one for a ticket [vets and claims it](tickets.md); `--no-claim` declines the claim alone.
+A [system](systems.md) can add to either form.
 
 ### add
 
@@ -30,15 +30,15 @@ Creating one for a ticket [vets and claims it](tickets.md); `--no-claim` decline
 
 ### remove
 
-`work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out, leaving the ticket alone and asking no tracker. An identifier with no worktree open is refused.
+`work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out, leaving the ticket alone and asking no tracker. The two go together or neither goes. An identifier with no worktree open is refused.
 
 With no name, [the picker](#the-picker) offers the worktrees alone.
 
-`--force` takes a worktree with modified or untracked files and a branch whose work `git branch -d` will not delete, which are refused without it. A dirty worktree is refused before anything is removed; a refused branch is refused with the worktree already gone, git judging a branch only once no worktree holds it. The worktree the shell is standing in is refused either way.
+A worktree with modified or untracked files is refused, as is a branch `git branch -d` will not delete; `--force` takes both. The worktree the shell is standing in is refused either way.
 
 ### list
 
-`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the name the same worktree is retyped as, then the title bd gives the bead behind it, lined up in a column. A [missing bd](tools.md) costs the titles alone. gh is not asked, so a pull request's worktree prints as its name alone, as does one bd cannot name.
+`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the name each is retyped as, and beside it a title a [system](systems.md) can add, lined up in a column.
 
 It takes no argument; a name to filter on is [`switch`](#switch)'s. With nothing open it prints nothing.
 
@@ -70,21 +70,23 @@ Nothing is created where the editor names no command to run, where git names no 
 
 A pull request number is read against the current repository, whatever host the URL names.
 
+The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) is the verb that makes a worktree of a name of your own.
+
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 
 The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), [wherever git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
-A ticket's branch is recognised, never read apart: the [pattern](configuration.md#branch-patterns) is matched against the whole branch with an id filled in and the rest wildcarded, and of the ids `bd` listed the longest owner takes it. Where `bd` names none, nothing is longer and the pattern alone settles it.
+A ticket's branch is recognised, never read apart: the [pattern](configuration.md#branch-patterns) is matched against the whole branch with an id filled in and the rest wildcarded, and of the ids the tracker listed the longest owner takes it. Where it lists none, nothing is longer and the pattern alone settles it.
 
 Where several worktrees match one ticket, the shortest branch takes it, ties settled on the name, so it is never git's listing order.
 
 ### The picker
 
-An fzf list standing in for the argument a verb was not given.
+An fzf list standing in for the argument a verb was not given. It and [the screen](#the-screen) are what need `fzf`: name the argument instead, and every verb runs without it.
 
-A worktree row is one git reports other than the main checkout, read off its branch. One whose branch names neither a bead nor a pull request is offered under that branch.
+A worktree row is one git reports other than the main checkout, read off its branch, and offered under that branch where no [system](systems.md) names it.
 
-`bd` titles the bead rows, `gh pr list` the pull request rows, drafts included. gh is pinned to origin's URL. A [missing tool](tools.md) costs its own rows and its own titles.
+Beside the worktrees, a system can add rows of its own and the titles on them.
 
 ### Completion
 
@@ -104,11 +106,13 @@ A word past the position named completes nothing, and so does every word after [
 
 ### Open-on flags
 
-What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused.
+What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now, and is offered by nothing.
+
+The set is the same in every repository, being settled before there is one to read: `--help` lists all of it, and a flag whose [system](systems.md) is off is refused.
 
 | Flag | Hands the worktree to |
 |---|---|
-| `--agent` | the [`agent` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
+| `--claude` | the [`claude` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
 | `--shell` | [`open.shell`](configuration.md#keys), one just created included |
 | `--editor` | [`open.editor`](configuration.md#keys) |
 | `--diff` | [`open.diff`](configuration.md#keys), its work against its merge-base with the main checkout, committed and uncommitted alike |
@@ -116,7 +120,7 @@ What a worktree is handed to, for one invocation, ahead of what [`action.create`
 
 ### The screen
 
-The second question, put where [`--ask`](#open-on-flags) or an [`action`](configuration.md#actions) key naming `ask` reached it: an fzf list of the actions that apply, in that table's order. `ask` is never a row, and `editor` is left off where [`open.editor`](configuration.md#commands) names nothing to run.
+The second question, put where [`--ask`](#open-on-flags) or an [`action`](configuration.md#actions) key naming `ask` reached it: an fzf list of the actions that apply, in that table's order. Its rows, unlike the flags, are the repository's own: an action whose [system](systems.md) is off is no row, `ask` is never one, and `editor` is left off where [`open.editor`](configuration.md#commands) names nothing to run.
 
 It is drawn after the vetting and before anything is created, so a refused ticket is refused without a question, and a dismissed list exits 1 with nothing created and nothing claimed.
 
@@ -126,4 +130,4 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 [`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
 
-Which command each path runs is `internal/work/handoff.go`.
+Which command each path runs is the actions under `internal/action/`, `config edit` reaching the editor action from `internal/settings/`; replacing the process with it is `internal/worktree/`.

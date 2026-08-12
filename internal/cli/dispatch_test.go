@@ -38,7 +38,7 @@ func TestDispatch(t *testing.T) {
 		{"the completion request", []string{"__complete", "sw"}, []string{"__complete", "sw"}},
 		{"the completion request without descriptions", []string{"__completeNoDesc", "sw"}, []string{"__completeNoDesc", "sw"}},
 	}
-	root := command(stubVersion, front{})
+	root := command(stubVersion, wired(), front{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := dispatch(root, tt.args); !slices.Equal(got, tt.want) {

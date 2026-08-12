@@ -27,7 +27,9 @@ With none open it prints nothing. No tracker but bd is asked.`,
 				return err
 			}
 			for _, line := range lines(candidates) {
-				fmt.Fprintln(cmd.OutOrStdout(), line)
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), line); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -41,10 +43,10 @@ func lines(candidates []work.Candidate) []string {
 	out := make([]string, len(candidates))
 	for i, c := range candidates {
 		if c.Label == "" {
-			out[i] = c.Target.Name
+			out[i] = c.Name
 			continue
 		}
-		out[i] = fmt.Sprintf("%-*s  %s", width, c.Target.Name, c.Label)
+		out[i] = fmt.Sprintf("%-*s  %s", width, c.Name, c.Label)
 	}
 	return out
 }

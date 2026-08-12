@@ -25,7 +25,7 @@ const (
 type ActionName string
 
 const (
-	ActionAgent  ActionName = "agent"
+	ActionClaude ActionName = "claude"
 	ActionShell  ActionName = "shell"
 	ActionEditor ActionName = "editor"
 	ActionDiff   ActionName = "diff"
@@ -37,7 +37,26 @@ const (
 // actionNames are the names an [action] key may hold, which is also how they
 // read in a refusal.
 var actionNames = []string{
-	string(ActionAgent), string(ActionShell), string(ActionEditor), string(ActionDiff), string(ActionAsk),
+	string(ActionClaude), string(ActionShell), string(ActionEditor), string(ActionDiff), string(ActionAsk),
+}
+
+// renamed are the names an action used to go by, so a file written before a
+// rename is told which name to write instead of being told what it names is
+// unknown. An implementation's table of keys is named for the action, so one
+// pair covers a file spelling either the old way.
+var renamed = map[ActionName]ActionName{"agent": ActionClaude}
+
+// Renamed are the names this action used to go by. A key and a flag spell the
+// one name, so a flag it used to answer to is this same table read backwards.
+func Renamed(now ActionName) []ActionName {
+	var was []ActionName
+	for old, is := range renamed {
+		if is == now {
+			was = append(was, old)
+		}
+	}
+	slices.Sort(was)
+	return was
 }
 
 // Create is the action a worktree just created opens on. An unset key is the
@@ -68,10 +87,14 @@ func (n ActionName) validate() error {
 	if n == "" || slices.Contains(actionNames, string(n)) {
 		return nil
 	}
+	if now, ok := renamed[n]; ok {
+		return fmt.Errorf("%q is now %q", n, now)
+	}
 	return fmt.Errorf("%q is not an action; the actions are %s", n, strings.Join(actionNames, ", "))
 }
 
-// defaultAction is what work opens on where neither key names anything: a
-// worktree just created is handed to the agent, having only one thing to be
-// there for, and one already there is asked about.
-var defaultAction = Action{CreateName: ActionAgent, EnterName: ActionAsk}
+// defaultAction is what work opens on where neither key names anything: the
+// shell either way, navigation being the remit. Neither name may be one a system
+// has to be on for, these being what a repository that configured nothing gets.
+// A repository that turns the agent on names claude in create.
+var defaultAction = Action{CreateName: ActionShell, EnterName: ActionShell}

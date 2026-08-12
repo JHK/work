@@ -9,7 +9,7 @@ import (
 // switchCommand is the verb that enters a worktree. It is what the bare form is
 // a shortcut for, so it takes the same argument, carries the same flags and
 // completes to the same rows; naming it reaches the worktrees the verbs shadow.
-func switchCommand(run func(o options, target string) error, list func() ([]work.Candidate, error)) *cobra.Command {
+func switchCommand(sys work.Systems, run func(o options, target string) error, list func() ([]work.Candidate, error)) *cobra.Command {
 	var o options
 
 	cmd := &cobra.Command{
@@ -34,9 +34,9 @@ the worktree add.`,
 			return run(o, firstArg(args))
 		},
 	}
-	openOn(cmd, &o)
-	// switch alone declines a claim; add has no ticket to decline.
-	cmd.Flags().BoolVar(&o.noClaim, "no-claim", false, "create the worktree without claiming the ticket; the vetting still applies")
+	openOn(cmd, &o, sys.Openers)
+	// switch alone declines an action; add creates a worktree no tracker knows.
+	decline(cmd, &o, sys.Actions)
 
 	return cmd
 }
@@ -63,9 +63,9 @@ func candidate(env work.Env, target string) (work.Candidate, error) {
 // open is where every verb that opens something ends: work brings the worktree
 // into being if it has to, and the terminal goes to what came back.
 func open(env work.Env, o options, c work.Candidate) error {
-	e, err := env.Enter(c, work.Options{Action: o.action(), Ask: ask, NoClaim: o.noClaim})
+	h, err := env.Enter(c, work.Options{Open: o.open, Ask: ask, Skip: o.skip})
 	if err != nil {
 		return err
 	}
-	return e.Handoff.Exec()
+	return h.Exec()
 }

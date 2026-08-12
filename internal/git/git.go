@@ -3,6 +3,7 @@
 package git
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,6 +141,49 @@ func RemoveWorktree(repo, path string, force bool) error {
 // nothing here asks the question first.
 func DeleteBranch(repo, branch string, force bool) error {
 	return forced(repo, force, "branch", "--delete", branch)
+}
+
+// DeleteCheckedOutBranch deletes a branch a worktree still has checked out, which
+// git judges only once no worktree holds it: the worktree is detached for the
+// question to be asked at all, and put back on the branch where git refuses, so
+// its refusal leaves the worktree standing where it stood. It is unforced by
+// nature — forced, git judges nothing and the worktree can simply go first.
+func DeleteCheckedOutBranch(repo, worktree, branch string) error {
+	if err := detach(worktree); err != nil {
+		return err
+	}
+	if err := DeleteBranch(repo, branch, false); err != nil {
+		if back := checkout(worktree, branch); back != nil {
+			return fmt.Errorf("%w; %s is left detached: %w", err, worktree, back)
+		}
+		return err
+	}
+	return nil
+}
+
+// detach points a worktree at the commit it is on rather than at the branch. HEAD
+// does not move, so the files under it are left exactly as they are, modified and
+// untracked ones included. A worktree whose index is unresolved is refused.
+func detach(worktree string) error {
+	_, err := git(worktree, "checkout", "--detach")
+	return err
+}
+
+// checkout puts a worktree back on a branch.
+func checkout(worktree, branch string) error {
+	_, err := git(worktree, "checkout", branch)
+	return err
+}
+
+// Dirty reports whether a worktree holds modified or untracked files, which is
+// the status git's own worktree removal weighs it by. Ignored files are no more
+// dirty here than they are there.
+func Dirty(worktree string) (bool, error) {
+	out, err := git(worktree, "status", "--porcelain", "--ignore-submodules=none")
+	if err != nil {
+		return false, err
+	}
+	return out != "", nil
 }
 
 // forced runs a git command that takes --force, which git accepts after the

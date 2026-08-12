@@ -1,6 +1,6 @@
 # `claude`
 
-A worktree is handed to the [command](configuration.md#commands) the `[agent]` keys name, `claude` by default. Beyond running it, `work` asks the agent one question: which conversations a worktree carries.
+A worktree is handed to the [command](configuration.md#commands) the `[claude]` keys name, `claude` by default. Beyond running it, `work` asks the agent one question: which conversations a worktree carries.
 
 ## Conversations
 
@@ -23,6 +23,6 @@ Print mode (`claude -p`) writes a transcript like any other, marked `entrypoint:
 
 ## The contract
 
-`Conversations` in [internal/sessions/](../../internal/sessions/sessions.go) is the question: which conversations a worktree carries, newest first, less whatever the agent's own picker hides. Only a conversation's identifier is read off the answer, the list being the agent's own to draw.
+`transcripts` in [internal/action/claude/](../../internal/action/claude/sessions.go) is the question: which conversations a worktree carries, newest first, less whatever the agent's own picker hides. Only a conversation's identifier is read off the answer, the list being the agent's own to draw.
 
-`sessions.Claude` answers it off the transcript store, and is what a [`work.Env`](../../internal/work/work.go) carries unless another is set. A second agent is that implementation and the commands naming its binary; `claude` is the only one written.
+`recorded` answers it off the transcript store. Both sit inside the [`claude` action](configuration.md#actions), not at a seam the core declares: a second agent is an action of its own and the commands naming its binary. `claude` is the only one written.

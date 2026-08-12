@@ -9,10 +9,10 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
 ## Steps
 
-1. Set [`agent.start-ticket`](../references/configuration.md#keys) to the chain, wrapped in `sh -c`:
+1. Set [`claude.start-ticket`](../references/configuration.md#keys) to the chain, wrapped in `sh -c`:
 
    ```toml
-   [agent]
+   [claude]
    start-ticket = [
      "sh", "-c",
      '''claude -p --permission-mode auto "/start {{.ID}}" && claude --permission-mode auto --continue -n "{{.ID}}: {{.Title}}" /simplify''',

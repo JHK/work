@@ -19,7 +19,10 @@ type Config struct {
 	Worktree Worktree
 	Branch   Branch
 	Action   Action
-	Agent    Agent
+	Github   Github
+	Beads    Beads
+	Mise     Mise
+	Claude   Claude
 	Open     Open
 }
 
@@ -56,13 +59,16 @@ var defaults = Branch{
 	PullRequestPattern: mustPattern(defaultPullRequest, pullRequestValues),
 }
 
-// Default is what an unset key falls back to.
+// Default is what an unset key falls back to. The core is worktrees, so a
+// repository that says nothing runs on those alone: every system is something it
+// asks for by name, and their tables are left at the zero value, which is off.
+// What work [Shipped] is that same set with every one of them on.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
 		Branch:   defaults,
 		Action:   defaultAction,
-		Agent:    defaultAgent,
+		Claude:   defaultClaude,
 		Open:     defaultOpen,
 	}
 }
@@ -152,7 +158,11 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 	}
 	// A key nothing decoded is a typo of one that would have, not a value to drop.
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		return md, fmt.Errorf("%s: unknown setting %s", path, undecoded[0])
+		key := undecoded[0]
+		if now, ok := renamed[ActionName(key[0])]; ok {
+			return md, fmt.Errorf("%s: the [%s] table is now [%s]", path, key[0], now)
+		}
+		return md, fmt.Errorf("%s: unknown setting %s", path, key)
 	}
 	// toml matches a key to a field case-insensitively, so two spellings of one
 	// key would race to set it. Only the documented spelling is that key.
@@ -178,7 +188,7 @@ func (c *Config) validate(repo string) (string, error) {
 	if key, err := c.Action.validate(); err != nil {
 		return key, err
 	}
-	if key, err := c.Agent.validate(); err != nil {
+	if key, err := c.Claude.validate(); err != nil {
 		return key, err
 	}
 	if key, err := c.Open.validate(); err != nil {
