@@ -4,10 +4,10 @@
 package settings
 
 import (
-	"cmp"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/git"
@@ -29,8 +29,11 @@ func Dump(dir string) (string, error) {
 // $VISUAL else $EDITOR, never a setting: this is the file such a setting would
 // be written in. Everything that can refuse does so before anything is created.
 func Edit() (worktree.Handoff, error) {
-	editor := cmp.Or(os.Getenv("VISUAL"), os.Getenv("EDITOR"))
-	if editor == "" {
+	editor := strings.Fields(os.Getenv("VISUAL"))
+	if len(editor) == 0 {
+		editor = strings.Fields(os.Getenv("EDITOR"))
+	}
+	if len(editor) == 0 {
 		return worktree.Handoff{}, errors.New("neither $VISUAL nor $EDITOR names an editor to open your settings in")
 	}
 	path := config.UserFile()
@@ -40,7 +43,7 @@ func Edit() (worktree.Handoff, error) {
 	if err := create(path); err != nil {
 		return worktree.Handoff{}, err
 	}
-	return worktree.Handoff{Dir: filepath.Dir(path), Run: []string{editor, path}}, nil
+	return worktree.Handoff{Dir: filepath.Dir(path), Run: append(editor, path)}, nil
 }
 
 // create brings an empty settings file into being, leaving one already there as

@@ -44,6 +44,10 @@ func TestHandoffExec(t *testing.T) {
 }
 
 func TestHandoffExecRejects(t *testing.T) {
+	here, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := (Handoff{Dir: "/tmp"}).Exec(); err == nil {
 		t.Error("Exec with no command: want an error")
 	}
@@ -52,6 +56,9 @@ func TestHandoffExecRejects(t *testing.T) {
 	}
 	if err := (Handoff{Dir: "/tmp", Run: []string{"no-such-binary-xyz"}}).Exec(); err == nil {
 		t.Error("Exec of a missing binary: want an error")
+	}
+	if now, err := os.Getwd(); err != nil || now != here {
+		t.Errorf("a refused Exec left the process in %q (%v); want %q", now, err, here)
 	}
 }
 
