@@ -19,8 +19,7 @@ func TestMain(m *testing.M) { testenv.Main(m) }
 // spells.
 type opener struct{ name string }
 
-func (o opener) Name() string                  { return o.name }
-func (o opener) Applies(worktree.Values) error { return nil }
+func (o opener) Name() string { return o.name }
 
 func (o opener) Open(worktree.Tree, worktree.Values) (worktree.Handoff, error) {
 	return worktree.Handoff{}, nil
@@ -60,8 +59,6 @@ func wired() work.Systems {
 		Openers: []work.Opener{
 			spelt{opener{"claude"}, "claude", "hand the worktree to claude"},
 			opener{"shell"},
-			opener{"editor"},
-			opener{"diff"},
 		},
 		Actions: []work.Action{action{"mise"}, declined{action{"beads"}, "no-claim", "do not claim the ticket"}},
 	}
@@ -172,13 +169,10 @@ func TestSwitchFlags(t *testing.T) {
 		{"no identifier", []string{"switch"}, options{}, ""},
 		{"named before the identifier", []string{"switch", "--shell", "bd-1"}, options{open: "shell"}, "bd-1"},
 		{"named after the identifier", []string{"switch", "bd-1", "--shell"}, options{open: "shell"}, "bd-1"},
-		{"in the editor", []string{"switch", "--editor", "bd-1"}, options{open: "editor"}, "bd-1"},
-		{"diffed", []string{"switch", "--diff", "bd-1"}, options{open: "diff"}, "bd-1"},
 		{"handed to claude", []string{"switch", "--claude", "bd-1"}, options{open: "claude"}, "bd-1"},
-		{"asking what to open on", []string{"switch", "--ask", "bd-1"}, options{open: string(config.ActionAsk)}, "bd-1"},
 		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{skip: []string{"beads"}}, "bd-1"},
 		// Every flag stands without an identifier too, the picker naming one.
-		{"an action for the picker's target", []string{"switch", "--editor"}, options{open: "editor"}, ""},
+		{"an action for the picker's target", []string{"switch", "--claude"}, options{open: "claude"}, ""},
 		{"declining the picker's claim", []string{"switch", "--no-claim"}, options{skip: []string{"beads"}}, ""},
 		// The verbs shadow these names in the bare position; switch reaches them.
 		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
@@ -215,7 +209,7 @@ func TestOpenOnFlagsAreSwitchs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("finding switch: %v", err)
 	}
-	for _, name := range []string{"claude", "shell", "editor", "diff", "ask", "no-claim"} {
+	for _, name := range []string{"claude", "shell", "no-claim"} {
 		if root.Flags().Lookup(name) != nil {
 			t.Errorf("--%s is still declared on the root", name)
 		}
@@ -254,10 +248,7 @@ func TestAddFlags(t *testing.T) {
 		{"a name of its own", []string{"add", "scratch"}, options{}},
 		{"named before the name", []string{"add", "--shell", "scratch"}, options{open: "shell"}},
 		{"named after the name", []string{"add", "scratch", "--shell"}, options{open: "shell"}},
-		{"in the editor", []string{"add", "--editor", "scratch"}, options{open: "editor"}},
-		{"diffed", []string{"add", "--diff", "scratch"}, options{open: "diff"}},
 		{"handed to claude", []string{"add", "--claude", "scratch"}, options{open: "claude"}},
-		{"asking what to open on", []string{"add", "--ask", "scratch"}, options{open: string(config.ActionAsk)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -420,17 +411,13 @@ func TestCommandRejects(t *testing.T) {
 		{"--start is gone", []string{"bd-1", "--start"}},
 		{"--model is gone", []string{"bd-1", "--model", "opus"}},
 		{"--effort is gone", []string{"--effort=high", "bd-1"}},
-		{"a shell and an editor at once", []string{"bd-1", "--shell", "--editor"}},
-		{"a shell and a diff at once", []string{"bd-1", "--shell", "--diff"}},
-		{"an editor and a diff at once", []string{"bd-1", "--editor", "--diff"}},
+		{"--editor is gone", []string{"bd-1", "--editor"}},
+		{"--diff is gone", []string{"bd-1", "--diff"}},
+		{"--ask is gone", []string{"bd-1", "--ask"}},
 		{"claude and a shell at once", []string{"bd-1", "--claude", "--shell"}},
-		{"claude and an editor at once", []string{"bd-1", "--claude", "--editor"}},
-		{"claude and a diff at once", []string{"bd-1", "--claude", "--diff"}},
-		{"asking and naming an action at once", []string{"bd-1", "--ask", "--shell"}},
-		{"asking and claude at once", []string{"bd-1", "--ask", "--claude"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"two identifiers on switch", []string{"switch", "bd-1", "bd-2"}},
-		{"two actions on switch at once", []string{"switch", "bd-1", "--shell", "--editor"}},
+		{"two actions on switch at once", []string{"switch", "bd-1", "--shell", "--claude"}},
 		{"a verb's flag on switch", []string{"switch", "bd-1", "--force"}},
 		// Creating is a verb now, and the name it takes is not optional.
 		{"--create is gone", []string{"scratch", "--create"}},
@@ -438,7 +425,7 @@ func TestCommandRejects(t *testing.T) {
 		{"adding two worktrees at once", []string{"add", "scratch", "other"}},
 		// add opens something but has no ticket, so it declines no claim.
 		{"declining a claim on add", []string{"add", "scratch", "--no-claim"}},
-		{"two actions on add at once", []string{"add", "scratch", "--shell", "--editor"}},
+		{"two actions on add at once", []string{"add", "scratch", "--shell", "--claude"}},
 		// Removing is a verb now, and --force went with it.
 		{"--delete is gone", []string{"scratch", "--delete"}},
 		{"--force is gone from the root", []string{"scratch", "--force"}},
@@ -453,9 +440,9 @@ func TestCommandRejects(t *testing.T) {
 		{"config with a sub-verb it does not carry", []string{"config", "bogus"}},
 		{"config dump with an argument", []string{"config", "dump", "extra"}},
 		{"a verb's flag on config dump", []string{"config", "dump", "--force"}},
-		// edit opens the one file of the user's, and takes no flag naming another.
+		// edit opens the one file of the user's, and carries no flag at all.
 		{"config edit with an argument", []string{"config", "edit", "extra"}},
-		{"a verb's flag on config edit", []string{"config", "edit", "--editor"}},
+		{"a verb's flag on config edit", []string{"config", "edit", "--shell"}},
 		{"init without a shell", []string{"init"}},
 		{"init with a shell work does not print", []string{"init", "bash"}},
 		{"init with two shells", []string{"init", "fish", "zsh"}},

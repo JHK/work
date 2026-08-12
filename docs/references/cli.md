@@ -10,7 +10,7 @@
 | [`work list`](#list) | prints the worktrees open |
 | [`work init fish`](#init) | prints the shell integration |
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
-| [`work config edit`](#config) | opens your own [settings file](configuration.md) in `open.editor` |
+| [`work config edit`](#config) | opens your own [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`switch`](#switch) |
 
@@ -50,9 +50,9 @@ A worktree with modified or untracked files is refused, as is a branch `git bran
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 
-`work config edit` hands [the user's file](configuration.md) to [`open.editor`](configuration.md#commands), which is given the path as `{{.Dir}}`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is. The repository's `.work.toml` is not this file.
+`work config edit` opens [the user's file](configuration.md) in `$VISUAL`, else `$EDITOR`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is. The repository's `.work.toml` is not this file.
 
-Nothing is created where the editor names no command to run, where git names no repository, or where the configuration is one work would refuse to load.
+Nothing is created where neither variable is set. The file is the same wherever the shell stands, so this verb runs anywhere.
 
 ## Arguments
 
@@ -80,7 +80,7 @@ Where several worktrees match one ticket, the shortest branch takes it, ties set
 
 ### The picker
 
-An fzf list standing in for the argument a verb was not given. It and [the screen](#the-screen) are what need `fzf`: name the argument instead, and every verb runs without it.
+An fzf list standing in for the argument a verb was not given. It is the one thing that needs `fzf`: name the argument instead, and every verb runs without it.
 
 A worktree row is one git reports other than the main checkout, read off its branch, and offered under that branch where no [system](systems.md) names it.
 
@@ -112,15 +112,6 @@ The set is the same in every repository, being settled before there is one to re
 |---|---|
 | `--claude` | the [`claude` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
 | `--shell` | [`open.shell`](configuration.md#keys), one just created included |
-| `--editor` | [`open.editor`](configuration.md#keys) |
-| `--diff` | [`open.diff`](configuration.md#keys), its work against its merge-base with the main checkout, committed and uncommitted alike |
-| `--ask` | [the screen](#the-screen), and on to the action picked there; needs fzf |
-
-### The screen
-
-The second question, put where [`--ask`](#open-on-flags) or an [`action`](configuration.md#actions) key naming `ask` reached it: an fzf list of the actions that apply, in that table's order. Its rows, unlike the flags, are the repository's own: an action whose [system](systems.md) is off is no row, `ask` is never one, and `editor` is left off where [`open.editor`](configuration.md#commands) names nothing to run.
-
-It is drawn after the vetting and before anything is created, so a refused ticket is refused without a question, and a dismissed list exits 1 with nothing created and nothing claimed.
 
 ## Handoff
 
@@ -128,4 +119,4 @@ It is drawn after the vetting and before anything is created, so a refused ticke
 
 [`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
 
-Which command each path runs is the actions under `internal/action/`, `config edit` reaching the editor action from `internal/settings/`; replacing the process with it is `internal/worktree/`.
+Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/settings/`; replacing the process with it is `internal/worktree/`.

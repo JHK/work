@@ -63,7 +63,7 @@ func candidate(env work.Env, target string) (work.Candidate, error) {
 // open is where every verb that opens something ends: work brings the worktree
 // into being if it has to, and the terminal goes to what came back.
 func open(env work.Env, o options, c work.Candidate) error {
-	h, err := env.Enter(c, work.Options{Open: o.open, Ask: ask, Skip: o.skip})
+	h, err := env.Enter(c, work.Options{Open: o.open, Skip: o.skip})
 	if err != nil {
 		return err
 	}

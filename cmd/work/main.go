@@ -34,7 +34,7 @@ func main() {
 // The order is the one they are asked in: for an identifier, the first resolver to
 // recognise it takes it, so beads comes after the forge and takes whatever is left;
 // for an open worktree, the last to recognise it answers for whatever the others
-// left, which is plain. The openers are drawn on the screen in this order too.
+// left, which is plain.
 func wire(repo, checkout string, cfg config.Config) work.Systems {
 	var (
 		resolvers []work.Resolver
@@ -73,7 +73,7 @@ func wire(repo, checkout string, cfg config.Config) work.Systems {
 		off = append(off, agent)
 	}
 	// Never off either: a worktree always has something to open on.
-	openers = append(openers, open.Shell(cfg.Open), open.Editor(cfg.Open), open.Diff(cfg.Open))
+	openers = append(openers, open.Shell(cfg.Open))
 
 	return work.Systems{
 		Resolvers: resolvers,

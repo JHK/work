@@ -82,7 +82,7 @@ type Drawn interface {
 // system sits on, one action opening the worktree and every other one running:
 // an opener's flag names it, and an action's declines it.
 //
-// A system that spells none is reached by the settings and the screen alone.
+// A system that spells none is reached by the settings alone.
 type Flagged interface {
 	System
 
@@ -129,11 +129,10 @@ func (v Values) Merge(other Values) {
 // and the answers are merged, so a value reaches a command from whichever system
 // knows it without either of them naming the other: what the beads resolver can
 // tell a session about a ticket is the same arrangement as what the environment
-// can tell one about an editor.
+// can tell one about a shell.
 //
-// A worktree with no path is one that does not exist yet. A source that can only
-// answer from inside a worktree supplies nothing for it, and the command it would
-// have fed is judged on the values that did arrive.
+// Every source is asked once, of a worktree that exists: whatever a system needs
+// to read from inside one, it has one to read.
 type Source interface {
 	Supply(t Tree) (Values, error)
 }
@@ -143,27 +142,6 @@ type Source interface {
 // for, which the next resolver is then asked about. Every other error stops the
 // run, a tracker that cannot be reached above all.
 var ErrUnknown = errors.New("no system answers for it")
-
-// ErrAbsent is the same bit on the far seam: the tool this action would hand the
-// worktree to is not there. The screen leaves such an action out, and naming one
-// outright is refused before anything is created. Every other error is a tool
-// that ran and failed, which is reported as it stands.
-//
-// Unlike [ErrUnknown], which the core reads and never reports, this one reaches
-// the user wherever a flag named the action: an action carries it with [Absent]
-// rather than by wrapping, so its own reason is what is read.
-var ErrAbsent = errors.New("nothing here to hand the worktree to")
-
-// Absent carries that bit on a refusal of the action's own, which is what the
-// user is told: the sentinel is what the core reads and never a prose prefix on
-// the reason the action gave.
-func Absent(err error) error { return absent{err} }
-
-type absent struct{ err error }
-
-func (a absent) Error() string        { return a.err.Error() }
-func (a absent) Is(target error) bool { return target == ErrAbsent }
-func (a absent) Unwrap() error        { return a.err }
 
 // Handoff is what a worktree opens on: work replaces itself with this command,
 // running inside the worktree. Rendering one is free of consequence; running it

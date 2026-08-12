@@ -32,14 +32,12 @@ Values are validated after the merge and before anything is created.
 | `claude.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
 | `claude.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
 | `open.shell` | [below](#commands) | the command the `shell` action hands the worktree to, `--shell` included |
-| `open.editor` | [below](#commands) | the command `--editor` hands the worktree to |
-| `open.diff` | [below](#commands) | the command `--diff` hands the worktree to |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
 ## Systems
 
-What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell`, `editor` and `diff` are there to open on. Everything reached beyond git is a [system](systems.md), and a repository turns on the ones it works with:
+What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell` is there to open on. Everything reached beyond git is a [system](systems.md), and a repository turns on the ones it works with:
 
 ```toml
 [beads]
@@ -74,11 +72,6 @@ An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, 
 |---|---|
 | `claude` | what [`--claude`](cli.md#open-on-flags) hands it to |
 | `shell` | `open.shell` |
-| `editor` | `open.editor` |
-| `diff` | `open.diff` |
-| `ask` | whichever of the four [the screen](cli.md#the-screen) returns |
-
-`ask` names no command of its own: it draws the choice between the other four, which is what `--ask` names for a single invocation.
 
 ## Commands
 
@@ -92,10 +85,6 @@ A `[claude]` or `[open]` value is the argv of a command run without a shell, one
 | `.Number` | `claude.start-pull-request` | the pull request number |
 | `.Session` | `claude.resume-session` | the conversation the worktree carries, empty where it carries several |
 | `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
-| `.Editor` | `open.editor` | `$VISUAL`, else `$EDITOR`, empty where neither is set |
-| `.Base` | `open.diff` | `main-worktree/HEAD`, a revision git resolves: the head of the main checkout. The default pairs it with `--merge-base`, which diffs the merge-base of that and the worktree's head against the working tree, uncommitted work included |
-
-[`work config edit`](cli.md#config) renders `open.editor` against the user's settings file, where `.Dir` is that file and `.Name` is `config.toml`.
 
 An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 
@@ -104,7 +93,7 @@ Refused at load:
 - an empty list
 - a value the key does not have
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed. `open.editor` is rendered ahead of both, so the default with neither `$VISUAL` nor `$EDITOR` set is refused with nothing created, a settings file included, and is no row on [the screen](cli.md#the-screen).
+A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed.
 
 The defaults, which rest on [`claude`'s own behaviour](claude.md):
 
@@ -121,6 +110,4 @@ resume-session = ["claude", "--resume", "{{.Session}}"]
 
 [open]
 shell = ["{{.Shell}}"]
-editor = ["{{.Editor}}", "{{.Dir}}"]
-diff = ["git", "diff", "--merge-base", "{{.Base}}"]
 ```

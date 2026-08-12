@@ -140,15 +140,6 @@ func TestAnUnreadableTranscriptStoreRefuses(t *testing.T) {
 	}
 }
 
-// The command to run is configured rather than found, so a claude that is not
-// installed is a command that fails at the handoff and not an action to leave
-// off the screen. A session started on nothing is still a session.
-func TestAppliesNeverRefuses(t *testing.T) {
-	if err := New(config.Claude{}).Applies(nil); err != nil {
-		t.Errorf("Applies = %v; want an action that is always on the offer", err)
-	}
-}
-
 // The configured commands are what a worktree is handed to, and the values are
 // only what their templates place.
 func TestTheConfiguredCommandsAreWhatRuns(t *testing.T) {

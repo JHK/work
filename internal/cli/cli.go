@@ -84,7 +84,7 @@ func (v verbs) performRemove(force bool, target string) error {
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
 	v := verbs{wire: wire}
-	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: v.edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
+	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -146,25 +146,24 @@ An identifier in the first position, or none at all, is work switch.`,
 }
 
 // openOn gives a command the flags that name what a worktree opens on: one per
-// action wired, under the spelling that action answers to, and one more for the
-// screen, whose name no action goes by. Every verb that opens something carries
-// the same set, so one place declares them and one place excludes them against
-// each other.
+// action wired, under the spelling that action answers to. Every verb that opens
+// something carries the same set, so one place declares them and one place
+// excludes them against each other.
 func openOn(cmd *cobra.Command, o *options, openers []work.Opener) {
-	exclusive := make([]string, 0, len(openers)+1)
+	exclusive := make([]string, 0, len(openers))
 	for _, op := range openers {
 		name, usage := spelling(op)
 		exclusive = append(exclusive, name)
-		boolFlag(cmd, name, usage, func() { o.open = op.Name() })
+		// The name rather than the opener: cobra holds the callback for the life of
+		// the process, and a system captured here is one nothing can let go of.
+		action := op.Name()
+		boolFlag(cmd, name, usage, func() { o.open = action })
 		// What was renamed is the action; the refusal names the flag that reaches it
 		// today, which is the spelling it answers to rather than the name behind it.
 		for _, was := range config.Renamed(config.ActionName(op.Name())) {
 			renamedFlag(cmd, string(was), name)
 		}
 	}
-	screen := string(config.ActionAsk)
-	exclusive = append(exclusive, screen)
-	boolFlag(cmd, screen, "choose what the worktree opens on from the actions that apply", func() { o.open = screen })
 	cmd.MarkFlagsMutuallyExclusive(exclusive...)
 }
 
@@ -179,7 +178,8 @@ func decline(cmd *cobra.Command, o *options, actions []work.Action) {
 			continue
 		}
 		name, usage := f.Flag()
-		boolFlag(cmd, name, usage, func() { o.skip = append(o.skip, a.Name()) })
+		action := a.Name()
+		boolFlag(cmd, name, usage, func() { o.skip = append(o.skip, action) })
 	}
 }
 

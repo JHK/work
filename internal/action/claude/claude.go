@@ -33,12 +33,6 @@ func (o Opener) Flag() (string, string) {
 	return Name, "hand the worktree to claude, a Claude Code session by default"
 }
 
-// Applies never refuses: the command to run is configured rather than found, so a
-// claude that is not installed is a command that fails at the handoff and not an
-// action to leave off the screen. A session started on nothing is still a session,
-// which is why the last of the keys below always renders.
-func (o Opener) Applies(worktree.Values) error { return nil }
-
 // Open renders the command work replaces itself with. A worktree this run created
 // has nothing inside it to return to, so it opens on a session started for whatever
 // it was made for; one already there opens on what it already carries.
@@ -80,8 +74,8 @@ func (o Opener) resume(t worktree.Tree, vals worktree.Values) ([]string, error) 
 	if len(list) == 1 {
 		session = list[0]
 	}
-	// On top of the values rather than into them: they are the core's, shown to every
-	// opener, and Session is this key's alone.
+	// On top of the values rather than into them: they are the core's account of the
+	// worktree, and Session is this key's alone.
 	resuming := worktree.Values{"Session": session}
 	resuming.Merge(vals)
 	return o.commands.ResumeSession().Render(resuming)

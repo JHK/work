@@ -183,23 +183,15 @@ func TestDefaultClaudeCommands(t *testing.T) {
 	}
 }
 
-// A zero Open is the compiled-in commands: what the environment named for the
-// two that read it, and git for the diff.
+// A zero Open is the compiled-in command: what the environment named for the
+// shell.
 func TestDefaultOpenCommands(t *testing.T) {
 	var o Open
-	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "Shell": "/usr/bin/fish", "Editor": "gvim", "Base": "abc123"}
+	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "Shell": "/usr/bin/fish"}
 
 	got, err := o.Shell().Render(l)
 	if want := []string{"/usr/bin/fish"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
-	}
-	got, err = o.Editor().Render(l)
-	if want := []string{"gvim", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Editor() = %q, %v; want %q", got, err, want)
-	}
-	got, err = o.Diff().Render(l)
-	if want := []string{"git", "diff", "--merge-base", "abc123"}; err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
 	}
 }
 
@@ -227,51 +219,17 @@ func TestDefaultActions(t *testing.T) {
 // other to the default.
 func TestConfiguredActions(t *testing.T) {
 	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"editor\"\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"claude\"\n")
 
 	c, err := Load(repo)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := c.Action.Enter(); got != ActionEditor {
-		t.Errorf("action.enter = %q, want %q", got, ActionEditor)
+	if got := c.Action.Enter(); got != ActionClaude {
+		t.Errorf("action.enter = %q, want %q", got, ActionClaude)
 	}
 	if got := c.Action.Create(); got != ActionShell {
 		t.Errorf("action.create = %q, want the default %q", got, ActionShell)
-	}
-}
-
-// Ask is a value of both keys, so a worktree of either moment can be asked
-// about, and the moment a key does not name is left on its own default.
-func TestAskIsAnAction(t *testing.T) {
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\ncreate = \"ask\"\n")
-
-	c, err := Load(repo)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if got := c.Action.Create(); got != ActionAsk {
-		t.Errorf("action.create = %q, want %q", got, ActionAsk)
-	}
-	if got := c.Action.Enter(); got != ActionShell {
-		t.Errorf("action.enter = %q, want the default %q", got, ActionShell)
-	}
-}
-
-// A configured diff replaces the default whole, and places the base wherever the
-// tool it names wants it.
-func TestConfiguredDiffCommand(t *testing.T) {
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), "[open]\ndiff = [\"difft\", \"--\", \"{{.Base}}\", \"{{.Dir}}\"]\n")
-
-	c, err := Load(repo)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	got, err := c.Open.Diff().Render(worktree.Values{"Name": "", "Dir": "/w", "Base": "abc123"})
-	if want := []string{"difft", "--", "abc123", "/w"}; err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Diff() = %q, %v; want %q", got, err, want)
 	}
 }
 
@@ -442,11 +400,14 @@ func TestLoadRefusals(t *testing.T) {
 		{"a model or an effort", "[claude]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", startTicketKey},
 		// Only the arm a target with a session reaches names it.
 		{"a value named inside a branch", "[claude]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
-		// Each of the three carries its own value alone, so none can place another's.
-		{"the editor named by the shell", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
-		{"the shell named by the editor", "[open]\neditor = [\"{{.Shell}}\", \"{{.Dir}}\"]\n", editorKey},
-		{"the base named by the shell", "[open]\nshell = [\"git\", \"diff\", \"{{.Base}}\"]\n", shellKey},
-		{"the editor named by the diff", "[open]\ndiff = [\"{{.Editor}}\", \"{{.Base}}\"]\n", diffKey},
+		{"a value belonging to no key at all", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
+		// The keys and the values of the actions work no longer has: a file written
+		// against the old shape is refused naming the key that held one.
+		{"the editor key", "[open]\neditor = [\"vi\", \"{{.Dir}}\"]\n", "unknown setting open.editor"},
+		{"the diff key", "[open]\ndiff = [\"git\", \"diff\"]\n", "unknown setting open.diff"},
+		{"the editor action", "[action]\ncreate = \"editor\"\n", "action.create"},
+		{"the diff action", "[action]\nenter = \"diff\"\n", "action.enter"},
+		{"the screen, which was never a command", "[action]\ncreate = \"ask\"\n", "action.create"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

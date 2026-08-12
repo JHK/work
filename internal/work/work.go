@@ -1,7 +1,7 @@
 // Package work is the core beneath every front end. It knows worktrees and the
 // sequence: ask the resolvers what an identifier is, make the worktree if it is
-// not there, hand it to an action. A ticket, a pull request, an agent, an editor
-// and mise all sit behind the two seams it declares here.
+// not there, hand it to an action. A ticket, a pull request, an agent and mise
+// all sit behind the two seams it declares here.
 package work
 
 import (
@@ -51,8 +51,8 @@ type Resolver interface {
 
 	// Prepare completes a place a worktree is about to be made for, naming the
 	// branch, or says why no worktree may be made for it. Both are free of
-	// consequence, so the core runs it ahead of any screen: a place that cannot be
-	// worked is refused rather than asked about.
+	// consequence, so the core runs it ahead of the creation: a place that cannot be
+	// worked leaves nothing behind.
 	Prepare(p worktree.Place) (worktree.Place, error)
 
 	// Create checks the place's branch out into a worktree at path.
@@ -73,21 +73,13 @@ type Action interface {
 type Opener interface {
 	worktree.System
 
-	// Applies says whether the values gathered so far leave this a command to run,
-	// returning [worktree.ErrAbsent] where they do not, which [worktree.Absent]
-	// carries on a refusal of the action's own. It is asked before anything
-	// is created, so what it refuses is left off the screen and refused outright
-	// where a flag named it. Every other error stops the run, whether the screen or
-	// a flag reached this action.
-	Applies(vals worktree.Values) error
-
 	// Open renders the handoff from the values every source supplied. Rendering is
 	// free of consequence, so it runs after the worktree exists and nothing depends
 	// on it having run.
 	//
-	// The values are the core's, gathered once and shown to every opener: an action
-	// with a name of its own to place renders against a copy rather than writing into
-	// what it was handed.
+	// The values are the core's account of the worktree rather than this action's: an
+	// action with a name of its own to place renders against a copy rather than
+	// writing into what it was handed.
 	Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error)
 }
 

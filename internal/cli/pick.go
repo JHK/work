@@ -20,6 +20,9 @@ const (
 	// unmarked keeps the column a resolver that named no icon leaves empty, so the
 	// names line up whether or not a row was drawn by whoever answered for it.
 	unmarked = " "
+
+	// prompt is what the one question fzf is put reads as.
+	prompt = "work> "
 )
 
 // pickFrom puts one listing in front of the picker.
@@ -31,33 +34,16 @@ func pickFrom(list func() ([]work.Candidate, error), none string) (work.Candidat
 	if len(candidates) == 0 {
 		return work.Candidate{}, errors.New(none)
 	}
-	return pick(candidates)
-}
-
-// pick offers a listing and returns the candidate chosen. It is the first of
-// the two questions a moment can carry.
-func pick(candidates []work.Candidate) (work.Candidate, error) {
-	i, err := choose(labels(candidates), "work> ")
+	i, err := choose(labels(candidates))
 	if err != nil {
 		return work.Candidate{}, err
 	}
 	return candidates[i], nil
 }
 
-// ask is the second question: which of the actions work says apply the worktree
-// opens on. An action reads as the name it goes by, which is also the flag naming
-// it, there being nothing else it is called.
-func ask(offer []string) (string, error) {
-	i, err := choose(offer, "open> ")
-	if err != nil {
-		return "", err
-	}
-	return offer[i], nil
-}
-
-// choose puts one question through fzf and returns the row chosen. The row index
+// choose puts the listing through fzf and returns the row chosen. The row index
 // is the key, so nothing has to be parsed back out of the label.
-func choose(rows []string, prompt string) (int, error) {
+func choose(rows []string) (int, error) {
 	keyed := make([]string, len(rows))
 	for i, r := range rows {
 		keyed[i] = fmt.Sprintf("%d\t%s", i, r)

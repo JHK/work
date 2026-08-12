@@ -27,18 +27,11 @@ type ActionName string
 const (
 	ActionClaude ActionName = "claude"
 	ActionShell  ActionName = "shell"
-	ActionEditor ActionName = "editor"
-	ActionDiff   ActionName = "diff"
-	// ActionAsk is the choice between the four above rather than a fifth command:
-	// it draws the screen and opens on what came back.
-	ActionAsk ActionName = "ask"
 )
 
 // actionNames are the names an [action] key may hold, which is also how they
 // read in a refusal.
-var actionNames = []string{
-	string(ActionClaude), string(ActionShell), string(ActionEditor), string(ActionDiff), string(ActionAsk),
-}
+var actionNames = []string{string(ActionClaude), string(ActionShell)}
 
 // renamed are the names an action used to go by, so a file written before a
 // rename is told which name to write instead of being told what it names is

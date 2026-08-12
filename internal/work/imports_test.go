@@ -15,9 +15,9 @@ var reachable = []string{
 	"github.com/JHK/work-cli/internal/worktree",
 }
 
-// TestCoreReachesNothingElse guards the separation
-// docs/projects/worktree-switcher-core.md is for: an implementation the core
-// names is a capability living in the file that should be the most stable.
+// TestCoreReachesNothingElse guards R3 of docs/rules/package-boundaries.md: an
+// implementation the core names is a capability living in the file that should
+// be the most stable.
 func TestCoreReachesNothingElse(t *testing.T) {
 	ctx := build.Default
 	ctx.UseAllFiles = true // a build tag is not a way out of the rule

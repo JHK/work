@@ -78,7 +78,7 @@ func TestDumpLoadsBack(t *testing.T) {
 	testenv.Write(t, filepath.Join(home, userRelPath), directory("trees")+branch("{{.ID}}", "review/{{.Number}}"))
 	// A quote and a tab survive the printing, being written as TOML escapes.
 	testenv.Write(t, filepath.Join(repo, repoFile),
-		"[action]\nenter = \"diff\"\n[claude]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
+		"[action]\nenter = \"claude\"\n[claude]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
 
 	text, err := Dump(repo)
 	if err != nil {
@@ -109,7 +109,7 @@ func TestDumpRefusesWhatLoadRefuses(t *testing.T) {
 		user, repo string
 	}{
 		{"the repository's file", "", "[action]\nenter = \"vim\"\n"},
-		{"the user's file", "[open]\ndiff = []\n", ""},
+		{"the user's file", "[open]\nshell = []\n", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

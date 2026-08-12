@@ -70,16 +70,13 @@ func dump(out io.Writer) error {
 func editCommand(run func() error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
-		Short: "Open your own settings file in open.editor",
+		Short: "Open your own settings file in $VISUAL, else $EDITOR",
 		Long: `Open ~/.config/work/config.toml, the settings that follow you from repository
-to repository, in the command open.editor names, which is given the file as
-{{.Dir}}. The file and the directory it sits in are created where neither is
-there yet, so an editor that creates neither still opens. The repository's own
-.work.toml is not this file.
+to repository, in $VISUAL else $EDITOR. The file and the directory it sits in
+are created where neither is there yet, so an editor that creates neither still
+opens. The repository's own .work.toml is not this file.
 
-Nothing is created where the editor names no command to run, which the default
-does with neither $VISUAL nor $EDITOR set, or where the configuration is one
-work would refuse to load.
+Nothing is created where neither variable names an editor.
 
 Nothing runs after: the terminal is the editor's from here.`,
 		Args: cobra.NoArgs,
@@ -89,10 +86,11 @@ Nothing runs after: the terminal is the editor's from here.`,
 	}
 }
 
-// edit opens the user's settings file and hands the terminal over to the editor,
-// which the settings of the repository the shell stands in are what name.
-func (v verbs) edit() error {
-	h, err := settings.Edit(".", v.wire)
+// edit opens the user's settings file and hands the terminal over to the editor
+// the environment names. It is the one verb that asks git nothing: the file it
+// opens is the same wherever the shell stands.
+func edit() error {
+	h, err := settings.Edit()
 	if err != nil {
 		return err
 	}

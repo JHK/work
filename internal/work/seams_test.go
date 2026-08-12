@@ -129,27 +129,13 @@ func (a *action) Run(t worktree.Tree) error {
 
 // opener is the far seam's other half, and records the worktree it was handed.
 type opener struct {
-	steps   *steps
-	name    string
-	absent  bool  // has nothing to hand the worktree to
-	fails   error // cannot say whether it has, which is a different refusal
-	got     worktree.Tree
-	values  worktree.Values
-	applied worktree.Values // what Applies was judged against
+	steps  *steps
+	name   string
+	got    worktree.Tree
+	values worktree.Values
 }
 
 func (o *opener) Name() string { return o.name }
-
-func (o *opener) Applies(vals worktree.Values) error {
-	o.applied = vals
-	switch {
-	case o.absent:
-		return worktree.Absent(fmt.Errorf("no %s here", o.name))
-	case o.fails != nil:
-		return o.fails
-	}
-	return nil
-}
 
 func (o *opener) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error) {
 	o.steps.at("open " + o.name)
@@ -159,7 +145,7 @@ func (o *opener) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, 
 
 // env wires one system of each sort over a repository that need not exist: the
 // sequence is what is under test, not what git and bd make of it.
-func env(t *testing.T, s *steps, openers ...*opener) (Env, *resolver, []*action) {
+func env(t *testing.T, s *steps, openers ...*opener) (Env, *resolver) {
 	t.Helper()
 	r := &resolver{steps: s, name: "near", branch: "x-slug", adopts: "adopted-branch"}
 	actions := []*action{{steps: s, name: "first"}, {steps: s, name: "second"}}
@@ -173,7 +159,7 @@ func env(t *testing.T, s *steps, openers ...*opener) (Env, *resolver, []*action)
 	for _, o := range openers {
 		e.Systems.Openers = append(e.Systems.Openers, o)
 	}
-	return e, r, actions
+	return e, r
 }
 
 // The sequence is the core's whole job: prepare the place, create the worktree,
@@ -181,7 +167,7 @@ func env(t *testing.T, s *steps, openers ...*opener) (Env, *resolver, []*action)
 func TestEnterRunsTheSeamsInOrder(t *testing.T) {
 	var s steps
 	op := &opener{steps: &s, name: "far"}
-	e, r, _ := env(t, &s, op)
+	e, r := env(t, &s, op)
 
 	c, err := e.Resolve("x")
 	if err != nil {
@@ -214,10 +200,10 @@ func TestEnterRunsTheSeamsInOrder(t *testing.T) {
 }
 
 // A place that cannot be worked is refused where the refusal costs nothing: no
-// worktree is made, no action runs, and no screen is drawn.
+// worktree is made and no action runs.
 func TestAPlaceThatCannotBeWorkedLeavesNothingBehind(t *testing.T) {
 	var s steps
-	e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, r := env(t, &s, &opener{steps: &s, name: "far"})
 	r.refuses = errors.New("x is blocked by an open dependency")
 
 	c, _ := e.Resolve("x")
@@ -235,7 +221,7 @@ func TestAPlaceThatCannotBeWorkedLeavesNothingBehind(t *testing.T) {
 // carry is refused with nothing created.
 func TestANameThePreparationChangedIsHeldToTheSameRule(t *testing.T) {
 	var s steps
-	e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, r := env(t, &s, &opener{steps: &s, name: "far"})
 	r.renames = "../elsewhere"
 
 	c, err := e.Resolve("x")
@@ -253,7 +239,7 @@ func TestANameThePreparationChangedIsHeldToTheSameRule(t *testing.T) {
 // An action is declined by the name it goes by, which is what --no-claim spells.
 func TestAnActionDeclinedByNameDoesNotRun(t *testing.T) {
 	var s steps
-	e, _, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, _ := env(t, &s, &opener{steps: &s, name: "far"})
 
 	c, _ := e.Resolve("x")
 	if _, err := e.Enter(c, Options{Skip: []string{"first"}}); err != nil {
@@ -267,141 +253,13 @@ func TestAnActionDeclinedByNameDoesNotRun(t *testing.T) {
 	}
 }
 
-// The screen sits between the refusal and the creation: a place that cannot be
-// worked is never asked about, and a screen dismissed leaves nothing made.
-func TestTheScreenSitsBetweenTheRefusalAndTheCreation(t *testing.T) {
-	var s steps
-	op := &opener{steps: &s, name: "far"}
-	e, _, _ := env(t, &s, op)
-	asked := func(offer []string) (string, error) {
-		s.at("ask " + offer[0])
-		return "far", nil
-	}
-
-	c, _ := e.Resolve("x")
-	if _, err := e.Enter(c, Options{Open: ask, Ask: asked}); err != nil {
-		t.Fatalf("Enter: %v", err)
-	}
-	want := []string{"prepare", "ask far", "create x on x-slug", "run first", "run second", "open far"}
-	if !slices.Equal(s.seen, want) {
-		t.Errorf("the sequence ran %q; want %q", s.seen, want)
-	}
-
-	s.seen = nil
-	dismissed := func([]string) (string, error) { return "", errors.New("cancelled") }
-	if _, err := e.Enter(c, Options{Open: ask, Ask: dismissed}); err == nil {
-		t.Fatal("Enter: want the dismissal")
-	}
-	if !slices.Equal(s.seen, []string{"prepare"}) {
-		t.Errorf("a dismissed screen left %q behind; want the preparation alone", s.seen)
-	}
-}
-
-// An action whose tool is not there is left off the screen, and refused ahead of
-// everything where a flag named it.
-func TestAnAbsentActionIsOffTheOfferAndRefusedWhenNamed(t *testing.T) {
-	var s steps
-	missing := &opener{steps: &s, name: "missing", absent: true}
-	there := &opener{steps: &s, name: "there"}
-	e, _, _ := env(t, &s, missing, there)
-
-	got, err := e.offer(nil)
-	if err != nil {
-		t.Fatalf("offer: %v", err)
-	}
-	if !slices.Equal(got, []string{"there"}) {
-		t.Errorf("the offer is %q; want the action that applies alone", got)
-	}
-
-	c, _ := e.Resolve("x")
-	if _, err := e.Enter(c, Options{Open: "missing"}); !errors.Is(err, worktree.ErrAbsent) {
-		t.Fatalf("Enter = %v; want an absent action", err)
-	}
-	// The preparation ran, being what the values are judged against and free of
-	// consequence either way; nothing past it did.
-	if !slices.Equal(s.seen, []string{"prepare"}) {
-		t.Errorf("naming an absent action left %q behind; want the preparation alone", s.seen)
-	}
-}
-
-// An action refusing for anything but an absent tool has failed rather than found
-// nothing to hand the worktree to: the run stops and the refusal reaches the user,
-// whichever way the action was reached. Off the screen is where the other one goes,
-// and a failure vanishing there would be a failure nobody is told about.
-func TestAnOpenerFailingForAnotherReasonStopsTheRun(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		opts Options
-	}{
-		{"flag", Options{Open: "broken"}},
-		// A screen drawn at all is the regression: the failure would have gone off the
-		// offer and something else been chosen in its place.
-		{"screen", Options{Open: ask, Ask: func([]string) (string, error) {
-			return "", errors.New("the screen was drawn")
-		}}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			var s steps
-			broken := &opener{steps: &s, name: "broken", fails: errors.New("the editor's settings will not parse")}
-			e, _, _ := env(t, &s, broken, &opener{steps: &s, name: "there"})
-
-			c, _ := e.Resolve("x")
-			_, err := e.Enter(c, tt.opts)
-			if err == nil || !strings.Contains(err.Error(), broken.fails.Error()) {
-				t.Fatalf("Enter = %v; want the action's own refusal", err)
-			}
-			if !slices.Equal(s.seen, []string{"prepare"}) {
-				t.Errorf("a failing action left %q behind; want the preparation alone", s.seen)
-			}
-		})
-	}
-}
-
-// An action a flag named and one the screen chose are judged against the same values,
-// so an action gating on what a resolver supplied cannot apply one way and not the
-// other. The preparation is what puts a ticket's title on the place, so it runs ahead
-// of both.
-func TestAFlagAndTheScreenJudgeTheSameValues(t *testing.T) {
-	var byFlag, byScreen worktree.Values
-	for _, tt := range []struct {
-		name string
-		opts func(*opener) Options
-		got  *worktree.Values
-	}{
-		{"flag", func(op *opener) Options { return Options{Open: op.name} }, &byFlag},
-		{"screen", func(op *opener) Options {
-			return Options{Open: ask, Ask: func(offer []string) (string, error) { return offer[0], nil }}
-		}, &byScreen},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			var s steps
-			op := &opener{steps: &s, name: "far"}
-			e, _, _ := env(t, &s, op)
-			c, err := e.Resolve("x")
-			if err != nil {
-				t.Fatalf("Resolve: %v", err)
-			}
-			if _, err := e.Enter(c, tt.opts(op)); err != nil {
-				t.Fatalf("Enter: %v", err)
-			}
-			*tt.got = op.applied
-		})
-	}
-	if !maps.Equal(byFlag, byScreen) {
-		t.Errorf("a flag judged the action against %v and the screen against %v; want the same", byFlag, byScreen)
-	}
-	if byFlag["Label"] == "" {
-		t.Errorf("the action was judged against %v; want what the preparation put on the place", byFlag)
-	}
-}
-
 // The third form of the question is what a system that cannot be reached needs: it
 // names no worktree from a branch alone, so the worktree falls to the resolver
 // answering for whatever is left, and the identifier is what recognises it again.
 func TestAPlaceIsFoundOnAWorktreeNothingCouldName(t *testing.T) {
 	var s steps
 	op := &opener{steps: &s, name: "far"}
-	e, r, _ := env(t, &s, op)
+	e, r := env(t, &s, op)
 	r.mute = true
 	e.Systems.Resolvers = []Resolver{r, &resolver{steps: &s, name: "bare", bare: true}}
 	testenv.Git(t, e.Repo, "worktree", "add", "-b", r.adopts, filepath.Join(e.Repo, defaultDir, "a"))
@@ -434,7 +292,7 @@ func TestAPlaceIsFoundOnAWorktreeNothingCouldName(t *testing.T) {
 // recognised but could not answer for stops the run.
 func TestUnrecognitionChainsAndFailureStops(t *testing.T) {
 	var s steps
-	e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, r := env(t, &s, &opener{steps: &s, name: "far"})
 	silent := &resolver{steps: &s, name: "silent", unknown: true}
 	e.Systems.Resolvers = []Resolver{silent, r}
 
@@ -471,8 +329,8 @@ func (s *source) Supply(t worktree.Tree) (worktree.Values, error) {
 func TestValuesComeFromTheSourcesAndTheResolverFirst(t *testing.T) {
 	var s steps
 	op := &opener{steps: &s, name: "far"}
-	e, _, _ := env(t, &s, op)
-	ambient := &source{supply: worktree.Values{"Editor": "gvim", "Label": "the source's"}}
+	e, _ := env(t, &s, op)
+	ambient := &source{supply: worktree.Values{"Shell": "/usr/bin/fish", "Label": "the source's"}}
 	e.Systems.Sources = []worktree.Source{ambient}
 
 	c, err := e.Resolve("x")
@@ -488,47 +346,16 @@ func TestValuesComeFromTheSourcesAndTheResolverFirst(t *testing.T) {
 	want := worktree.Values{
 		"Name": "x", "Dir": op.got.Path,
 		"ID": "x", "Label": "the resolver's",
-		"Editor": "gvim",
+		"Shell": "/usr/bin/fish",
 	}
 	if !maps.Equal(op.values, want) {
 		t.Errorf("the command was rendered with %v; want %v", op.values, want)
 	}
 
-	// Asked once before there was a worktree and once after, so a source that can only
-	// answer from inside one gets the chance to.
-	if len(ambient.asked) != 2 || ambient.asked[0] != "" || ambient.asked[1] == "" {
-		t.Errorf("the source was asked about %q; want one worktree that is not there yet and one that is", ambient.asked)
-	}
-}
-
-// The handoff on its own is the last step without the sequence in front of it,
-// which is what a caller holding something to hand over that is not a worktree
-// reaches: the named action renders against the core's values, and nothing is
-// prepared, created or run.
-func TestHandoffRendersTheNamedActionAlone(t *testing.T) {
-	var s steps
-	op := &opener{steps: &s, name: "far"}
-	e, _, _ := env(t, &s, op)
-	e.Systems.Sources = []worktree.Source{&source{supply: worktree.Values{"Editor": "gvim"}}}
-	tree := worktree.Tree{Place: worktree.Place{Name: "a-file"}, Path: "/somewhere/a-file"}
-
-	h, err := e.Handoff(tree, "far")
-	if err != nil {
-		t.Fatalf("Handoff: %v", err)
-	}
-	if !slices.Equal(h.Run, []string{"far"}) {
-		t.Errorf("Handoff() runs %q; want the opener's own command", h.Run)
-	}
-	if !slices.Equal(s.seen, []string{"open far"}) {
-		t.Errorf("Handoff() ran %q; want the opener and nothing else", s.seen)
-	}
-	want := worktree.Values{"Name": "a-file", "Dir": tree.Path, "Editor": "gvim"}
-	if !maps.Equal(op.values, want) {
-		t.Errorf("the command was rendered with %v; want %v", op.values, want)
-	}
-
-	if _, err := e.Handoff(tree, "nothing"); err == nil {
-		t.Error("Handoff() took an action nothing goes by")
+	// Asked once, with the worktree there, so a source that can only answer from
+	// inside one has one to answer from.
+	if len(ambient.asked) != 1 || ambient.asked[0] == "" {
+		t.Errorf("the source was asked about %q; want the worktree that now exists, once", ambient.asked)
 	}
 }
 
@@ -537,7 +364,7 @@ func TestHandoffRendersTheNamedActionAlone(t *testing.T) {
 func TestAWorktreeAlreadyThereIsOnlyOpened(t *testing.T) {
 	var s steps
 	op := &opener{steps: &s, name: "far"}
-	e, r, _ := env(t, &s, op)
+	e, r := env(t, &s, op)
 
 	c := adopt(t, e, r)
 	if c.Label != "a title" {
@@ -574,7 +401,7 @@ func TestAnIdentifierASwitchedOffSystemAnswersForNamesItsKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s steps
-			e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+			e, r := env(t, &s, &opener{steps: &s, name: "far"})
 			r.unknown = tt.id == "x"
 
 			if _, err := e.Resolve(tt.id); err == nil || !strings.Contains(err.Error(), tt.refused) {
@@ -599,7 +426,7 @@ func TestAnIdentifierASwitchedOffSystemAnswersForNamesItsKey(t *testing.T) {
 // identifier and then failed has already said what the run stops on.
 func TestASwitchedOffSystemIsNotNamedWhereItWouldNotHaveHelped(t *testing.T) {
 	var s steps
-	e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, r := env(t, &s, &opener{steps: &s, name: "far"})
 	e.Systems.Disabled = []worktree.System{forge{&resolver{steps: &s, name: "forge"}}}
 
 	// The off system makes the same unusable name of it that the wired one did.
@@ -620,7 +447,7 @@ func TestASwitchedOffSystemIsNotNamedWhereItWouldNotHaveHelped(t *testing.T) {
 // what being off costs it is its rows and never someone else's typo.
 func TestANameNoSwitchedOffSystemClaimsIsAttributedToNone(t *testing.T) {
 	var s steps
-	e, r, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, r := env(t, &s, &opener{steps: &s, name: "far"})
 	r.unknown = true
 	e.Systems.Disabled = []worktree.System{
 		// One that could only answer by asking, and so answers no such question at all.
@@ -644,7 +471,7 @@ func TestANameNoSwitchedOffSystemClaimsIsAttributedToNone(t *testing.T) {
 // key naming it is read: before anything is created.
 func TestAnActionOfASwitchedOffSystemNamesItsKey(t *testing.T) {
 	var s steps
-	e, _, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	e, _ := env(t, &s, &opener{steps: &s, name: "far"})
 	e.Systems.Disabled = []worktree.System{&opener{steps: &s, name: "agent"}}
 
 	c, _ := e.Resolve("x")

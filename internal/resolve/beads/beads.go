@@ -119,8 +119,8 @@ func (r *Resolver) Offer() ([]worktree.Place, error) {
 // title, which is only knowable once bd has answered, and the refusal has to
 // hold whether or not the claim that follows it is declined.
 //
-// It asks bd and nothing more, so the core can run it ahead of any screen and a
-// ticket that cannot be worked is refused rather than asked about.
+// It asks bd and nothing more, so the core can run it ahead of the creation and a
+// ticket that cannot be worked leaves nothing behind.
 func (r *Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 	b, err := r.bead(p.ID)
 	if err != nil {

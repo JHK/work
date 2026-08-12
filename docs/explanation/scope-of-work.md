@@ -20,12 +20,12 @@ That is convenience where a plain name would have done, and it is the only sourc
 
 ## None of the work in a worktree is `work`'s
 
-An action is what the worktree drains into: the agent session that edits it, the shell someone types in, the editor it opens, the diff read before a review. Agentic work is the case this earns the most, since the session and the context it needs arrive together.
+An action is what the worktree drains into: the agent session that edits it, the shell someone types in. Agentic work is the case this earns the most, since the session and the context it needs arrive together.
 
 Opening is not the whole of it. A worktree coming into being says work has started, which is the moment a tracker wants to hear about and the moment a repository's tooling wants to act on, mise trusting the config the tools inside the worktree will look for. An action is handed that worktree and decides for itself whether it has anything to do.
 
 ## The core calls both sides without naming them
 
-Everything ships in the one binary, and neither resolvers nor actions are a wall around the tool. What sits behind them is what would otherwise be welded into the sequence, where a branch per tracker, per forge and per editor lands in the path every invocation runs through, and the file that should change least changes for everything the loop picks up.
+Everything ships in the one binary, and neither resolvers nor actions are a wall around the tool. What sits behind them is what would otherwise be welded into the sequence, where a branch per tracker, per forge and per agent lands in the path every invocation runs through, and the file that should change least changes for everything the loop picks up.
 
 A system `work` was never built against therefore arrives under its own name beside the ones already there, rather than displacing them. [The command line](../references/cli.md) and [the configuration](../references/configuration.md) carry the set that ships.

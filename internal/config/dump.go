@@ -60,8 +60,6 @@ func (c Config) keys() []key {
 		{startSessionKey, value(argv(c.Claude.StartSession()))},
 		{resumeSessionKey, value(argv(c.Claude.ResumeSession()))},
 		{shellKey, value(argv(c.Open.Shell()))},
-		{editorKey, value(argv(c.Open.Editor()))},
-		{diffKey, value(argv(c.Open.Diff()))},
 	}
 }
 

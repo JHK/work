@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -93,56 +92,27 @@ var defaultClaude = Claude{
 	),
 }
 
-// Open is what a worktree is handed over to when no session is started. The
-// keys owe each other nothing, so the table is named for the verb rather than
-// for what any of them reaches. An unset command is the compiled-in one, as
-// [Claude]'s are.
+// Open is what a worktree is handed over to when no session is started. An unset
+// command is the compiled-in one, as [Claude]'s are.
 type Open struct {
-	ShellCommand  Command `toml:"shell"`
-	EditorCommand Command `toml:"editor"`
-	DiffCommand   Command `toml:"diff"`
+	ShellCommand Command `toml:"shell"`
 }
 
-const (
-	shellKey  = "open.shell"
-	editorKey = "open.editor"
-	diffKey   = "open.diff"
-)
+const shellKey = "open.shell"
 
 // Shell is the command an existing worktree is entered with, and the one --shell
 // hands over to.
 func (o Open) Shell() Command { return o.ShellCommand.or(defaultOpen.ShellCommand) }
 
-// Editor is the command --editor hands the worktree to.
-func (o Open) Editor() Command { return o.EditorCommand.or(defaultOpen.EditorCommand) }
-
-// Diff is the command --diff hands the worktree to.
-func (o Open) Diff() Command { return o.DiffCommand.or(defaultOpen.DiffCommand) }
-
 func (o *Open) validate() (string, error) {
 	if err := o.ShellCommand.bind(shellValues); err != nil {
 		return shellKey, err
 	}
-	if err := o.EditorCommand.bind(editorValues); err != nil {
-		return editorKey, err
-	}
-	if err := o.DiffCommand.bind(diffValues); err != nil {
-		return diffKey, err
-	}
 	return "", nil
 }
 
-// defaultOpen places what the environment named for the two that read it from
-// there, and git for the diff. Whatever the editor makes of the terminal it is
-// handed is its own business, so a terminal and a GUI editor are invoked alike.
-var defaultOpen = Open{
-	ShellCommand:  mustCommand(shellValues, "{{.Shell}}"),
-	EditorCommand: mustCommand(editorValues, "{{.Editor}}", "{{.Dir}}"),
-	// --merge-base rather than the three-dot form: given one commit, git diffs the
-	// merge-base against the working tree, where three dots would diff it against
-	// HEAD and leave uncommitted work out.
-	DiffCommand: mustCommand(diffValues, "git", "diff", "--merge-base", "{{.Base}}"),
-}
+// defaultOpen places what the environment named for the shell.
+var defaultOpen = Open{ShellCommand: mustCommand(shellValues, "{{.Shell}}")}
 
 // Command is a whole command line: one [text/template] per argv element,
 // rendered with the values its key has. Which values those are is settled by
@@ -169,8 +139,6 @@ var (
 	startSessionValues     = keyValues{startSessionKey, common}
 	resumeSessionValues    = keyValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
 	shellValues            = keyValues{shellKey, slices.Concat(common, []string{"Shell"})}
-	editorValues           = keyValues{editorKey, slices.Concat(common, []string{"Editor"})}
-	diffValues             = keyValues{diffKey, slices.Concat(common, []string{"Base"})}
 )
 
 // ErrUnsupplied is a value the key places that nothing in the wiring supplied,
@@ -197,13 +165,12 @@ func (v keyValues) data(vals worktree.Values) (map[string]any, error) {
 	return data, nil
 }
 
-// mark is a value standing in for one that has not been supplied: the shortest any
-// real value is, so a command rendering with it renders with anything.
+// mark is the filled arm of a binding probe: the shortest any real value is, so a
+// command rendering with it renders with anything.
 const mark = "x"
 
 // fill is every value the key has, set to the one mark. Binding renders both arms a
-// key makes, an empty one and a filled one, and [Command.Applies] fills the names no
-// source has supplied yet.
+// key makes, an empty one and a filled one.
 func (v keyValues) fill(value string) worktree.Values {
 	vals := make(worktree.Values, len(v.names))
 	for _, name := range v.names {
@@ -296,20 +263,6 @@ func (c Command) or(def Command) Command {
 		return def
 	}
 	return c
-}
-
-// Applies reports whether the values in hand leave a command to run, standing in
-// for every value no source has supplied yet. It is how a tool the machine does not
-// have is told apart from one whose values are still coming: an unset editor is
-// supplied as nothing and refused here, while a merge-base that only exists once
-// the worktree does is not supplied at all and stood in for.
-func (c Command) Applies(vals worktree.Values) error {
-	probe := c.values.fill(mark)
-	// What a source actually supplied wins over the stand-in, so a value supplied
-	// empty is judged as the empty thing it is.
-	maps.Copy(probe, vals)
-	_, err := c.Render(probe)
-	return err
 }
 
 // Render builds the argv, dropping every element that renders to nothing, so an

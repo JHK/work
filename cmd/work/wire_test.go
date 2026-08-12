@@ -40,7 +40,7 @@ func TestTheWiringSpellsTheFlagsTheCommandLineRecords(t *testing.T) {
 		}
 		opens[name] = true
 	}
-	for _, want := range []string{"claude", "shell", "editor", "diff"} {
+	for _, want := range []string{"claude", "shell"} {
 		if !opens[want] {
 			t.Errorf("no action spells --%s; the flag the command line records is gone", want)
 		}
