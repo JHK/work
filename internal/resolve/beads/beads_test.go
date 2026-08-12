@@ -237,6 +237,9 @@ func TestIdentifyConfirmsATicketAgainstAWorktree(t *testing.T) {
 		{"bd-4", "bd-42-port-work-to-go", false},
 		{"bd-42", "", false},
 		{"bd-9", "bd-9-a-slug", true},
+		// The branch retyped, which is what a listing prints: the pattern's empty-slug
+		// arm takes it, so it reaches its own worktree without bd naming an id.
+		{"bd-42-port-work-to-go", "bd-42-port-work-to-go", true},
 	}
 	r, _ := resolver(t, known, rows())
 	for _, tt := range tests {

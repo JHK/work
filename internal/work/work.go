@@ -29,7 +29,10 @@ type Resolver interface {
 	// [worktree.Open.None]. Where the core holds a worktree it may hold an identifier
 	// as well, which is one to confirm rather than to read: the question is then
 	// whether that worktree is that place's, and answering it must not need what
-	// naming the worktree from its branch alone would.
+	// naming the worktree from its branch alone would. A worktree's own branch is one
+	// such identifier: it is what [Env.Branches] prints, so a resolver owns a worktree
+	// under the branch it named that worktree by, or a listing prints what cannot be
+	// retyped.
 	//
 	// It asks as little as it can, because every reading goes through here: a tracker
 	// that cannot be reached must not cost a worktree that is already open, and an
@@ -322,6 +325,25 @@ func (e Env) Worktrees() ([]Candidate, error) {
 			return nil, err
 		}
 		out = append(out, c)
+	}
+	return out, nil
+}
+
+// Branches is what the repository's worktrees have checked out, the main
+// checkout excepted, in git's order: a detached one under its directory, which
+// is the name it goes by wherever it has no branch to go by. It asks git and
+// nothing else, so a listing costs no tracker and no forge.
+func (e Env) Branches() ([]string, error) {
+	if e.Repo == "" {
+		return nil, nil
+	}
+	list, err := git.Linked(e.Repo)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(list))
+	for _, w := range list {
+		out = append(out, worktree.Open{Path: w.Path, Branch: w.Branch}.Name())
 	}
 	return out, nil
 }

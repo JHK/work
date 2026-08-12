@@ -39,6 +39,7 @@ type front struct {
 	edit       func() error
 	candidates func() ([]work.Candidate, error)
 	worktrees  func() ([]work.Candidate, error)
+	branches   func() ([]string, error)
 }
 
 // verbs answers the front's calls against the wiring Execute was handed, so that
@@ -83,7 +84,7 @@ func (v verbs) performRemove(force bool, target string) error {
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
 	v := verbs{wire: wire}
-	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: v.edit, candidates: v.listing, worktrees: v.worktreeListing}
+	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: v.edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -135,7 +136,7 @@ An identifier in the first position, or none at all, is work switch.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), listCommand(f.worktrees), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()

@@ -363,57 +363,41 @@ func TestConfigWithoutASubVerb(t *testing.T) {
 }
 
 // list is a verb of its own, and the only one that prints rather than opening
-// something. It prints the worktrees remove's listing offers, no more.
+// something. It prints the branches git reports and asks no listing that would
+// name them: the resolved names and their titles are the picker's and the
+// completion's.
 func TestListPrints(t *testing.T) {
-	worktrees := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
-		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
+	resolved := func() ([]work.Candidate, error) {
+		t.Error("work list asked for the resolved names")
+		return nil, nil
 	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
 
 	var out strings.Builder
-	err := execute(t, []string{"list"}, &out, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)})
-	if err != nil {
+	f := front{
+		branches:   func() ([]string, error) { return []string{"bd-1-do-a-thing", "spike"}, nil },
+		worktrees:  resolved,
+		candidates: resolved,
+	}
+	if err := execute(t, []string{"list"}, &out, f); err != nil {
 		t.Fatalf("work list: %v", err)
 	}
-	// spike carries no title, so it neither pads nor widens the column.
-	want := "bd-1  Do a thing\nspike\n"
-	if out.String() != want {
+	if want := "bd-1-do-a-thing\nspike\n"; out.String() != want {
 		t.Errorf("work list printed %q; want %q", out.String(), want)
 	}
 
+	// With nothing open there is nothing to print, which is not an error.
+	out.Reset()
+	if err := execute(t, []string{"list"}, &out, front{branches: func() ([]string, error) { return nil, nil }}); err != nil {
+		t.Fatalf("work list with nothing open: %v", err)
+	}
+	if out.String() != "" {
+		t.Errorf("work list with nothing open printed %q; want nothing", out.String())
+	}
+
 	// A repository that will not answer is one line on stderr and exit 1.
-	if err := execute(t, []string{"list"}, io.Discard, front{worktrees: stub(nil, errCancelled)}); err == nil {
+	silent := front{branches: func() ([]string, error) { return nil, errCancelled }}
+	if err := execute(t, []string{"list"}, io.Discard, silent); err == nil {
 		t.Error("work list on a silent repository: want an error")
-	}
-}
-
-// A row states what to retype and, where an adapter named one, the title, lined
-// up behind the widest name that has one.
-func TestLines(t *testing.T) {
-	got := lines([]work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-longer", Name: "bd-longer", Label: "Other"}, Open: true},
-		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}, Open: true},
-		// A plain worktree is named by its branch and says nothing more.
-		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
-		// An untitled name is not padded, so it does not set the column either.
-		{Place: worktree.Place{Source: "beads", ID: "bd-untitled-and-longest", Name: "bd-untitled-and-longest"}, Open: true},
-	})
-	want := []string{
-		"bd-longer  Other",
-		"pr-7       Review this",
-		"spike",
-		"bd-untitled-and-longest",
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("lines() = %q; want %q", got, want)
-	}
-}
-
-// With nothing open there is nothing to print, which is not an error.
-func TestLinesOfNothing(t *testing.T) {
-	if got := lines(nil); len(got) != 0 {
-		t.Errorf("lines(nil) = %q; want nothing", got)
 	}
 }
 
@@ -566,6 +550,9 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	if f.worktrees == nil {
 		f.worktrees = stub(nil, nil)
 	}
+	if f.branches == nil {
+		f.branches = func() ([]string, error) { t.Error("listed the branches"); return nil, nil }
+	}
 	cmd := command(stubVersion, sys, f)
 	cmd.SetOut(out)
 	cmd.SetErr(io.Discard)
@@ -592,7 +579,10 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	if _, err := (verbs{wire: wire("second")}).worktreeListing(); err != nil {
 		t.Fatalf("worktreeListing: %v", err)
 	}
-	if want := []string{"first", "second"}; !slices.Equal(asked, want) {
+	if _, err := (verbs{wire: wire("third")}).branchListing(); err != nil {
+		t.Fatalf("branchListing: %v", err)
+	}
+	if want := []string{"first", "second", "third"}; !slices.Equal(asked, want) {
 		t.Errorf("the wirings asked were %q; want %q", asked, want)
 	}
 }

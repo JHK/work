@@ -4,30 +4,30 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/JHK/work-cli/internal/work"
 )
 
-// listCommand is the verb that prints the worktrees, over the same listing
-// remove offers. It takes no argument and no flag: a name to filter on is
+// listCommand is the verb that prints the worktrees open. Which they are is
+// git's own answer, so it is git that is asked and no system beyond it: the
+// picker and the completion are where a resolved name and its title are worth
+// what they cost. It takes no argument and no flag: a name to filter on is
 // switch's.
-func listCommand(worktrees func() ([]work.Candidate, error)) *cobra.Command {
+func listCommand(branches func() ([]string, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Print the repository's open worktrees",
-		Long: `Print the repository's open worktrees, one per line: the name you retype, then
-the title of the bead behind it where bd names one.
+		Long: `Print the repository's open worktrees, one per line: the branch each has checked
+out, or its directory where it has none.
 
-With none open it prints nothing. No tracker but bd is asked.`,
+With none open it prints nothing. No tracker and no forge is asked.`,
 		Args: cobra.NoArgs,
 		// It hands over to nothing: the invocation prints and exits.
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			candidates, err := worktrees()
+			list, err := branches()
 			if err != nil {
 				return err
 			}
-			for _, line := range lines(candidates) {
-				if _, err := fmt.Fprintln(cmd.OutOrStdout(), line); err != nil {
+			for _, branch := range list {
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), branch); err != nil {
 					return err
 				}
 			}
@@ -36,17 +36,12 @@ With none open it prints nothing. No tracker but bd is asked.`,
 	}
 }
 
-// lines renders the rows for a reader rather than a chooser: the picker's
-// column, without what marks a choice being made.
-func lines(candidates []work.Candidate) []string {
-	width := column(candidates)
-	out := make([]string, len(candidates))
-	for i, c := range candidates {
-		if c.Label == "" {
-			out[i] = c.Name
-			continue
-		}
-		out[i] = fmt.Sprintf("%-*s  %s", width, c.Name, c.Label)
+// branchListing is what list prints: the repository's worktrees as git reports
+// them, no resolver asked.
+func (v verbs) branchListing() ([]string, error) {
+	env, err := v.repository()
+	if err != nil {
+		return nil, err
 	}
-	return out
+	return env.Branches()
 }

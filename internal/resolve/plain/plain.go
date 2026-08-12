@@ -6,7 +6,6 @@ package plain
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -63,11 +62,7 @@ func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if id != "" && !git.SameDir(o.Path, id) {
 		return worktree.Place{}, fmt.Errorf("%w: the worktree at %s is not %s", worktree.ErrUnknown, o.Path, id)
 	}
-	name := o.Branch
-	if name == "" {
-		name = filepath.Base(o.Path)
-	}
-	return worktree.Place{ID: o.Path, Name: name, Branch: o.Branch}, nil
+	return worktree.Place{ID: o.Path, Name: o.Name(), Branch: o.Branch}, nil
 }
 
 // Offer has nothing to offer: a name of the user's own is typed, never listed.

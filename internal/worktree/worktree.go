@@ -8,9 +8,11 @@
 package worktree
 
 import (
+	"cmp"
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -38,6 +40,13 @@ type Open struct {
 // None reports whether there is no worktree in hand. git always names a path, so a
 // resolver shown none is being asked about an identifier alone.
 func (o Open) None() bool { return o.Path == "" }
+
+// Name is what a worktree goes by where nothing behind it names it: the branch
+// it has checked out, or its directory where it is detached and has no branch to
+// be named by. It is the vocabulary's rather than any one reader's, a listing
+// and the resolver that adopts whatever nothing else claims having to spell the
+// one worktree the same way.
+func (o Open) Name() string { return cmp.Or(o.Branch, filepath.Base(o.Path)) }
 
 // Tree is a worktree that exists, which is the only thing an action is handed.
 type Tree struct {

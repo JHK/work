@@ -607,6 +607,25 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 	}
 }
 
+// A reader's listing is git's own answer: the branch each worktree has checked
+// out, the main checkout excepted, and a detached one under its directory,
+// which is the name it goes by wherever it has no branch to go by.
+func TestBranchesAreWhatTheWorktreesHaveCheckedOut(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	testenv.Git(t, repo, "worktree", "add", "-b", "one-a-slug", filepath.Join(repo, defaultDir, "one"))
+	testenv.Git(t, repo, "worktree", "add", "--detach", filepath.Join(repo, defaultDir, "adrift"))
+
+	e, _ := bare(t, repo)
+	got, err := e.Branches()
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	slices.Sort(got)
+	if want := []string{"adrift", "one-a-slug"}; !slices.Equal(got, want) {
+		t.Errorf("Branches() = %q; want %q", got, want)
+	}
+}
+
 // Without a repository git would answer for whatever directory the process
 // happens to be in, so there is nothing to list rather than someone else's
 // worktrees.
@@ -615,5 +634,9 @@ func TestWithoutARepositoryNothingIsListed(t *testing.T) {
 	got, err := e.Worktrees()
 	if err != nil || len(got) != 0 {
 		t.Errorf("Worktrees() = %+v, %v; want nothing listed", got, err)
+	}
+	branches, err := e.Branches()
+	if err != nil || len(branches) != 0 {
+		t.Errorf("Branches() = %q, %v; want nothing listed", branches, err)
 	}
 }

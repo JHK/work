@@ -38,9 +38,7 @@ A worktree with modified or untracked files is refused, as is a branch `git bran
 
 ### list
 
-`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the name each is retyped as, and beside it a title a [system](systems.md) can add, lined up in a column.
-
-It takes no argument; a name to filter on is [`switch`](#switch)'s. With nothing open it prints nothing.
+`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the branch each has checked out, or its directory where it is detached.
 
 ### init
 

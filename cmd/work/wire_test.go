@@ -306,6 +306,31 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	}
 }
 
+// Listing the worktrees for a reader asks git and nothing else, on a repository
+// that wired every system: which worktrees are open is git's own answer, so a
+// tracker that cannot be reached costs a listing that never needed one.
+func TestListingTheWorktreesAsksNoToolWhereverEverySystemIsOn(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	testenv.Git(t, repo, "worktree", "add", "-b", "bd-1-a-slug", filepath.Join(repo, "trees", "bd-1"))
+	ran := testenv.Stubs(t,
+		testenv.Stub{Name: "bd", Exits: 1},
+		testenv.Stub{Name: "gh", Exits: 1},
+	)
+
+	cfg := config.Shipped()
+	e := work.Env{Repo: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
+	got, err := e.Branches()
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	if want := []string{"bd-1-a-slug"}; !slices.Equal(got, want) {
+		t.Errorf("Branches() = %q; want %q", got, want)
+	}
+	if asked := ran(); len(asked) > 0 {
+		t.Errorf("listing the worktrees ran %s; want git asked alone", strings.Join(asked, ", "))
+	}
+}
+
 // wired are the systems behind the seams, under the names they go by.
 func wired(s work.Systems) []string {
 	var names []string
