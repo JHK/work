@@ -9,8 +9,7 @@ import (
 )
 
 // configCommand is the verb that answers for the settings. It runs nothing
-// itself: what it carries is dump and edit, and a further sub-verb would be
-// added here.
+// itself: what it carries is dump and edit.
 func configCommand(run func(out io.Writer) error, open func() error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -31,8 +30,7 @@ dump prints what they resolved to here; edit opens your own file.`,
 	return cmd
 }
 
-// dumpCommand prints the configuration work resolved. It takes no argument,
-// there being one configuration to print.
+// dumpCommand prints the configuration work resolved.
 func dumpCommand(run func(out io.Writer) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dump",
@@ -64,9 +62,8 @@ func dump(out io.Writer) error {
 	return err
 }
 
-// editCommand opens the user's settings file. It takes no argument, there being
-// one file of the user's to open; the repository's own is already where the
-// shell stands.
+// editCommand opens the user's settings file. The repository's own is already
+// where the shell stands.
 func editCommand(run func() error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
@@ -87,8 +84,7 @@ Nothing runs after: the terminal is the editor's from here.`,
 }
 
 // edit opens the user's settings file and hands the terminal over to the editor
-// the environment names. It is the one verb that asks git nothing: the file it
-// opens is the same wherever the shell stands.
+// the environment names. It asks git nothing.
 func edit() error {
 	h, err := settings.Edit()
 	if err != nil {

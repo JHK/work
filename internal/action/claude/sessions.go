@@ -1,11 +1,8 @@
 package claude
 
-// Which conversations a worktree already carries is the one thing this action
-// cannot read from the settings, and reading it rests entirely on undocumented
-// internals: the path-mangling scheme behind [bucket], and the entrypoint the
-// events inside the JSONL transcripts carry. It lives here because it is knowledge
-// about Claude Code and nothing else, so an agent answering the same question for
-// itself would answer it its own way.
+// Reading which conversations a worktree carries rests on undocumented Claude
+// Code internals: the path mangling behind [bucket], and the entrypoint its JSONL
+// transcript events carry.
 
 import (
 	"bufio"
@@ -23,7 +20,6 @@ import (
 
 // transcripts are the conversations a worktree carries, newest first. Only what
 // the agent would return to counts, so whatever its own picker hides is left out.
-// It is an interface so that a test can answer for a directory it did not write.
 type transcripts interface {
 	list(dir string) ([]string, error)
 }
@@ -136,14 +132,11 @@ func listed(path string) bool {
 	return !printMode(f)
 }
 
-// printEntrypoint marks a transcript `claude -p` wrote. The picker does not
-// offer one, so a worktree carrying nothing else carries nothing.
+// printEntrypoint marks a transcript `claude -p` wrote.
 const printEntrypoint = "sdk-cli"
 
-// headLen is how much of a transcript's start is worth reading. Every message
-// event carries the entrypoint and the metadata ahead of the first one runs to a
-// few kilobytes; the rest is slack, so one outsized event cannot hide the ones
-// behind it.
+// headLen is how much of a transcript's start is worth reading: every message
+// event carries the entrypoint, and the metadata ahead of the first is kilobytes.
 const headLen = 256 << 10
 
 // printMode reports whether the transcript came from print mode, which is the

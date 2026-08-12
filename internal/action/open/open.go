@@ -1,7 +1,6 @@
-// Package open hands a worktree to the command the [open] table names: the
-// shell someone types in. What that command needs beyond the worktree itself is
-// what [Values] supplies it, so which key may place what it named stays the
-// settings' to say rather than this action's.
+// Package open hands a worktree to the command the [open] table names: the shell
+// someone types in. [Values] supplies what that command needs beyond the
+// worktree itself.
 package open
 
 import (
@@ -12,8 +11,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// name is what this action goes by: the key that spells it and the flag that
-// reaches it, which are the one name.
+// name is what this action goes by, in the key and the flag alike.
 const name = string(config.ActionShell)
 
 // Action is the command the [open] table names.
@@ -39,8 +37,7 @@ func (a Action) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, e
 }
 
 // Values supplies what the [open] table's key asks for beyond the worktree
-// itself. It is a source rather than the action's private business, so a value
-// the environment knows reaches whichever command placed it.
+// itself, to whichever command placed it.
 type Values struct{}
 
 // Supply reads the environment for the name the key places.

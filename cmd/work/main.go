@@ -25,16 +25,12 @@ func main() {
 	os.Exit(cli.Execute(version, wire))
 }
 
-// wire is the only place work's implementations are named, and the settings are
-// what say which of them are here at all: worktrees are the core, and a tracker,
-// a forge, a tool and an agent each run only where a repository asked for one. A
-// system the settings did not ask for is wired to nothing and kept only so that
-// what it would have answered for is refused as a system switched off.
+// wire is the only place work's implementations are named. A system the settings
+// did not ask for is wired to nothing and kept only so that what it would have
+// answered for is refused as a system switched off.
 //
-// The order is the one they are asked in: for an identifier, the first resolver to
-// recognise it takes it, so beads comes after the forge and takes whatever is left;
-// for an open worktree, the last to recognise it answers for whatever the others
-// left, which is plain.
+// The order is the one they are asked in: the first resolver to recognise an
+// identifier takes it, and the last takes whatever is left.
 func wire(repo, checkout string, cfg config.Config) work.Systems {
 	var (
 		resolvers []work.Resolver
@@ -50,8 +46,8 @@ func wire(repo, checkout string, cfg config.Config) work.Systems {
 	} else {
 		off = append(off, pulls)
 	}
-	// One system on both seams under the one name: it resolves the tickets and claims
-	// the one a worktree was made for.
+	// One system on both seams under the one name: it resolves the tickets and
+	// claims the one a worktree was made for.
 	if tickets := resolvebeads.New(repo, checkout, cfg.Branch); cfg.Beads.Enabled {
 		resolvers = append(resolvers, tickets)
 		actions = append(actions, actionbeads.New(repo))
@@ -80,7 +76,6 @@ func wire(repo, checkout string, cfg config.Config) work.Systems {
 		Actions:   actions,
 		Openers:   openers,
 		// What any worktree can be described by, whichever resolver answered for it.
-		// A resolver's own account of the place it resolved is asked for separately.
 		Sources: []worktree.Source{
 			open.Values{},
 		},

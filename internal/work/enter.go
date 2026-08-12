@@ -16,34 +16,29 @@ type Options struct {
 }
 
 // Enter takes a place to work through to the handoff, preparing, creating and
-// acting along the way, and spares the resolvers the questions finding it already
-// answered.
+// acting along the way.
 func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
-	// Every candidate comes from a resolver, so one without is a front end that made
-	// its own rather than a place to work.
+	// A candidate without a resolver is one a front end made itself.
 	if c.by == nil {
 		return worktree.Handoff{}, errors.New("no system answers for this place")
 	}
 
-	// Named ahead of everything, so that a name no action goes by is refused before
+	// Named ahead of everything, so a name no action goes by is refused before
 	// anything is asked of a tracker.
 	opener, err := e.named(c, o)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
 
-	// Only a worktree about to be made is prepared: the branch and the refusal are
-	// what making one needs, and re-entering one needs neither. This is where a
-	// ticket that cannot be worked is refused, and it holds whatever the worktree
-	// would have opened on and whichever actions were declined.
+	// Only a worktree about to be made is prepared, which is where a ticket that
+	// cannot be worked is refused.
 	t := worktree.Tree{Place: c.Place, Path: c.path, By: c.by}
 	if !c.Open {
 		if t.Place, err = c.by.Prepare(c.Place); err != nil {
 			return worktree.Handoff{}, err
 		}
-		// Completing a place is the one moment a resolver may still change its name,
-		// and the name is about to become a directory: the rule is the core's wherever
-		// a name reaches a path.
+		// Preparing is the last moment a resolver may change the name, which is about
+		// to become a directory.
 		if err := checkName(t.Name); err != nil {
 			return worktree.Handoff{}, err
 		}
@@ -53,8 +48,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	// Every action the worktree coming into being means, in the order they were
-	// wired. A worktree that was already there means none of them.
+	// A worktree that was already there runs none of them.
 	if t.Created {
 		for _, a := range e.Systems.Actions {
 			if slices.Contains(o.Skip, a.Name()) {
@@ -66,9 +60,8 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	// Past the creation and the actions, so a command that will not render leaves the
-	// worktree made and the ticket claimed, as one that will not start does, and so
-	// every source is asked of a worktree that exists.
+	// Past the creation and the actions, so every source is asked of a worktree that
+	// exists.
 	return opener.Open(t, e.values(t))
 }
 
@@ -86,9 +79,8 @@ func (e Env) named(c Candidate, o Options) (Opener, error) {
 	return e.opener(name)
 }
 
-// opener is the action that goes by a name, and is where a name no action goes by
-// is refused. A name one of the switched-off systems goes by is refused as that
-// rather than as a name work has never heard of.
+// opener is the action that goes by a name. One a switched-off system goes by is
+// refused as that rather than as a name work has never heard of.
 func (e Env) opener(name string) (Opener, error) {
 	for _, op := range e.Systems.Openers {
 		if op.Name() == name {

@@ -1,6 +1,5 @@
 // Package cli is work's headless front end: it turns flags into one call on
-// [work.Env] and prints what came back. It is one of two front ends over that
-// core; everything it can trigger stays reachable without a screen.
+// [work.Env] and prints what came back.
 package cli
 
 import (
@@ -21,9 +20,8 @@ import (
 // without a message: nothing happened, and nothing went wrong.
 var errCancelled = errors.New("cancelled")
 
-// options are what the flags settled, in the names the systems go by rather than
-// a field per system: which action the worktree opens on, and which of the ones
-// that would otherwise run were declined.
+// options are what the flags settled, in the names the systems go by: which
+// action the worktree opens on, and which of the others were declined.
 type options struct {
 	open string
 	skip []string
@@ -42,9 +40,7 @@ type front struct {
 	branches   func() ([]string, error)
 }
 
-// verbs answers the front's calls against the wiring Execute was handed, so that
-// the systems reach the core through the call that needs them and cmd/work stays
-// the only place they are named.
+// verbs answers the front's calls against the wiring Execute was handed.
 type verbs struct{ wire work.Wiring }
 
 // repository is the one the shell stands in, with its systems wired.
@@ -94,22 +90,17 @@ func Execute(version string, wire work.Wiring) int {
 	return 0
 }
 
-// run puts args through the tree. The dispatch belongs to every way in, so the
-// tree is never executed on the words as typed.
+// run puts args through the tree. The tree is never executed on the words as
+// typed: [dispatch] belongs to every way in.
 func run(cmd *cobra.Command, args []string) error {
 	cmd.SetArgs(dispatch(cmd, args))
 	return cmd.Execute()
 }
 
-// naming is the systems as the command line spells them. A flag set is settled
-// before there is a repository to read, so the wiring is asked without one, which
-// [work.Wiring] is what holds it to: nothing is taken from what comes back but
-// the names the systems go by and the flags they answer to, which no repository
-// decides.
-//
-// It asks for every system work ships rather than the ones a repository enabled,
-// so --help reads the same everywhere and a flag whose system is off is refused
-// with the key that puts it back rather than read as a flag work never had.
+// naming is the systems as the command line spells them, asked of the wiring
+// without a repository: only the names and the flags are read off what comes
+// back, and every system work ships is named rather than the ones one repository
+// enabled.
 func naming(wire work.Wiring) work.Systems {
 	return wire("", "", config.Shipped())
 }
@@ -146,20 +137,17 @@ An identifier in the first position, or none at all, is work switch.`,
 }
 
 // openOn gives a command the flags that name what a worktree opens on: one per
-// action wired, under the spelling that action answers to. Every verb that opens
-// something carries the same set, so one place declares them and one place
-// excludes them against each other.
+// action wired, under the spelling that action answers to, mutually exclusive.
 func openOn(cmd *cobra.Command, o *options, openers []work.Opener) {
 	exclusive := make([]string, 0, len(openers))
 	for _, op := range openers {
 		name, usage := spelling(op)
 		exclusive = append(exclusive, name)
-		// The name rather than the opener: cobra holds the callback for the life of
-		// the process, and a system captured here is one nothing can let go of.
+		// The name rather than the opener: cobra holds the callback for the life of the
+		// process, and a system captured here is one nothing can let go of.
 		action := op.Name()
 		boolFlag(cmd, name, usage, func() { o.open = action })
-		// What was renamed is the action; the refusal names the flag that reaches it
-		// today, which is the spelling it answers to rather than the name behind it.
+		// What was renamed is the action; the refusal names the flag that reaches it today.
 		for _, was := range config.Renamed(config.ActionName(op.Name())) {
 			renamedFlag(cmd, string(was), name)
 		}
@@ -168,9 +156,7 @@ func openOn(cmd *cobra.Command, o *options, openers []work.Opener) {
 }
 
 // decline gives a command the flags that call off an action that would otherwise
-// run. Every action runs, so what an action's own flag can say is that this
-// worktree is not its business, which is the other way round from an opener's.
-// An action spelling no flag runs whenever a worktree comes into being.
+// run. An action spelling no flag runs whenever a worktree comes into being.
 func decline(cmd *cobra.Command, o *options, actions []work.Action) {
 	for _, a := range actions {
 		f, ok := a.(worktree.Flagged)
@@ -184,8 +170,7 @@ func decline(cmd *cobra.Command, o *options, actions []work.Action) {
 }
 
 // spelling is the flag an opener answers to and the line --help shows for it. An
-// opener that spells neither is named by the flag its own name spells, there
-// being nothing else it is called.
+// opener that spells neither is named by the flag its own name spells.
 func spelling(op work.Opener) (name, usage string) {
 	if f, ok := op.(worktree.Flagged); ok {
 		return f.Flag()
@@ -194,8 +179,7 @@ func spelling(op work.Opener) (name, usage string) {
 }
 
 // boolFlag declares a flag that stands for itself and calls set where it was
-// given. A value spelled out is read, so a flag given false settles nothing, as
-// a plain bool flag does.
+// given. A value spelled out is read, so --flag=false settles nothing.
 func boolFlag(cmd *cobra.Command, name, usage string, set func()) {
 	cmd.Flags().BoolFunc(name, usage, func(v string) error {
 		on, err := strconv.ParseBool(v)
@@ -209,9 +193,8 @@ func boolFlag(cmd *cobra.Command, name, usage string, set func()) {
 	})
 }
 
-// renamedFlag keeps the spelling an action used to answer to, refused with the
-// one it answers to now rather than left to read as a flag work never had. It is
-// hidden, so nothing offers a name that only fails.
+// renamedFlag keeps the spelling an action used to answer to, hidden and refused
+// with the one it answers to now.
 func renamedFlag(cmd *cobra.Command, was, now string) {
 	cmd.Flags().BoolFunc(was, "", func(string) error {
 		return fmt.Errorf("this flag is now --%s", now)

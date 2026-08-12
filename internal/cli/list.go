@@ -6,11 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listCommand is the verb that prints the worktrees open. Which they are is
-// git's own answer, so it is git that is asked and no system beyond it: the
-// picker and the completion are where a resolved name and its title are worth
-// what they cost. It takes no argument and no flag: a name to filter on is
-// switch's.
+// listCommand is the verb that prints the worktrees open, asking git and no
+// system beyond it.
 func listCommand(branches func() ([]string, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -36,8 +33,7 @@ With none open it prints nothing. No tracker and no forge is asked.`,
 	}
 }
 
-// branchListing is what list prints: the repository's worktrees as git reports
-// them, no resolver asked.
+// branchListing is what list prints: the repository's worktrees as git reports them.
 func (v verbs) branchListing() ([]string, error) {
 	env, err := v.repository()
 	if err != nil {

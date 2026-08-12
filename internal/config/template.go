@@ -6,9 +6,8 @@ import (
 )
 
 // tmpl is one [text/template] kept alongside the text it was written as, so that
-// a refusal can quote it. Every setting that renders is parsed here, so
-// missingkey=error, which is what refuses a value the key does not have, is
-// settled for all of them at once.
+// a refusal can quote it. Every setting that renders is parsed here, under
+// missingkey=error.
 type tmpl struct {
 	t    *template.Template
 	text string

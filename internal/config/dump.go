@@ -10,9 +10,8 @@ import (
 // compiledIn is the layer a key no file set came from.
 const compiledIn = "the compiled-in default"
 
-// Dump renders the merged configuration as TOML, each key under a comment
-// naming the layer that set it, so what it prints is also what work would load
-// back in the repository it was read for.
+// Dump renders the merged configuration as TOML, each key under a comment naming
+// the layer that set it. What it prints is what work would load back.
 func Dump(repo string) (string, error) {
 	c, from, err := merge(repo)
 	if err != nil {
@@ -63,9 +62,8 @@ func (c Config) keys() []key {
 	}
 }
 
-// layer names where a value came from. The repository's file is named as it is
-// written rather than by its path, being always at the root of the checkout the
-// dump was taken in.
+// layer names where a value came from, the repository's file as it is written
+// rather than by its path.
 func layer(path, repo string) string {
 	switch path {
 	case "":
@@ -77,7 +75,7 @@ func layer(path, repo string) string {
 }
 
 // argv is a command as it was written, element by element, rather than as it
-// renders, a rendering needing a target.
+// renders.
 func argv(c Command) []string {
 	out := make([]string, len(c.parts))
 	for i, p := range c.parts {
@@ -86,8 +84,8 @@ func argv(c Command) []string {
 	return out
 }
 
-// value is one setting as a settings file spells it. The quoting is the package
-// that reads it back doing it, so printing and reading cannot drift apart.
+// value is one setting as a settings file spells it, quoted by the package that
+// reads it back.
 func value(v any) string {
 	out, err := toml.Marshal(v)
 	if err != nil {

@@ -1,7 +1,4 @@
-// Package beads claims the ticket a worktree was made for. It is the far half of
-// the system internal/resolve/beads is the near half of, over the one bd client
-// both sit on: resolving a ticket names its worktree, and the worktree coming
-// into being is what claiming it means.
+// Package beads claims the ticket a worktree was made for.
 package beads
 
 import (
@@ -27,10 +24,8 @@ func (c Claim) Flag() (string, string) {
 	return "no-claim", "create the worktree without claiming the ticket; the vetting still applies"
 }
 
-// Run claims the ticket. The name is the whole question: this system's own
-// resolver is what sources a place to it, so a place sourced anywhere else is
-// another tracker's and bd is left out of it. Only a worktree this run created
-// reaches an action, so there is no re-entry to keep out of bd's history.
+// Run claims the ticket, and only where this system's own resolver sourced the
+// place: one sourced anywhere else is another tracker's.
 func (c Claim) Run(t worktree.Tree) error {
 	if t.Source != Name {
 		return nil

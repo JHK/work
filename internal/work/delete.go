@@ -14,12 +14,9 @@ type Deletion struct {
 	Branch string
 }
 
-// Delete removes a worktree and the branch it had checked out, git's own commands
-// and nothing besides: no ticket is touched, no tracker asked and no action run,
-// so a bead's worktree, a pull request's and a bare one all go the same way.
-//
-// The two go together or neither goes, so no refusal leaves a branch behind that
-// git alone could clear and that makes Create refuse the name later.
+// Delete removes a worktree and the branch it had checked out. No ticket is
+// touched, no tracker asked and no action run. The two are meant to go together
+// or not at all; where only one half lands, the error names what stayed.
 func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
 	if !c.Open {
 		return Deletion{}, fmt.Errorf("%s has no worktree to remove", c.Name)
@@ -41,10 +38,8 @@ func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
 	return Deletion{Path: c.path, Branch: c.branch}, nil
 }
 
-// take is the forced pair: git refuses neither half, so the worktree goes and the
-// branch follows it. That order is also the only one open to a worktree git will
-// not detach, one whose index is unresolved among them, which is what --force is
-// reached for in the first place.
+// take is the forced pair: git refuses neither half, and this order is the only
+// one open to a worktree git will not detach.
 func (e Env) take(c Candidate) error {
 	if err := git.RemoveWorktree(e.Repo, c.path, true); err != nil {
 		return err
@@ -58,10 +53,8 @@ func (e Env) take(c Candidate) error {
 	return nil
 }
 
-// weigh is the unforced pair, where either half can be refused and neither may go
-// without the other, so both of git's gates are weighed before anything is
-// removed: the status git weighs a worktree by, and the deletion git judges a
-// branch by, which is asked of a branch whose worktree is still standing.
+// weigh is the unforced pair: either half can be refused, so both of git's gates
+// are weighed before anything is removed.
 func (e Env) weigh(c Candidate) error {
 	dirty, err := git.Dirty(c.path)
 	if err != nil {
@@ -76,10 +69,7 @@ func (e Env) weigh(c Candidate) error {
 			return fmt.Errorf("%w; %s stayed with it, and --force takes both", err, c.Name)
 		}
 	}
-	// git found no modified or untracked files and the branch is already gone, so
-	// little is left to refuse the removal; a locked worktree still can. What that
-	// leaves is a worktree work remove still reaches, and never a branch nothing can
-	// clear.
+	// Little is left to refuse the removal now, though a locked worktree still can.
 	if err := git.RemoveWorktree(e.Repo, c.path, false); err != nil {
 		if !branched {
 			return err

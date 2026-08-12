@@ -10,12 +10,9 @@ import (
 )
 
 // Claude is the agent's table: whether the action runs at all, and the commands
-// it runs. Each command falls back to defaultClaude on its own, so a config
-// pointing the action at another binary sets every one of them: what starts a
-// conversation is what returns to it. An unset command is the compiled-in one,
-// so a Config that never reached Load still names something to run; whether the
-// action runs at all is [Shipped]'s to say, this table holding only the commands
-// it would run.
+// it runs. Each command falls back to defaultClaude on its own, so an unset one
+// is the compiled-in command and a config pointing the action at another binary
+// sets every one of them.
 type Claude struct {
 	Enabled                 bool
 	StartTicketCommand      Command `toml:"start-ticket"`
@@ -71,9 +68,6 @@ func (c *Claude) validate() (string, error) {
 	return "", nil
 }
 
-// defaultClaude is the session work opened before any of this was a setting,
-// less the review prompt a pull request used to get, which is the reviewer's to
-// choose.
 var defaultClaude = Claude{
 	StartTicketCommand: mustCommand(startTicketValues,
 		"claude", "--permission-mode", "auto",
@@ -92,8 +86,7 @@ var defaultClaude = Claude{
 	),
 }
 
-// Open is what a worktree is handed over to when no session is started. An unset
-// command is the compiled-in one, as [Claude]'s are.
+// Open is what a worktree is handed over to when no session is started.
 type Open struct {
 	ShellCommand Command `toml:"shell"`
 }
@@ -141,18 +134,14 @@ var (
 	shellValues            = keyValues{shellKey, slices.Concat(common, []string{"Shell"})}
 )
 
-// ErrUnsupplied is a value the key places that nothing in the wiring supplied,
-// which is the one refusal a caller choosing between keys may pass over: what it
-// says about the key is that this worktree is not the one that key is for.
-// Everything else a render refuses with is a key that cannot name a command
-// whatever the worktree is.
+// ErrUnsupplied is a value the key places that nothing in the wiring supplied. It
+// is the one refusal a caller choosing between keys may pass over: it says this
+// worktree is not the one that key is for.
 var ErrUnsupplied = errors.New("nothing here supplies")
 
 // data is what one render is given: the values the key has and no others, so a
 // template naming another fails rather than quietly rendering nothing. A name the
-// key has that nothing supplied is refused here rather than left to the template, so
-// that a value no system in the wiring knows how to supply reads as that rather than
-// as a missing map key.
+// key has that nothing supplied is refused here as [ErrUnsupplied].
 func (v keyValues) data(vals worktree.Values) (map[string]any, error) {
 	data := make(map[string]any, len(v.names))
 	for _, name := range v.names {
@@ -169,8 +158,8 @@ func (v keyValues) data(vals worktree.Values) (map[string]any, error) {
 // command rendering with it renders with anything.
 const mark = "x"
 
-// fill is every value the key has, set to the one mark. Binding renders both arms a
-// key makes, an empty one and a filled one.
+// fill is every value the key has, set alike: binding probes an empty arm and a
+// filled one.
 func (v keyValues) fill(value string) worktree.Values {
 	vals := make(worktree.Values, len(v.names))
 	for _, name := range v.names {
@@ -189,8 +178,7 @@ func (v keyValues) list() string {
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as
-// an array of strings, one per argv element. Which values it may place follows
-// from the key it was read from, so bind judges that later.
+// an array of strings, one per argv element. bind judges the values later.
 func (c *Command) UnmarshalTOML(v any) error {
 	list, ok := v.([]any)
 	if !ok {
@@ -266,9 +254,7 @@ func (c Command) or(def Command) Command {
 }
 
 // Render builds the argv, dropping every element that renders to nothing, so an
-// optional flag is one element rather than a pair. bind settled which values are
-// named here, and refused every command that could fail to render for them; what
-// is left to fail is a value nothing supplied.
+// optional flag is one element rather than a pair.
 func (c Command) Render(vals worktree.Values) ([]string, error) {
 	data, err := c.values.data(vals)
 	if err != nil {

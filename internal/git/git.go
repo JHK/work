@@ -11,9 +11,8 @@ import (
 	"github.com/JHK/work-cli/internal/run"
 )
 
-// Root reports the main checkout of the repository containing dir, so that
-// running work from inside a linked worktree still nests new worktrees under the
-// main checkout rather than under the current one.
+// Root reports the main checkout of the repository containing dir, so a call
+// from inside a linked worktree still resolves to the main checkout.
 func Root(dir string) (string, error) {
 	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel")
 	if err != nil {
@@ -23,13 +22,11 @@ func Root(dir string) (string, error) {
 	commonDir, toplevel, _ := strings.Cut(rest, "\n")
 	commonDir = filepath.Clean(commonDir)
 
-	// The two directories differ only inside a linked worktree. Everywhere else
-	// the top level is right whatever layout the git directory has.
+	// The two differ only inside a linked worktree.
 	if filepath.Clean(gitDir) == commonDir {
 		return toplevel, nil
 	}
-	// Inside one, the main checkout is where the common git directory sits: the
-	// rule git itself applies to report it as the first worktree of the list.
+	// Inside one, the main checkout is where the common git directory sits.
 	if filepath.Base(commonDir) == ".git" {
 		return filepath.Dir(commonDir), nil
 	}
@@ -98,8 +95,7 @@ func HasBranch(repo, branch string) bool {
 	return err == nil
 }
 
-// origin is the one remote work reads: a pull request is fetched from it, so it
-// is the repository whose pull requests are worth offering.
+// origin is the one remote work reads.
 const origin = "origin"
 
 // OriginURL reports where origin points, or "" where the repository has no such
@@ -143,11 +139,9 @@ func DeleteBranch(repo, branch string, force bool) error {
 	return forced(repo, force, "branch", "--delete", branch)
 }
 
-// DeleteCheckedOutBranch deletes a branch a worktree still has checked out, which
-// git judges only once no worktree holds it: the worktree is detached for the
-// question to be asked at all, and put back on the branch where git refuses, so
-// its refusal leaves the worktree standing where it stood. It is unforced by
-// nature — forced, git judges nothing and the worktree can simply go first.
+// DeleteCheckedOutBranch deletes a branch a worktree still has checked out. The
+// worktree is detached for git to judge the deletion at all, and put back on the
+// branch where git refuses, so a refusal leaves the worktree where it stood.
 func DeleteCheckedOutBranch(repo, worktree, branch string) error {
 	if err := detach(worktree); err != nil {
 		return err
@@ -161,9 +155,8 @@ func DeleteCheckedOutBranch(repo, worktree, branch string) error {
 	return nil
 }
 
-// detach points a worktree at the commit it is on rather than at the branch. HEAD
-// does not move, so the files under it are left exactly as they are, modified and
-// untracked ones included. A worktree whose index is unresolved is refused.
+// detach points a worktree at the commit it is on rather than at the branch,
+// leaving the files under it alone. A worktree whose index is unresolved is refused.
 func detach(worktree string) error {
 	_, err := git(worktree, "checkout", "--detach")
 	return err
@@ -175,9 +168,8 @@ func checkout(worktree, branch string) error {
 	return err
 }
 
-// Dirty reports whether a worktree holds modified or untracked files, which is
-// the status git's own worktree removal weighs it by. Ignored files are no more
-// dirty here than they are there.
+// Dirty reports the status git's own worktree removal weighs a worktree by:
+// whether it holds modified or untracked files, ignored ones excepted.
 func Dirty(worktree string) (bool, error) {
 	out, err := git(worktree, "status", "--porcelain", "--ignore-submodules=none")
 	if err != nil {
@@ -186,8 +178,7 @@ func Dirty(worktree string) (bool, error) {
 	return out != "", nil
 }
 
-// forced runs a git command that takes --force, which git accepts after the
-// positional as readily as before it.
+// forced runs a git command, appending --force where asked.
 func forced(dir string, force bool, args ...string) error {
 	if force {
 		args = append(args, "--force")
@@ -197,8 +188,7 @@ func forced(dir string, force bool, args ...string) error {
 }
 
 // add makes the directory the worktree goes in, then adds it. -q leaves the
-// progress line off stderr, where a failure's own message is read from. git
-// takes its options after the path as readily as before it.
+// progress line off stderr, where a failure's own message is read from.
 func add(dir, path string, args ...string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

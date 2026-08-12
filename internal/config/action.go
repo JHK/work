@@ -34,13 +34,11 @@ const (
 var actionNames = []string{string(ActionClaude), string(ActionShell)}
 
 // renamed are the names an action used to go by, so a file written before a
-// rename is told which name to write instead of being told what it names is
-// unknown. An implementation's table of keys is named for the action, so one
-// pair covers a file spelling either the old way.
+// rename is told which name to write instead. One pair covers the action's key,
+// its flag and its table.
 var renamed = map[ActionName]ActionName{"agent": ActionClaude}
 
-// Renamed are the names this action used to go by. A key and a flag spell the
-// one name, so a flag it used to answer to is this same table read backwards.
+// Renamed are the names this action used to go by.
 func Renamed(now ActionName) []ActionName {
 	var was []ActionName
 	for old, is := range renamed {
@@ -86,8 +84,6 @@ func (n ActionName) validate() error {
 	return fmt.Errorf("%q is not an action; the actions are %s", n, strings.Join(actionNames, ", "))
 }
 
-// defaultAction is what work opens on where neither key names anything: the
-// shell either way, navigation being the remit. Neither name may be one a system
-// has to be on for, these being what a repository that configured nothing gets.
-// A repository that turns the agent on names claude in create.
+// defaultAction is what work opens on where neither key names anything. Neither
+// name may be one a system has to be switched on for.
 var defaultAction = Action{CreateName: ActionShell, EnterName: ActionShell}

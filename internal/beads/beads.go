@@ -8,8 +8,7 @@ import (
 	"github.com/JHK/work-cli/internal/run"
 )
 
-// Command is the tracker itself, which both halves of the system are switched
-// off without.
+// Command is the tracker itself.
 const Command = "bd"
 
 // Bead carries the fields work needs to name a worktree and judge whether the
@@ -52,9 +51,8 @@ func Claim(repo, id string) error {
 	return err
 }
 
-// CreateWorktree adds a worktree wired to the repository's shared database,
-// forked from what the checkout at from has at HEAD: bd takes no fork point of
-// its own, so the git worktree add underneath reads HEAD where bd stands.
+// CreateWorktree adds a worktree wired to the repository's shared database. bd
+// takes no fork point, so the branch forks from what the checkout at from has at HEAD.
 func CreateWorktree(from, path, branch string) error {
 	_, err := bd(from, "worktree", "create", path, "--branch", branch)
 	return err

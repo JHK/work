@@ -1,7 +1,6 @@
 // Package testenv is the ground the tests stand on: throwaway repositories, a
 // settings home of the test's own, the files put in either, and stand-ins for
-// the tools a test would otherwise reach on PATH, with whatever the machine
-// running the tests keeps of its own kept out of all four.
+// the tools a test would otherwise reach on PATH.
 package testenv
 
 import (
@@ -15,12 +14,9 @@ import (
 )
 
 // Main runs a package's tests against a settings home nobody has written to and
-// a git that reads no configuration but the repository's own, so a test that
-// never thinks about the machine it runs on cannot be answered by it.
+// a git that reads no configuration but the repository's own. It isolates the
+// whole process, so the code under test inherits it too.
 //
-// It is the whole process it isolates, which is what puts it here rather than at
-// each site that runs git: the code under test spawns git itself, through
-// internal/run, and inherits this environment as the tests below do.
 // A package whose tests reach the settings or git declares one TestMain reaching
 // this, which TestEveryTestPackageReachingGitOrTheSettingsIsIsolated holds to.
 func Main(m *testing.M) {
@@ -35,9 +31,8 @@ func Main(m *testing.M) {
 		}
 	}
 	set("XDG_CONFIG_HOME", dir)
-	// The runner's own git config would otherwise decide what git does:
-	// commit.gpgsign makes an empty commit depend on a working key, and
-	// status.showUntrackedFiles on whether a worktree refuses to be removed.
+	// The runner's own git config would otherwise decide what git does: gpgsign on
+	// an empty commit, showUntrackedFiles on whether a worktree can be removed.
 	set("GIT_CONFIG_GLOBAL", os.DevNull)
 	set("GIT_CONFIG_SYSTEM", os.DevNull)
 	// An identity, because a repository reading no config has none to commit under.
@@ -66,9 +61,8 @@ func InitRepo(t *testing.T) string {
 	return dir
 }
 
-// Git runs one git command and hands back its stdout, for the callers that are
-// asking git something rather than telling it something. It reaches git the way
-// the code under test does, through the environment Main left.
+// Git runs one git command and hands back its stdout, reaching git the way the
+// code under test does.
 func Git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	out, err := run.Output(dir, "git", args...)
@@ -88,18 +82,16 @@ type Stub struct {
 	Shell string
 }
 
-// Stubs puts a stand-in for each tool on PATH ahead of whatever the machine
-// running the tests has installed, and hands back what they were asked to run:
-// one line per invocation, the tool and its arguments, in the order they ran.
-// Reaching for a tool is then a line in that log rather than the tool itself.
+// Stubs puts a stand-in for each tool on PATH ahead of whatever the machine has
+// installed, and hands back what they were asked to run: one line per
+// invocation, the tool and its arguments, in the order they ran.
 func Stubs(t *testing.T, stubs ...Stub) func() []string {
 	t.Helper()
 	dir := t.TempDir()
 	log := filepath.Join(dir, "log")
 	for _, s := range stubs {
-		// What the stub answers with goes in a file of its own rather than into
-		// the script, so that quotes and newlines in it reach the caller as they
-		// were written.
+		// In a file rather than in the script, so quotes and newlines reach the caller
+		// as they were written.
 		says := ""
 		if s.Says != "" {
 			answer := filepath.Join(dir, "says-"+s.Name)
@@ -121,8 +113,7 @@ func Stubs(t *testing.T, stubs ...Stub) func() []string {
 		}
 		var ran []string
 		for line := range strings.SplitSeq(string(out), "\n") {
-			// A tool called with no arguments records its name and the empty rest
-			// of the line, which is not what it was asked.
+			// A tool called with no arguments records its name and an empty rest.
 			if line = strings.TrimSpace(line); line != "" {
 				ran = append(ran, line)
 			}

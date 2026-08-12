@@ -1,10 +1,6 @@
 // Package worktree holds the vocabulary the core and the systems behind its two
 // seams both speak: the place a resolver makes of an identifier, the worktree an
-// action is handed, the command it opens on, and the one answer either seam
-// gives that the core acts on rather than reports.
-//
-// It is a leaf, so an implementation speaks the core's vocabulary without
-// importing the core, and the interfaces are declared where they are consumed.
+// action is handed, and the command it opens on.
 package worktree
 
 import (
@@ -17,13 +13,9 @@ import (
 )
 
 // Place is one place to work, as the resolver that owns it describes it. The
-// core reads Name and Branch, needing a directory to make and a branch to check
-// out; the rest is for whoever draws it or is handed it.
+// core reads Name and Branch; the rest is for whoever draws it or is handed it.
 type Place struct {
-	// Source is the resolver that answered for it, under the name it goes by. The
-	// core stamps it from the resolver it asked, so a resolver leaves it alone and
-	// the name a system goes by is spelled once, by [System.Name].
-	Source string
+	Source string // the resolver that answered for it, stamped by the core
 	ID     string // what that resolver calls this place
 	Name   string // what a row shows, what the user retypes, and the directory
 	Branch string // what its worktree checks out, named by Prepare where creating names it
@@ -37,15 +29,12 @@ type Open struct {
 	Branch string // empty where the worktree is detached
 }
 
-// None reports whether there is no worktree in hand. git always names a path, so a
-// resolver shown none is being asked about an identifier alone.
+// None reports whether there is no worktree in hand, the resolver being asked
+// about an identifier alone.
 func (o Open) None() bool { return o.Path == "" }
 
 // Name is what a worktree goes by where nothing behind it names it: the branch
-// it has checked out, or its directory where it is detached and has no branch to
-// be named by. It is the vocabulary's rather than any one reader's, a listing
-// and the resolver that adopts whatever nothing else claims having to spell the
-// one worktree the same way.
+// it has checked out, or its directory where it is detached.
 func (o Open) Name() string { return cmp.Or(o.Branch, filepath.Base(o.Path)) }
 
 // Tree is a worktree that exists, which is the only thing an action is handed.
@@ -54,10 +43,8 @@ type Tree struct {
 	Path    string
 	Created bool // this run made it, rather than found it
 
-	// By is the resolver that answered for the place. An action wanting more than
-	// a Place carries declares the interface it needs and asserts this to it, so
-	// what a tracker can tell an agent is between those two and reaches the core as
-	// neither an import nor a switch.
+	// By is the resolver that answered for the place. An action wanting more than a
+	// Place carries declares the interface it needs and asserts this to it.
 	By System
 }
 
@@ -67,9 +54,8 @@ type System interface {
 	Name() string
 }
 
-// Drawn is a system that says how a screen marks the rows it answers for. How a
-// row reads is then the implementation's, and a system that says nothing is
-// drawn unmarked rather than drawn by a front end that knows who it is.
+// Drawn is a system that says how a screen marks the rows it answers for. One
+// that says nothing is drawn unmarked.
 type Drawn interface {
 	System
 
@@ -78,11 +64,8 @@ type Drawn interface {
 }
 
 // Flagged is a system a flag on the command line spells: the name it answers to
-// and the line --help shows for it. Which way the flag runs is which seam the
-// system sits on, one action opening the worktree and every other one running:
-// an opener's flag names it, and an action's declines it.
-//
-// A system that spells none is reached by the settings alone.
+// and the line --help shows for it. An opener's flag names it and an action's
+// declines it; a system that spells none is reached by the settings alone.
 type Flagged interface {
 	System
 
@@ -90,15 +73,9 @@ type Flagged interface {
 }
 
 // Claimant is a system that knows its own identifiers by the way they are
-// spelled: a pull request URL is a forge's whether or not the forge can be
-// reached, where no tracker can tell a ticket id from a typo without asking the
-// tracker.
-//
-// It is the one question a system the settings left out is asked, so answering it
-// may reach nothing that switching the system off was there to stop. A system that
-// could only answer by asking claims nothing and declares no such thing: an
-// identifier that would merely have been left to it is refused as one nothing
-// answers for rather than attributed to it.
+// spelled, without reaching anything: it is the one question a system the
+// settings left out is asked. A system that could only answer by asking claims
+// nothing and does not implement this.
 type Claimant interface {
 	System
 
@@ -108,15 +85,12 @@ type Claimant interface {
 }
 
 // Values are what a command renders with, keyed by the name a template places
-// rather than by a field: which values exist is what the systems wired together
-// happen to know between them, and not something the code settles in advance. A
-// name nothing supplied is a command that cannot run; one supplied empty is a
-// command element that drops out.
+// rather than by a field. A name nothing supplied is a command that cannot run;
+// one supplied empty is a command element that drops out.
 type Values map[string]string
 
-// Merge takes in what another source supplied. The first source asked owns a
-// name, so the resolver that answered for the place is asked ahead of the ambient
-// ones and its answer is the one a command sees.
+// Merge takes in what another source supplied, leaving every name already set
+// alone: the first source asked owns a name.
 func (v Values) Merge(other Values) {
 	for name, value := range other {
 		if _, taken := v[name]; !taken {
@@ -126,26 +100,18 @@ func (v Values) Merge(other Values) {
 }
 
 // Source is a system that knows values a command may need. Every source is asked
-// and the answers are merged, so a value reaches a command from whichever system
-// knows it without either of them naming the other: what the beads resolver can
-// tell a session about a ticket is the same arrangement as what the environment
-// can tell one about a shell.
-//
-// Every source is asked once, of a worktree that exists: whatever a system needs
-// to read from inside one, it has one to read.
+// once, of a worktree that exists, and the answers are merged.
 type Source interface {
 	Supply(t Tree) (Values, error)
 }
 
-// ErrUnknown is the one answer a resolver gives that the core acts on rather
-// than reports: an identifier or an open worktree this resolver does not answer
-// for, which the next resolver is then asked about. Every other error stops the
-// run, a tracker that cannot be reached above all.
+// ErrUnknown means a resolver does not answer for the identifier or open
+// worktree it was shown, and the next resolver is asked about it. Every other
+// error stops the run.
 var ErrUnknown = errors.New("no system answers for it")
 
 // Handoff is what a worktree opens on: work replaces itself with this command,
-// running inside the worktree. Rendering one is free of consequence; running it
-// is the last thing the process does.
+// running inside the worktree.
 type Handoff struct {
 	Dir string
 	Run []string
@@ -156,8 +122,7 @@ func (h Handoff) Exec() error {
 	if len(h.Run) == 0 {
 		return errors.New("nothing to run")
 	}
-	// Resolved before the chdir, so a failure here leaves the process where it
-	// started.
+	// Resolved before the chdir, so a failure leaves the process where it started.
 	bin, err := exec.LookPath(h.Run[0])
 	if err != nil {
 		return err

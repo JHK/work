@@ -1,6 +1,5 @@
 // Package github resolves the pull requests of the repository's origin into
-// places to work. It is the only thing that speaks to the gh CLI, work's one
-// question to the host being which pull requests are open.
+// places to work. It is the only thing that speaks to the gh CLI.
 package github
 
 import (
@@ -40,21 +39,17 @@ func New(repo string, branch config.Branch) Resolver {
 
 func (Resolver) Name() string { return Name }
 
-// Icon marks a row that stands for a review: two ways, a change and a verdict.
+// Icon marks a row that stands for a review.
 func (Resolver) Icon() string { return "⇄" }
 
-// Identify names the pull request behind what the core is holding: an identifier read
-// by [Resolver.read], or a worktree, whose branch is the name a pull request already
-// carries, so nothing about it can have moved on and the spelling settles it. A
-// worktree is only its own where the branch is one the pattern names itself, so that
-// pr-007, which canonicalises to pr-7, does not stand for a worktree elsewhere.
+// Identify names the pull request behind what the core is holding: an identifier
+// read by [Resolver.read], or a worktree, which is its own only where the branch
+// is one the pattern names itself, so pr-007 does not stand for pr-7's worktree.
 func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return r.read(id)
 	}
-	// An identifier to confirm where the core has one, else the branch itself. Either
-	// way a refusal here means the worktree is no pull request's of ours rather than
-	// that the run should stop, which a bad identifier typed at the verb does mean.
+	// An identifier to confirm where the core has one, else the branch itself.
 	p, err := r.read(cmp.Or(id, o.Branch))
 	if err != nil || p.Name != o.Branch {
 		return worktree.Place{}, notOurs(o)
@@ -89,11 +84,8 @@ func (r Resolver) read(arg string) (worktree.Place, error) {
 	return r.place(strconv.FormatUint(i, 10), ""), nil
 }
 
-// Claims says which identifiers are this forge's by their spelling alone, gh being
-// asked nothing: a pull request URL is one wherever the host is, which is what makes
-// it a question a forge switched off can still answer. A number this resolver
-// recognises and can make no pull request of is claimed by nobody, turning the forge
-// back on being no answer either.
+// Claims says which identifiers are this forge's by their spelling alone, gh
+// being asked nothing.
 func (r Resolver) Claims(id string) (worktree.Place, bool) {
 	p, err := r.read(id)
 	return p, err == nil
@@ -128,15 +120,13 @@ func (r Resolver) Create(p worktree.Place, path string) error {
 	return git.AddWorktree(r.repo, path, p.Branch)
 }
 
-// Supply is what this resolver tells a command about the worktree it resolved: the
-// pull request's number. A key that places it can only be reached by a worktree
-// some forge resolved.
+// Supply is what this resolver tells a command about the worktree it resolved:
+// the pull request's number.
 func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 	return worktree.Values{"Number": t.ID}, nil
 }
 
-// place names a pull request by the branch its worktree checks out, which is what
-// a row shows and what the user retypes.
+// place names a pull request by the branch its worktree checks out.
 func (r Resolver) place(number, title string) worktree.Place {
 	branch := r.pattern.PullRequest(number)
 	return worktree.Place{ID: number, Name: branch, Branch: branch, Label: title}
@@ -152,9 +142,8 @@ type pull struct {
 // prLimit caps the list; gh stops at 30 by default and has no unlimited form.
 const prLimit = "200"
 
-// pulls asks gh which pull requests are open. The remote is named rather than left
-// to gh, which resolves a checkout with several to whichever it prefers, and would
-// list pull requests whose head the fetch could then not find.
+// pulls asks gh which pull requests are open. The remote is named rather than
+// left to gh, which resolves a checkout with several to whichever it prefers.
 func (r Resolver) pulls() ([]pull, error) {
 	remote := git.OriginURL(r.repo)
 	if remote == "" {

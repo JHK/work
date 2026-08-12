@@ -1,8 +1,7 @@
 // Package beads resolves the tickets bd knows into places to work: it names the
 // branch a ticket's worktree checks out, says which open worktree is whose,
 // offers the tickets worth starting, refuses one that cannot be worked, and has
-// bd make the worktree. Claiming the ticket is internal/action/beads, over the
-// same client.
+// bd make the worktree. Claiming the ticket is internal/action/beads.
 package beads
 
 import (
@@ -27,9 +26,8 @@ type Resolver struct {
 	from    string // the checkout work was invoked in, whose HEAD a new branch forks from
 	pattern config.Branch
 
-	// allBeads is every bead bd knows, closed ones included, a worktree outliving
-	// the status of the ticket it was opened for; readyBeads is every bead bd calls
-	// unblocked. Each is made at most once, whichever question asks for it first.
+	// allBeads is every bead bd knows, closed ones included; readyBeads is every
+	// bead bd calls unblocked. Each is listed at most once per run.
 	allBeads, readyBeads func() ([]beads.Bead, error)
 
 	held sync.Map // id -> beads.Bead, the records already in hand
@@ -53,34 +51,24 @@ func (r *Resolver) Icon() string { return "◆" }
 
 // Identify names the bead behind what the core is holding.
 //
-// An identifier alone is taken at its word and bd is not asked: every name a worktree
-// could carry is a possible id, so this resolver answers last and takes whatever is
-// left. Whether bd knows the id is settled where it matters, by [Resolver.Prepare].
-// It follows that no identifier is this system's by its spelling, so it claims none
-// ([worktree.Claimant]) and a name is never attributed to a tracker that is off:
-// telling a bead from a typo is the question only bd answers.
+// An identifier alone is taken at its word and bd is not asked, so this resolver
+// answers last and takes whatever is left; whether bd knows the id is
+// [Resolver.Prepare]'s question.
 //
-// A worktree is named by the longest id bd knows that owns its branch, so a branch of
-// one-two's does not fall to one. A bd that will not list names none of them, and the
-// worktree is a plain one until it does. An identifier to confirm is settled by the
-// branch pattern first, because the title has moved on since the branch was named and
-// the branch no longer spells what the id would render today; that asks bd nothing,
-// which is what reaches a worktree already open while bd is unreachable.
+// A worktree is named by the longest id bd knows that owns its branch. A bd that
+// will not list names none of them, and the worktree is a plain one until it does.
 func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return worktree.Place{ID: id, Name: id}, nil
 	}
-	// Ahead of the listing, so the branch is ruled out by the pattern alone wherever it
-	// can be, and bd is left unasked on the one path that must not need it.
+	// Ahead of the listing: confirming an identifier against a branch must not need bd.
 	if id != "" && !r.pattern.Owns(id, o.Branch) {
 		return worktree.Place{}, notMine(o)
 	}
 
 	found := r.longest(o.Branch)
 	if id != "" {
-		// A longer id bd knows owns this branch, so the branch is that ticket's rather
-		// than this one's. Where bd named nothing, no id is longer and the pattern has
-		// already settled it.
+		// A longer id bd knows owns this branch, so the branch is that ticket's.
 		if len(found) > len(id) {
 			return worktree.Place{}, notMine(o)
 		}
@@ -105,22 +93,17 @@ func (r *Resolver) Offer() ([]worktree.Place, error) {
 	}
 	out := make([]worktree.Place, 0, len(list))
 	for _, b := range list {
-		// Kept whole, so that entering one of these vets it against the very snapshot
-		// that called it ready rather than asking bd again for what it already said.
+		// Kept whole, so entering one of these vets it against the snapshot that called
+		// it ready rather than asking bd again.
 		r.held.Store(b.ID, b)
 		out = append(out, worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title})
 	}
 	return out, nil
 }
 
-// Prepare names the branch the ticket's worktree will check out, or says why the
-// ticket may not be worked at all. Both are here because a worktree coming into
-// being is what beginning work on a ticket means: the branch takes a slug of the
-// title, which is only knowable once bd has answered, and the refusal has to
-// hold whether or not the claim that follows it is declined.
-//
-// It asks bd and nothing more, so the core can run it ahead of the creation and a
-// ticket that cannot be worked leaves nothing behind.
+// Prepare names the branch the ticket's worktree will check out, a slug of the
+// title following the id, or says why the ticket may not be worked at all. It
+// asks bd and nothing more.
 func (r *Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 	b, err := r.bead(p.ID)
 	if err != nil {
@@ -140,17 +123,13 @@ func (r *Resolver) Create(p worktree.Place, path string) error {
 	return beads.CreateWorktree(r.from, path, p.Branch)
 }
 
-// Supply is what this resolver tells a command about the worktree it resolved: the
-// ticket's id and title. A command whose key places neither is rendered without
-// them and never learns a tracker was involved, and a key that places them can only
-// be reached by a worktree some tracker resolved.
+// Supply is what this resolver tells a command about the worktree it resolved:
+// the ticket's id and title.
 func (r *Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 	return worktree.Values{"ID": t.ID, "Title": t.Label}, nil
 }
 
-// vet reports why the bead cannot be worked. Only the last rule asks bd whether
-// the bead is currently unblocked, so every verdict reached ahead of it costs no
-// query.
+// vet reports why the bead cannot be worked. Only the last rule asks bd anything.
 func (r *Resolver) vet(b beads.Bead) error {
 	switch {
 	case b.Status == "closed":
@@ -179,8 +158,7 @@ func (r *Resolver) vet(b beads.Bead) error {
 	return nil
 }
 
-// workable asks whether bd lists the bead as unblocked. The ready listing the
-// picker was drawn from answers it where there was one.
+// workable asks whether bd lists the bead as unblocked.
 func (r *Resolver) workable(id string) (bool, error) {
 	list, err := r.readyBeads()
 	if err != nil {
@@ -191,8 +169,7 @@ func (r *Resolver) workable(id string) (bool, error) {
 }
 
 // bead is the record for an id: one already in hand, else the full listing's own,
-// else bd asked for it outright, which is also where a name bd does not know is
-// refused. In hand first, so a bead the picker offered costs no query at all.
+// else bd asked for it outright, which is where a name bd does not know is refused.
 func (r *Resolver) bead(id string) (beads.Bead, error) {
 	if b, ok := r.held.Load(id); ok {
 		return b.(beads.Bead), nil
@@ -208,9 +185,8 @@ func (r *Resolver) bead(id string) (beads.Bead, error) {
 	return b, nil
 }
 
-// record is the bead the full listing named, if it named one. A bd that will not
-// list is not a bd that will not answer, so a miss here falls through to a query
-// rather than to a refusal.
+// record is the bead the full listing named, if it named one. A miss falls
+// through to a query: a bd that will not list may still answer for one id.
 func (r *Resolver) record(id string) (beads.Bead, bool) {
 	list, err := r.allBeads()
 	if err != nil {

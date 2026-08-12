@@ -59,10 +59,8 @@ var defaults = Branch{
 	PullRequestPattern: mustPattern(defaultPullRequest, pullRequestValues),
 }
 
-// Default is what an unset key falls back to. The core is worktrees, so a
-// repository that says nothing runs on those alone: every system is something it
-// asks for by name, and their tables are left at the zero value, which is off.
-// What work [Shipped] is that same set with every one of them on.
+// Default is what an unset key falls back to. Every system's table is left at
+// the zero value, which is off; [Shipped] is the same set with all of them on.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
@@ -93,9 +91,8 @@ func Load(repo string) (Config, error) {
 	return c, err
 }
 
-// merge is Load, keeping which file last set each key. A dump names those files;
-// refusing a value names the one that gave it rather than whichever layer was
-// read last.
+// merge is Load, keeping which file last set each key, which a dump names and a
+// refusal points at.
 func merge(repo string) (Config, map[string]string, error) {
 	c := Default()
 	from := map[string]string{}
@@ -109,7 +106,7 @@ func merge(repo string) (Config, map[string]string, error) {
 		}
 	}
 	// Once merged, not per layer: a value the layer above replaces is not the one
-	// work uses, and a directory is judged against the repository it is used in.
+	// work uses.
 	if key, err := c.validate(repo); err != nil {
 		return Config{}, nil, fmt.Errorf("%s: %s: %w", from[key], key, err)
 	}
@@ -125,8 +122,7 @@ func files(repo string) []string {
 	return append(paths, repoSettings(repo))
 }
 
-// repoSettings is where a repository keeps its own file, which is also what
-// names that layer wherever a value is traced back to it.
+// repoSettings is where a repository keeps its own file.
 func repoSettings(repo string) string {
 	return filepath.Join(repo, RepoFile)
 }
@@ -175,8 +171,7 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 }
 
 // validate names the key work cannot use the value of, and why. It also ties
-// each pattern and command to the values its key has, which is where either is
-// judged.
+// each pattern and command to the values its key has.
 func (c *Config) validate(repo string) (string, error) {
 	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
 		return ticketKey, err
@@ -211,8 +206,8 @@ func (c *Config) validate(repo string) (string, error) {
 	return "", nil
 }
 
-// contains reports whether path sits below root once symlinks are resolved. What
-// is not on disk yet cannot lead anywhere, so only what resolves is judged.
+// contains reports whether path sits below root once symlinks are resolved. A
+// path not on disk yet cannot lead anywhere, and passes.
 func contains(root, path string) bool {
 	target, err := filepath.EvalSymlinks(path)
 	if err != nil {

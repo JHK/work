@@ -50,11 +50,9 @@ func (b Branch) pullRequest() Pattern { return b.PullRequestPattern.or(defaults.
 type Pattern struct {
 	tmpl tmpl
 
-	// What the pattern matches as: one alternative per state of the optional
-	// value, every literal already quoted and the identifier left as a mark, the
-	// one part a match fills in. numbers is that matcher compiled for the keys
-	// whose identifier reads back out of a branch. Both are settled by bind, once
-	// the key the pattern was read from says which values it has.
+	// What the pattern matches as: one alternative per state of the optional value,
+	// every literal quoted and the identifier left as a mark. numbers is that
+	// matcher compiled for the keys whose identifier reads back out of a branch.
 	matcher string
 	numbers *regexp.Regexp
 }
@@ -90,8 +88,8 @@ const (
 	anyMark = "\x01"
 )
 
-// UnmarshalText reads one pattern out of a settings file. Which values it may
-// place follows from the key it was read from, so bind judges that later.
+// UnmarshalText reads one pattern out of a settings file. bind judges the values
+// later.
 func (p *Pattern) UnmarshalText(text []byte) error {
 	q, err := parsePattern(string(text))
 	*p = q
@@ -141,8 +139,8 @@ func (p *Pattern) bind(v values) error {
 	}
 	p.matcher = `\A(?:` + strings.Join(alts, "|") + `)\z`
 
-	// Nothing but the identifier, which every match quotes, varies from one match
-	// to the next, so a matcher compiling here compiles at every one of them.
+	// Nothing but the identifier varies from one match to the next, so a matcher
+	// compiling here compiles at every one of them.
 	numbers, err := regexp.Compile(strings.ReplaceAll(p.matcher, idMark, `([0-9]+)`))
 	if err != nil {
 		return err
@@ -161,8 +159,7 @@ func (p Pattern) or(def Pattern) Pattern {
 	return p
 }
 
-// render names one branch. bind refused every pattern that could fail to render
-// for the values named here.
+// render names one branch.
 func (p Pattern) render(data map[string]any) string {
 	branch, err := p.tmpl.execute(data)
 	if err != nil {

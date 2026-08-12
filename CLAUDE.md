@@ -21,3 +21,11 @@ Routing by question type:
 | "Why is X shaped this way?" | [docs/explanation/](docs/explanation/AGENTS.md) |
 
 Open the subfolder's `AGENTS.md` first, then skim the folder's filenames and title lines and open only what the question needs. Never pre-load a folder.
+
+## Comments
+
+Inside a function body, comment only where the intent is not evident from the code, in as few words as that takes, never past two lines.
+
+A doc comment says what the symbol is or does for whoever calls it, and stops there. Only one on an exported symbol may run longer, and only where a caller needs that behaviour.
+
+No comment justifies a design choice, restates the code beneath it, or explains a package's architecture. That reasoning goes in [docs/explanation/](docs/explanation/AGENTS.md), its invariants in [docs/rules/](docs/rules/AGENTS.md), and is dropped rather than moved where those already carry it.

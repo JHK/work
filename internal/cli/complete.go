@@ -26,9 +26,8 @@ func (v verbs) worktreeListing() ([]work.Candidate, error) {
 	return env.Worktrees()
 }
 
-// suggest answers a tab press on a verb's argument. There is only one, so a
-// second word completes nothing, and a repository that will not answer
-// completes nothing rather than spilling an error into the shell.
+// suggest answers a tab press on a verb's argument. A second word completes
+// nothing, and so does a repository that will not answer.
 func suggest(list func() ([]work.Candidate, error)) cobra.CompletionFunc {
 	return func(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
 		var candidates []work.Candidate

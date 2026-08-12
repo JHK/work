@@ -18,8 +18,7 @@ func dispatch(root *cobra.Command, args []string) []string {
 }
 
 // rootsOwn reports whether the first word is the root's to answer: a flag it
-// declares, the completion request, or a command it carries. Only that last one
-// is cobra's to say, and it says it the same way here as it will on the way in.
+// declares, the completion request, or a command it carries.
 func rootsOwn(root *cobra.Command, args []string) bool {
 	if len(args) == 0 {
 		return false
@@ -31,8 +30,7 @@ func rootsOwn(root *cobra.Command, args []string) bool {
 	if word == cobra.ShellCompRequestCmd || word == cobra.ShellCompNoDescRequestCmd {
 		return true
 	}
-	// The one word, never the rest: Find reads a flag's value off the words
-	// after it, and every flag here is one the root does not declare.
+	// The one word, never the rest: Find reads a flag's value off the words after it.
 	found, _, _ := root.Find(args[:1])
 	return found != root
 }

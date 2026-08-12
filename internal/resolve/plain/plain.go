@@ -1,7 +1,6 @@
 // Package plain resolves a worktree that stands for nothing but itself: one asked
 // for by name outright, or one discovered under a branch no other resolver answers
-// for. It speaks to git and to no system beyond it, so it has no ticket to vet, no
-// title to name a branch from and no values to supply.
+// for. It speaks to git and to no system beyond it.
 package plain
 
 import (
@@ -22,9 +21,7 @@ type Resolver struct {
 }
 
 // New answers for the worktrees the resolvers ahead of it left, and for no
-// identifier at all: a name typed at a verb is something to recognise, and a
-// chain that made a branch of whatever it did not recognise would make one of
-// every typo. [Named] is the same resolver where the name is the user's own.
+// identifier at all. [Named] is the same resolver where the name is the user's own.
 func New(repo, from string) Resolver { return Resolver{repo: repo, from: from} }
 
 // Named is the resolver a verb reaches by name: it takes the name at its word,
@@ -37,21 +34,16 @@ func Named(repo, from string) Resolver {
 
 func (Resolver) Name() string { return Name }
 
-// Icon marks a row that stands for nothing but itself: the ticket's mark, hollow.
+// Icon marks a row that stands for nothing but itself.
 func (Resolver) Icon() string { return "◇" }
 
 // Identify names the place behind what the core is holding.
 //
-// An identifier alone is the verb's own resolver being handed a name: it is taken at
-// its word, the branch spelled exactly as the name is, nothing guessed and nothing
-// asked. In the chain there is no such name — an identifier nothing recognised is one
-// nothing answers for, and what a system would have answered for is the settings
-// leaving that system out.
+// An identifier alone reaches [Named] alone, which takes it at its word and
+// spells the branch exactly as the name is; in the chain there is no such name.
 //
-// A worktree is whatever is left, so that one nothing else recognises is still one to
-// reach; a detached worktree is named by its directory, having no branch to be named
-// by. With an identifier as well it is the directory that settles it, a plain
-// worktree having nothing behind it to be named by and so being only itself.
+// A worktree is whatever is left, named by its directory where it is detached.
+// With an identifier as well it is the directory that settles it.
 func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		if !r.own {

@@ -18,7 +18,7 @@ const (
 
 	openMark = "⎇"
 	// unmarked keeps the column a resolver that named no icon leaves empty, so the
-	// names line up whether or not a row was drawn by whoever answered for it.
+	// names line up.
 	unmarked = " "
 
 	// prompt is what the one question fzf is put reads as.
@@ -94,10 +94,8 @@ func labels(candidates []work.Candidate) []string {
 	return out
 }
 
-// label renders one candidate, making the ones with a worktree stand out
-// because re-entry is the common case. A row is drawn and titled by whichever
-// resolver answered for it, and goes unmarked or untitled where the one that did
-// named neither.
+// label renders one candidate, making the ones with a worktree stand out. A row
+// goes unmarked or untitled where the resolver that answered for it named neither.
 func label(c work.Candidate, width int) string {
 	mark, icon := " ", cmp.Or(c.Icon, unmarked)
 	if c.Open {
