@@ -19,19 +19,19 @@ Values are validated after the merge and before anything is created.
 
 ## Keys
 
-| Key | Default | Names |
-|---|---|---|
-| `<system>.enabled` | `false` | whether that [system](#systems) runs at all |
-| `worktree.directory` | `.worktrees` | a directory inside the main checkout, where a new worktree is created |
-| `branch.ticket` | `{{.ID}}{{with .Slug}}-{{.}}{{end}}` | the branch a ticket's worktree checks out |
-| `branch.pull-request` | `pr-{{.Number}}` | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
-| `action.create` | `shell` | the [action](#actions) a newly created worktree opens on |
-| `action.enter` | `shell` | the [action](#actions) an existing worktree opens on |
-| `claude.start-ticket` | [below](#commands) | the command a ticket's new worktree opens on |
-| `claude.start-pull-request` | [below](#commands) | the command a pull request's new worktree opens on |
-| `claude.start-session` | [below](#commands) | the command a worktree opens on with no ticket and no conversation to name another |
-| `claude.resume-session` | [below](#commands) | the command that returns to the conversation a worktree carries |
-| `open.shell` | [below](#commands) | the command the `shell` action hands the worktree to, `--shell` included |
+| Key | Names |
+|---|---|
+| [`<system>.enabled`](../../internal/config/config.go) | whether that [system](#systems) runs at all |
+| [`worktree.directory`](../../internal/config/config.go) | a directory inside the main checkout, where a new worktree is created |
+| [`branch.ticket`](../../internal/config/config.go) | the branch a ticket's worktree checks out |
+| [`branch.pull-request`](../../internal/config/config.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
+| [`action.create`](../../internal/config/action.go) | the [action](#actions) a newly created worktree opens on |
+| [`action.enter`](../../internal/config/action.go) | the [action](#actions) an existing worktree opens on |
+| [`claude.start-ticket`](../../internal/config/command.go) | the [command](#commands) a ticket's new worktree opens on |
+| [`claude.start-pull-request`](../../internal/config/command.go) | the [command](#commands) a pull request's new worktree opens on |
+| [`claude.start-session`](../../internal/config/command.go) | the [command](#commands) a worktree opens on with no ticket and no conversation to name another |
+| [`claude.resume-session`](../../internal/config/command.go) | the [command](#commands) that returns to the conversation a worktree carries |
+| [`open.shell`](../../internal/config/command.go) | the [command](#commands) the `shell` action hands the worktree to, `--shell` included |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
@@ -95,19 +95,4 @@ Refused at load:
 
 A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed.
 
-The defaults, which rest on [`claude`'s own behaviour](claude.md):
-
-```toml
-[claude]
-start-ticket = [
-  "claude", "--permission-mode", "auto",
-  "--name={{.ID}}: {{.Title}}",
-  "/start {{.ID}}",
-]
-start-pull-request = ["claude", "--name=PR #{{.Number}}"]
-start-session = ["claude", "--permission-mode", "auto", "--name={{.Name}}"]
-resume-session = ["claude", "--resume", "{{.Session}}"]
-
-[open]
-shell = ["{{.Shell}}"]
-```
+The defaults are in [internal/config/command.go](../../internal/config/command.go), and rest on [`claude`'s own behaviour](claude.md).

@@ -25,5 +25,5 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
 ## See also
 
-- [Configuration](../references/configuration.md#commands) — what each key renders with, and the shipped default the chain replaces
+- [Configuration](../references/configuration.md#commands) — what each key renders with
 - [Command line](../references/cli.md#handoff) — how `work` reaches the command
