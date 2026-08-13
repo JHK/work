@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -288,9 +289,9 @@ func TestRemoveFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var force bool
 			var target string
-			err := execute(t, tt.args, io.Discard, front{remove: func(f bool, id string) error {
+			err := execute(t, tt.args, io.Discard, front{remove: func(f bool, id string) (work.Deletion, error) {
 				force, target = f, id
-				return nil
+				return work.Deletion{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
@@ -299,6 +300,51 @@ func TestRemoveFlags(t *testing.T) {
 				t.Errorf("Execute(%q) = %v, %q; want %v, %q", tt.args, force, target, tt.force, tt.target)
 			}
 		})
+	}
+}
+
+// refusing is a writer that takes nothing, standing in for a closed pipe.
+type refusing struct{}
+
+func (refusing) Write([]byte) (int, error) { return 0, errors.New("refused") }
+
+// What went is printed on the writer cobra handed the command rather than on
+// stdout, a line per half, and a refused write fails the removal rather than
+// being dropped.
+func TestRemovePrints(t *testing.T) {
+	both := work.Deletion{Path: "/repo/.worktrees/bd-1", Branch: "bd-1-do-a-thing"}
+	tests := []struct {
+		name string
+		went work.Deletion
+		want string
+	}{
+		{
+			"a worktree and its branch",
+			both,
+			"removed worktree /repo/.worktrees/bd-1\ndeleted branch bd-1-do-a-thing\n",
+		},
+		{
+			"a detached worktree",
+			work.Deletion{Path: "/repo/.worktrees/spike"},
+			"removed worktree /repo/.worktrees/spike\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			f := front{remove: func(bool, string) (work.Deletion, error) { return tt.went, nil }}
+			if err := execute(t, []string{"remove", "scratch"}, &out, f); err != nil {
+				t.Fatalf("work remove: %v", err)
+			}
+			if out.String() != tt.want {
+				t.Errorf("work remove printed %q; want %q", out.String(), tt.want)
+			}
+		})
+	}
+
+	f := front{remove: func(bool, string) (work.Deletion, error) { return both, nil }}
+	if err := execute(t, []string{"remove", "scratch"}, refusing{}, f); err == nil {
+		t.Error("work remove onto a writer that refuses: want the write's error")
 	}
 }
 
@@ -523,7 +569,10 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 		f.add = func(options, string) error { t.Error("added a worktree"); return nil }
 	}
 	if f.remove == nil {
-		f.remove = func(bool, string) error { t.Error("removed a worktree"); return nil }
+		f.remove = func(bool, string) (work.Deletion, error) {
+			t.Error("removed a worktree")
+			return work.Deletion{}, nil
+		}
 	}
 	if f.dump == nil {
 		f.dump = func(io.Writer) error { t.Error("dumped the configuration"); return nil }

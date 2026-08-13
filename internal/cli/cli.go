@@ -32,7 +32,7 @@ type options struct {
 type front struct {
 	enter      func(o options, target string) error
 	add        func(o options, name string) error
-	remove     func(force bool, target string) error
+	remove     func(force bool, target string) (work.Deletion, error)
 	dump       func(out io.Writer) error
 	edit       func() error
 	candidates func() ([]work.Candidate, error)
@@ -69,10 +69,10 @@ func (v verbs) performAdd(o options, name string) error {
 }
 
 // performRemove takes a worktree out of the repository the shell stands in.
-func (v verbs) performRemove(force bool, target string) error {
+func (v verbs) performRemove(force bool, target string) (work.Deletion, error) {
 	env, err := v.repository()
 	if err != nil {
-		return err
+		return work.Deletion{}, err
 	}
 	return remove(env, force, target)
 }
