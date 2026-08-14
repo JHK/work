@@ -198,8 +198,12 @@ func (r *Resolver) record(id string) (beads.Bead, bool) {
 // longest names the bead a branch belongs to: the longest known id owning it, so
 // that a branch of one-two's does not fall to one.
 func (r *Resolver) longest(branch string) string {
+	// Ahead of the listing: a detached worktree has no branch for any id to own.
+	if branch == "" {
+		return ""
+	}
 	list, err := r.allBeads()
-	if err != nil || branch == "" {
+	if err != nil {
 		return ""
 	}
 	best := ""

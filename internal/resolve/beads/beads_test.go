@@ -290,6 +290,23 @@ func TestIdentifyRulesOutABranchWithoutAskingBd(t *testing.T) {
 	}
 }
 
+// A detached worktree has no branch for any id to own, so it is left to another
+// resolver without the listing that could not have named it either way.
+func TestIdentifyLeavesADetachedWorktreeWithoutAskingBd(t *testing.T) {
+	ran := shim(t, answers{list: rows(beads.Bead{ID: "one"})})
+	r := New(t.TempDir(), t.TempDir(), pattern)
+
+	o := worktree.Open{Path: "/wt"}
+	for _, id := range []string{"", "one"} {
+		if _, err := r.Identify(id, o); !errors.Is(err, worktree.ErrUnknown) {
+			t.Errorf("Identify(%q, detached) = %v; want the worktree left to another resolver", id, err)
+		}
+	}
+	if n := spawns(ran(), "bd"); n != 0 {
+		t.Errorf("identifying a detached worktree asked bd %d times; want the missing branch to settle it alone", n)
+	}
+}
+
 // The picker's rows are what bd calls workable, kept whole, so entering one of
 // them is vetted against the very snapshot that called it ready rather than by
 // asking bd again.
