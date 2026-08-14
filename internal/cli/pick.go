@@ -26,13 +26,10 @@ const (
 )
 
 // pickFrom puts one listing in front of the picker.
-func pickFrom(list func() ([]work.Candidate, error), none string) (work.Candidate, error) {
+func pickFrom(list func() ([]work.Candidate, error)) (work.Candidate, error) {
 	candidates, err := list()
 	if err != nil {
 		return work.Candidate{}, err
-	}
-	if len(candidates) == 0 {
-		return work.Candidate{}, errors.New(none)
 	}
 	i, err := choose(labels(candidates))
 	if err != nil {

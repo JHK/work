@@ -220,12 +220,14 @@ func TestCreateFallsBackToABranchAlreadyLocal(t *testing.T) {
 	if err := r.Create(p, path); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	list, err := git.Linked(repo)
+	list, err := git.Worktrees(repo)
 	if err != nil {
-		t.Fatalf("Linked: %v", err)
+		t.Fatalf("Worktrees: %v", err)
 	}
-	if len(list) != 1 || !git.SameDir(list[0].Path, path) || list[0].Branch != "pr-7" {
-		t.Errorf("the repository has %+v; want the worktree at %q on branch pr-7", list, path)
+	if len(list) != 2 || !slices.ContainsFunc(list, func(w git.Worktree) bool {
+		return git.SameDir(w.Path, path) && w.Branch == "pr-7"
+	}) {
+		t.Errorf("the repository has %+v; want the main checkout and the one worktree at %q on branch pr-7", list, path)
 	}
 }
 

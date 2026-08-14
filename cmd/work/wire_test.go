@@ -329,7 +329,7 @@ func TestListingTheWorktreesAsksNoToolWhereverEverySystemIsOn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
-	if want := []string{"bd-1-a-slug"}; !slices.Equal(got, want) {
+	if want := []string{"main", "bd-1-a-slug"}; !slices.Equal(got, want) {
 		t.Errorf("Branches() = %q; want %q", got, want)
 	}
 	if asked := ran(); len(asked) > 0 {

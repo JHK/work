@@ -239,22 +239,16 @@ func (e Env) Add(name string) (Candidate, error) {
 	return answered(e.Systems.Named, Candidate{Place: p}), nil
 }
 
-// Worktrees is every worktree the repository has, the main checkout excepted,
-// each under the place the first resolver to answer for it says it stands for.
+// Worktrees is every worktree the repository has, in git's order, each under the
+// place the first resolver to answer for it says it stands for.
 func (e Env) Worktrees() ([]Candidate, error) {
-	// Without a repository git would answer for whatever directory the process
-	// happens to be in.
-	if e.Repo == "" {
-		return nil, nil
-	}
-	list, err := git.Linked(e.Repo)
+	list, err := e.listing()
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Candidate, 0, len(list))
 	for _, w := range list {
-		o := worktree.Open{Path: w.Path, Branch: w.Branch}
-		c, err := e.adopt(o)
+		c, err := e.adopt(worktree.Open{Path: w.Path, Branch: w.Branch})
 		if err != nil {
 			return nil, err
 		}
@@ -263,14 +257,20 @@ func (e Env) Worktrees() ([]Candidate, error) {
 	return out, nil
 }
 
-// Branches is what the repository's worktrees have checked out, the main
-// checkout excepted, in git's order: a detached one under its directory. It asks
-// git and nothing else, so a listing costs no tracker and no forge.
-func (e Env) Branches() ([]string, error) {
+// listing is the worktrees git reports, and none at all where there is no
+// repository for git to report on.
+func (e Env) listing() ([]git.Worktree, error) {
 	if e.Repo == "" {
 		return nil, nil
 	}
-	list, err := git.Linked(e.Repo)
+	return git.Worktrees(e.Repo)
+}
+
+// Branches is what the repository's worktrees have checked out, in git's order:
+// a detached one under its directory. It asks git and nothing else, so a listing
+// costs no tracker and no forge.
+func (e Env) Branches() ([]string, error) {
+	list, err := e.listing()
 	if err != nil {
 		return nil, err
 	}
@@ -314,12 +314,26 @@ func (e Env) locate(r Resolver, p worktree.Place, open []Candidate) (Candidate, 
 	return shortest(found), nil
 }
 
-// shortest settles several worktrees answering for one place: the shortest
-// branch takes it, its spelling breaking a tie, never git's listing order.
+// shortest settles several worktrees answering for one place: a branch takes it
+// from a detached worktree, which goes by its directory rather than by an
+// address of its own, then the shortest branch, its spelling breaking a tie,
+// never git's listing order.
 func shortest(found []Candidate) Candidate {
 	return slices.MinFunc(found, func(a, b Candidate) int {
-		return cmp.Or(cmp.Compare(len(a.branch), len(b.branch)), cmp.Compare(a.branch, b.branch))
+		return cmp.Or(
+			cmp.Compare(detached(a), detached(b)),
+			cmp.Compare(len(a.branch), len(b.branch)),
+			cmp.Compare(a.branch, b.branch),
+		)
 	})
+}
+
+// detached orders a worktree with no branch behind every worktree that has one.
+func detached(c Candidate) int {
+	if c.branch == "" {
+		return 1
+	}
+	return 0
 }
 
 // Candidates lists what the repository offers to work on: every worktree git

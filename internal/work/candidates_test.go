@@ -148,17 +148,20 @@ func TestCandidatesGatherTheWorktreesThenTheOffers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("Candidates() = %q; want the two worktrees and the one offer left", names(got))
+	if len(got) != 4 {
+		t.Fatalf("Candidates() = %q; want the three worktrees and the one offer left", names(got))
 	}
-	// The worktrees come first, in git's order; one is open, so the tracker's offer
-	// of it is not a second row.
-	open := names(got[:2])
+	// The worktrees come first, in git's order, the main checkout at their head; one
+	// is open, so the tracker's offer of it is not a second row.
+	if got[0].Name != "main" {
+		t.Errorf("the first row is %q; want the main checkout git reports first", got[0].Name)
+	}
+	open := names(got[:3])
 	slices.Sort(open)
-	if want := []string{"loose", "one"}; !slices.Equal(open, want) {
+	if want := []string{"loose", "main", "one"}; !slices.Equal(open, want) {
 		t.Errorf("the open rows are %q; want %q ahead of what is merely offered", open, want)
 	}
-	for _, c := range got[:2] {
+	for _, c := range got[:3] {
 		if !c.Open {
 			t.Errorf("row %q is not open; want the worktrees ahead of the offers", c.Name)
 		}
@@ -171,8 +174,8 @@ func TestCandidatesGatherTheWorktreesThenTheOffers(t *testing.T) {
 			t.Errorf("the recognised worktree is %+v; want it under the resolver that named it", c.Place)
 		}
 	}
-	if got[2].Name != "two" || got[2].Open {
-		t.Errorf("the offered row is %+v; want a place with no worktree yet", got[2].Place)
+	if got[3].Name != "two" || got[3].Open {
+		t.Errorf("the offered row is %+v; want a place with no worktree yet", got[3].Place)
 	}
 }
 
@@ -229,14 +232,15 @@ func TestAnOpenPlaceTakesTheTitleFromItsOffer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("Candidates() = %q; want the one place, whether it was found open or offered", names(got))
+	// The main checkout is a row of its own, ahead of the place under test.
+	if want := []string{"main", "one"}; !slices.Equal(names(got), want) {
+		t.Fatalf("Candidates() = %q; want %q, the place counted once whether it was found open or offered", names(got), want)
 	}
-	if !got[0].Open || got[0].Source != "forge" {
-		t.Fatalf("the row is %+v; want the worktree under the resolver that named it", got[0].Place)
+	if !got[1].Open || got[1].Source != "forge" {
+		t.Fatalf("the row is %+v; want the worktree under the resolver that named it", got[1].Place)
 	}
-	if got[0].Label != "a title" {
-		t.Errorf("the row is %+v; want the title its offer had", got[0].Place)
+	if got[1].Label != "a title" {
+		t.Errorf("the row is %+v; want the title its offer had", got[1].Place)
 	}
 }
 
@@ -259,11 +263,11 @@ func TestAnOpenPlaceTakesNoTitleFromAnotherResolversOffer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if len(got) != 1 || got[0].Source != "forge" {
-		t.Fatalf("Candidates() = %+v; want the one worktree under the resolver that named it", got)
+	if len(got) != 2 || got[1].Source != "forge" {
+		t.Fatalf("Candidates() = %+v; want the main checkout and the one worktree under the resolver that named it", got)
 	}
-	if got[0].Label != "" {
-		t.Errorf("the row is %+v; want no title rather than another resolver's", got[0].Place)
+	if got[1].Label != "" {
+		t.Errorf("the row is %+v; want no title rather than another resolver's", got[1].Place)
 	}
 }
 
@@ -281,7 +285,7 @@ func TestAResolverThatWillNotOfferCostsItsOwnRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if want := []string{"loose"}; !slices.Equal(names(got), want) {
+	if want := []string{"main", "loose"}; !slices.Equal(names(got), want) {
 		t.Errorf("Candidates() = %q; want the worktrees alone", names(got))
 	}
 }
@@ -299,7 +303,7 @@ func TestCandidatesDropAnOfferThatCouldNotBeMade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if want := []string{"fine"}; !slices.Equal(names(got), want) {
+	if want := []string{"main", "fine"}; !slices.Equal(names(got), want) {
 		t.Errorf("Candidates() = %q; want only the name a worktree could be made for", names(got))
 	}
 }
@@ -310,10 +314,10 @@ func TestCandidatesListAtOnce(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	e, _ := bare(t, repo)
 	both := meet()
-	e.Systems.Resolvers = []Resolver{
+	e.Systems.Resolvers = append([]Resolver{
 		&offering{name: "first", places: []string{"one"}, blocks: both},
 		&offering{name: "second", places: []string{"two"}, blocks: both},
-	}
+	}, e.Systems.Resolvers...)
 
 	if _, err := e.Candidates(); err != nil {
 		t.Fatalf("Candidates: %v", err)
@@ -352,6 +356,41 @@ func TestResolveNamesAnOpenWorktree(t *testing.T) {
 	// A name no worktree answers to goes through the chain as it always did.
 	if got, err := e.Resolve("nowhere"); err != nil || got.Open {
 		t.Errorf("Resolve(nowhere) = %+v, %v; want a place with no worktree", got.Place, err)
+	}
+}
+
+// The main checkout is a worktree like any other on the way in: it is listed
+// under its branch, retyping that branch reaches it, and entering it opens on
+// the checkout that was already there rather than making one.
+func TestTheMainCheckoutIsEnteredLikeAnyOtherWorktree(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	// Whatever it has checked out is what it goes by; work knows no branch by name.
+	testenv.Git(t, repo, "branch", "--move", "trunk")
+	e, s := bare(t, repo)
+	op := &opener{steps: s, name: "far"}
+	e.Systems.Openers = []Opener{op}
+	e.Config.Action = config.Action{CreateName: "far", EnterName: "far"}
+
+	c, err := e.Resolve("trunk")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if !c.Open || !git.SameDir(c.path, repo) {
+		t.Fatalf("Resolve(trunk) = %+v at %q; want the main checkout at %q", c.Place, c.path, repo)
+	}
+
+	h, err := e.Enter(c, Options{})
+	if err != nil {
+		t.Fatalf("Enter: %v", err)
+	}
+	if !git.SameDir(h.Dir, repo) {
+		t.Errorf("Enter handed over in %q; want the main checkout at %q", h.Dir, repo)
+	}
+	if op.got.Created {
+		t.Error("the opener was told the main checkout is fresh; want the worktree that was already there")
+	}
+	if want := []string{"open far"}; !slices.Equal(s.seen, want) {
+		t.Errorf("the sequence ran %q; want %q, nothing having come into being", s.seen, want)
 	}
 }
 
@@ -424,6 +463,25 @@ func TestSeveralWorktreesForOnePlaceGoByTheShortestBranch(t *testing.T) {
 	}
 }
 
+// A detached worktree goes by its directory rather than by a branch, so a name
+// it shares with a branch is that branch's: an address of its own takes it from
+// a directory that happens to be spelled alike, whatever their lengths.
+func TestABranchTakesTheNameFromADetachedWorktree(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	// The directory the detached worktree goes by is spelled as the other's branch.
+	testenv.Git(t, repo, "worktree", "add", "-b", "spike", filepath.Join(repo, defaultDir, "held"))
+	testenv.Git(t, repo, "worktree", "add", "--detach", filepath.Join(repo, defaultDir, "spike"))
+
+	e, _ := bare(t, repo)
+	c, err := e.Resolve("spike")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if want := filepath.Join(repo, defaultDir, "held"); !c.Open || !git.SameDir(c.path, want) {
+		t.Errorf("Resolve(spike) = %q; want the worktree on branch spike at %q", c.path, want)
+	}
+}
+
 // One invocation asks the resolvers to name each open worktree once: the listing
 // resolution made is the one entering reads, whatever the place turns out to be.
 func TestOneInvocationNamesEachWorktreeOnce(t *testing.T) {
@@ -450,9 +508,10 @@ func TestOneInvocationNamesEachWorktreeOnce(t *testing.T) {
 			if _, err := e.Enter(c, Options{}); err != nil {
 				t.Fatalf("Enter(%q): %v", arg, err)
 			}
-			// Three worktrees, each named once. A second listing would name them again.
-			if tracker.named != 3 {
-				t.Errorf("entering %q named a worktree from its branch %d times; want one listing of the three", arg, tracker.named)
+			// Four worktrees, the main checkout among them, each named once. A second
+			// listing would name them again.
+			if tracker.named != 4 {
+				t.Errorf("entering %q named a worktree from its branch %d times; want one listing of the four", arg, tracker.named)
 			}
 		})
 	}
@@ -507,13 +566,14 @@ func TestWorktreeDiscovery(t *testing.T) {
 	e, s := bare(t, repo)
 	e.Systems.Openers = []Opener{&opener{steps: s, name: "far"}}
 	e.Config.Action = config.Action{CreateName: "far", EnterName: "far"}
-	// The main checkout is git's first entry and never a place to work.
-	list, err := git.Linked(repo)
+	// The main checkout is git's first entry, and the worktree outside the
+	// configured directory is reported beside it.
+	list, err := git.Worktrees(repo)
 	if err != nil {
-		t.Fatalf("Linked: %v", err)
+		t.Fatalf("Worktrees: %v", err)
 	}
-	if len(list) != 1 || !git.SameDir(list[0].Path, outside) {
-		t.Fatalf("Linked = %+v; want only %q", list, outside)
+	if len(list) != 2 || !git.SameDir(list[0].Path, repo) || !git.SameDir(list[1].Path, outside) {
+		t.Fatalf("Worktrees = %+v; want the main checkout at %q, then %q", list, repo, outside)
 	}
 
 	c, err := e.Resolve("one-oxc-outside")
@@ -608,21 +668,29 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 }
 
 // A reader's listing is git's own answer: the branch each worktree has checked
-// out, the main checkout excepted, and a detached one under its directory,
-// which is the name it goes by wherever it has no branch to go by.
+// out, the main checkout first among them, and a detached one under its
+// directory, which is the name it goes by wherever it has no branch to go by.
 func TestBranchesAreWhatTheWorktreesHaveCheckedOut(t *testing.T) {
 	repo := testenv.InitRepo(t)
+	testenv.Git(t, repo, "branch", "--move", "trunk")
 	testenv.Git(t, repo, "worktree", "add", "-b", "one-a-slug", filepath.Join(repo, defaultDir, "one"))
 	testenv.Git(t, repo, "worktree", "add", "--detach", filepath.Join(repo, defaultDir, "adrift"))
 
-	e, _ := bare(t, repo)
+	// Listing asks git alone, so the systems it was opened with are beside the point.
+	e, err := Open(repo, func(string, string, config.Config) Systems { return Systems{} })
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
 	got, err := e.Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)
 	}
-	slices.Sort(got)
-	if want := []string{"adrift", "one-a-slug"}; !slices.Equal(got, want) {
-		t.Errorf("Branches() = %q; want %q", got, want)
+	if len(got) == 0 || got[0] != "trunk" {
+		t.Fatalf("Branches() = %q; want the main checkout first", got)
+	}
+	rest := slices.Sorted(slices.Values(got[1:]))
+	if want := []string{"adrift", "one-a-slug"}; !slices.Equal(rest, want) {
+		t.Errorf("Branches() = %q; want the main checkout and then %q", got, want)
 	}
 }
 

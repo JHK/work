@@ -30,15 +30,15 @@ A [system](systems.md) can add to either form.
 
 ### remove
 
-`work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out, leaving the ticket alone and asking no tracker. The two go together or neither goes. An identifier with no worktree open is refused.
+`work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
 
 With no name, [the picker](#the-picker) offers the worktrees alone.
 
-A worktree with modified or untracked files is refused, as is a branch `git branch -d` will not delete; `--force` takes both. The worktree the shell is standing in is refused either way.
+Only a clean worktree can be removed, an unclean one with `--force`. The main checkout cannot be removed, and neither can the worktree the shell is standing in.
 
 ### list
 
-`work list` prints the worktrees git reports, the main checkout excepted, one per line on stdout: the branch each has checked out, or its directory where it is detached.
+`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached.
 
 ### init
 
@@ -82,7 +82,7 @@ Where several worktrees match one ticket, the shortest branch takes it, ties set
 
 An fzf list standing in for the argument a verb was not given. It is the one thing that needs `fzf`: name the argument instead, and every verb runs without it.
 
-A worktree row is one git reports other than the main checkout, read off its branch, and offered under that branch where no [system](systems.md) names it.
+A worktree row is one git reports, read off its branch, and offered under that branch where no [system](systems.md) names it.
 
 Beside the worktrees, a system can add rows of its own and the titles on them.
 

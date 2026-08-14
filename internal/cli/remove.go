@@ -17,12 +17,10 @@ func removeCommand(run func(force bool, target string) (work.Deletion, error), l
 	cmd := &cobra.Command{
 		Use:   "remove [<name>]",
 		Short: "Remove a worktree and delete the branch it had checked out",
-		Long: `Remove a worktree: git removes it and deletes the branch it had checked out. No
-tracker is asked.
+		Long: `Remove a worktree and delete the branch it had checked out.
 
-The worktree and its branch go together or neither goes. A worktree with modified
-or untracked files is refused, and so is a branch whose work has not landed;
---force takes both. The worktree you are standing in is refused either way.
+Only a clean worktree can be removed, an unclean one with --force. The main
+checkout cannot be removed, and neither can the worktree you are standing in.
 
 With no name, choose among the repository's worktrees. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
@@ -35,7 +33,7 @@ With no name, choose among the repository's worktrees. That form needs fzf.`,
 			return removed(cmd.OutOrStdout(), d)
 		},
 	}
-	cmd.Flags().BoolVar(&force, "force", false, "take an unclean worktree or an unmerged branch")
+	cmd.Flags().BoolVar(&force, "force", false, "take an unclean worktree")
 
 	return cmd
 }
@@ -64,7 +62,7 @@ func removed(out io.Writer, d work.Deletion) error {
 // removing reaching nothing else.
 func toRemove(env work.Env, target string) (work.Candidate, error) {
 	if target == "" {
-		return pickFrom(env.Worktrees, "no worktrees to remove")
+		return pickFrom(env.Worktrees)
 	}
 	return env.Resolve(target)
 }

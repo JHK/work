@@ -152,9 +152,9 @@ func TestCreateForksFromTheCurrentCheckout(t *testing.T) {
 	if head := testenv.Git(t, repo, "rev-parse", "scratch"); head != ahead {
 		t.Errorf("branch scratch is at %q; want the checkout under foot at %q rather than the main checkout's %q", head, ahead, main)
 	}
-	list, err := git.Linked(repo)
+	list, err := git.Worktrees(repo)
 	if err != nil {
-		t.Fatalf("Linked: %v", err)
+		t.Fatalf("Worktrees: %v", err)
 	}
 	if !slices.ContainsFunc(list, func(w git.Worktree) bool {
 		return git.SameDir(w.Path, path) && w.Branch == "scratch"

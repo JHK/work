@@ -65,7 +65,7 @@ func (r *resolver) Identify(id string, o worktree.Open) (worktree.Place, error) 
 		if id != "" && id != o.Path {
 			return worktree.Place{}, worktree.ErrUnknown
 		}
-		return worktree.Place{ID: o.Path, Name: o.Branch, Branch: o.Branch}, nil
+		return worktree.Place{ID: o.Path, Name: o.Name(), Branch: o.Branch}, nil
 	}
 	// The one branch it answers for, and only under the name it answers for it by.
 	if o.Branch != r.adopts || (id != "" && id != adopted) {
@@ -153,8 +153,11 @@ func env(t *testing.T, s *steps, openers ...*opener) (Env, *resolver) {
 	actions := []*action{{steps: s, name: "first"}, {steps: s, name: "second"}}
 	cfg := config.Default()
 	cfg.Action = config.Action{CreateName: config.ActionName(openers[0].name), EnterName: config.ActionName(openers[0].name)}
+	// The chain ends in one answering for whatever worktree git reports, the main
+	// checkout included, and for no identifier at all.
+	tail := &resolver{steps: s, name: "tail", bare: true, unknown: true}
 	e := Env{Repo: testenv.InitRepo(t), Config: cfg, Systems: Systems{
-		Resolvers: []Resolver{r},
+		Resolvers: []Resolver{r, tail},
 		Actions:   []Action{actions[0], actions[1]},
 		Named:     r,
 	}}
@@ -263,16 +266,17 @@ func TestAPlaceIsFoundOnAWorktreeNothingCouldName(t *testing.T) {
 	op := &opener{steps: &s, name: "far"}
 	e, r := env(t, &s, op)
 	r.mute = true
-	e.Systems.Resolvers = []Resolver{r, &resolver{steps: &s, name: "bare", bare: true}}
-	testenv.Git(t, e.Repo, "worktree", "add", "-b", r.adopts, filepath.Join(e.Repo, defaultDir, "a"))
+	path := filepath.Join(e.Repo, defaultDir, "a")
+	testenv.Git(t, e.Repo, "worktree", "add", "-b", r.adopts, path)
 
 	// The listing has it under its branch, nothing having named it.
 	open, err := e.Worktrees()
 	if err != nil {
 		t.Fatalf("Worktrees: %v", err)
 	}
-	if len(open) != 1 || open[0].Source != "bare" {
-		t.Fatalf("the listing holds %+v; want the worktree under the resolver that took what was left", open)
+	// Beside the main checkout, which nothing named either.
+	if len(open) != 2 || open[1].Source != "tail" || open[1].Name != r.adopts {
+		t.Fatalf("the listing holds %+v; want the worktree at %q under the resolver that took what was left", open, path)
 	}
 
 	c, err := e.Resolve(adopted)
@@ -294,9 +298,10 @@ func TestAPlaceIsFoundOnAWorktreeNothingCouldName(t *testing.T) {
 // recognised but could not answer for stops the run.
 func TestUnrecognitionChainsAndFailureStops(t *testing.T) {
 	var s steps
-	e, r := env(t, &s, &opener{steps: &s, name: "far"})
+	e, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	chain := e.Systems.Resolvers
 	silent := &resolver{steps: &s, name: "silent", unknown: true}
-	e.Systems.Resolvers = []Resolver{silent, r}
+	e.Systems.Resolvers = append([]Resolver{silent}, chain...)
 
 	c, err := e.Resolve("x")
 	if err != nil {
@@ -307,7 +312,7 @@ func TestUnrecognitionChainsAndFailureStops(t *testing.T) {
 	}
 
 	broken := &resolver{steps: &s, name: "broken", fails: errors.New("bd is not answering")}
-	e.Systems.Resolvers = []Resolver{broken, r}
+	e.Systems.Resolvers = append([]Resolver{broken}, chain...)
 	if _, err := e.Resolve("x"); err == nil || err.Error() != broken.fails.Error() {
 		t.Errorf("Resolve = %v; want the failure to stop the run", err)
 	}

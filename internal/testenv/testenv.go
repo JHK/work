@@ -38,6 +38,8 @@ func Main(m *testing.M) {
 	// an empty commit, showUntrackedFiles on whether a worktree can be removed.
 	set("GIT_CONFIG_GLOBAL", os.DevNull)
 	set("GIT_CONFIG_SYSTEM", os.DevNull)
+	// git translates its refusals, and a test reading one reads the English.
+	set("LC_ALL", "C")
 	// An identity, because a repository reading no config has none to commit under.
 	set("GIT_AUTHOR_NAME", "t")
 	set("GIT_AUTHOR_EMAIL", "t@t")

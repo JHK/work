@@ -601,6 +601,24 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	return run(cmd, args)
 }
 
+// last is the resolver at the end of a chain: it answers for whatever worktree
+// git reports, the main checkout included, and for no identifier.
+type last struct{}
+
+func (last) Name() string { return "last" }
+
+func (last) Identify(id string, o worktree.Open) (worktree.Place, error) {
+	// Nothing behind it to be named by, so the directory settles an identifier.
+	if o.None() || (id != "" && id != o.Path) {
+		return worktree.Place{}, worktree.ErrUnknown
+	}
+	return worktree.Place{ID: o.Path, Name: o.Name(), Branch: o.Branch}, nil
+}
+
+func (last) Offer() ([]worktree.Place, error)                 { return nil, nil }
+func (last) Prepare(p worktree.Place) (worktree.Place, error) { return p, nil }
+func (last) Create(worktree.Place, string) error              { return nil }
+
 // Every verb that reaches the core reaches it through the wiring the call
 // carries, so two wirings in one process each answer for their own systems.
 // Parked in a package-level var, whichever was assigned last would answer for
@@ -612,7 +630,7 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	wire := func(name string) work.Wiring {
 		return func(string, string, config.Config) work.Systems {
 			asked = append(asked, name)
-			return work.Systems{}
+			return work.Systems{Resolvers: []work.Resolver{last{}}}
 		}
 	}
 	if _, err := (verbs{wire: wire("first")}).listing(); err != nil {

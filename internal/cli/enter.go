@@ -62,7 +62,7 @@ func enter(env work.Env, o options, target string) (worktree.Handoff, error) {
 // one the picker hands one over.
 func candidate(env work.Env, target string) (work.Candidate, error) {
 	if target == "" {
-		return pickFrom(env.Candidates, "nothing to work on")
+		return pickFrom(env.Candidates)
 	}
 	return env.Resolve(target)
 }

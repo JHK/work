@@ -15,7 +15,7 @@ func listCommand(branches func() ([]string, error)) *cobra.Command {
 		Long: `Print the repository's open worktrees, one per line: the branch each has checked
 out, or its directory where it has none.
 
-With none open it prints nothing. No tracker and no forge is asked.`,
+No tracker and no forge is asked.`,
 		Args: cobra.NoArgs,
 		// It hands over to nothing: the invocation prints and exits.
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -3,7 +3,6 @@
 package git
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,20 +59,8 @@ type Worktree struct {
 	Branch string // short name; empty when the worktree is detached
 }
 
-// Linked lists every worktree but the main checkout, which git reports first.
-func Linked(repo string) ([]Worktree, error) {
-	list, err := worktrees(repo)
-	if err != nil {
-		return nil, err
-	}
-	if len(list) > 0 {
-		list = list[1:]
-	}
-	return list, nil
-}
-
-// worktrees lists every worktree the repository has, the main checkout first.
-func worktrees(repo string) ([]Worktree, error) {
+// Worktrees lists every worktree the repository has, in git's order.
+func Worktrees(repo string) ([]Worktree, error) {
 	out, err := git(repo, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
@@ -127,63 +114,21 @@ func NewWorktree(from, path, branch string) error {
 }
 
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
-// one with modified or untracked files unless force.
+// one with modified or untracked files unless force, and the main checkout
+// either way.
 func RemoveWorktree(repo, path string, force bool) error {
-	return forced(repo, force, "worktree", "remove", path)
-}
-
-// DeleteBranch deletes a local branch. Without force git refuses one whose work
-// has not landed, which it judges only once no worktree holds the branch;
-// nothing here asks the question first.
-func DeleteBranch(repo, branch string, force bool) error {
-	return forced(repo, force, "branch", "--delete", branch)
-}
-
-// DeleteCheckedOutBranch deletes a branch a worktree still has checked out. The
-// worktree is detached for git to judge the deletion at all, and put back on the
-// branch where git refuses, so a refusal leaves the worktree where it stood.
-func DeleteCheckedOutBranch(repo, worktree, branch string) error {
-	if err := detach(worktree); err != nil {
-		return err
-	}
-	if err := DeleteBranch(repo, branch, false); err != nil {
-		if back := checkout(worktree, branch); back != nil {
-			return fmt.Errorf("%w; %s is left detached: %w", err, worktree, back)
-		}
-		return err
-	}
-	return nil
-}
-
-// detach points a worktree at the commit it is on rather than at the branch,
-// leaving the files under it alone. A worktree whose index is unresolved is refused.
-func detach(worktree string) error {
-	_, err := git(worktree, "checkout", "--detach")
-	return err
-}
-
-// checkout puts a worktree back on a branch.
-func checkout(worktree, branch string) error {
-	_, err := git(worktree, "checkout", branch)
-	return err
-}
-
-// Dirty reports the status git's own worktree removal weighs a worktree by:
-// whether it holds modified or untracked files, ignored ones excepted.
-func Dirty(worktree string) (bool, error) {
-	out, err := git(worktree, "status", "--porcelain", "--ignore-submodules=none")
-	if err != nil {
-		return false, err
-	}
-	return out != "", nil
-}
-
-// forced runs a git command, appending --force where asked.
-func forced(dir string, force bool, args ...string) error {
+	args := []string{"worktree", "remove", path}
 	if force {
 		args = append(args, "--force")
 	}
-	_, err := git(dir, args...)
+	_, err := git(repo, args...)
+	return err
+}
+
+// DeleteBranch deletes a local branch whether or not its work has landed. git
+// refuses one a worktree still has checked out.
+func DeleteBranch(repo, branch string) error {
+	_, err := git(repo, "branch", "--delete", "--force", branch)
 	return err
 }
 
