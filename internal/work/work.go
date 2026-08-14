@@ -61,7 +61,7 @@ type Action interface {
 type Opener interface {
 	worktree.System
 
-	// Open renders the handoff from the values every source supplied. The values
+	// Open renders the handoff from the values gathered for the worktree. The values
 	// are the core's account of the worktree, so an action with a name of its own
 	// to place renders against a copy.
 	Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error)
@@ -72,10 +72,6 @@ type Systems struct {
 	Resolvers []Resolver
 	Actions   []Action
 	Openers   []Opener
-
-	// Sources are asked what they know about any worktree, whichever resolver
-	// answered for it. The resolver that did is asked first and separately.
-	Sources []worktree.Source
 
 	// Named is the one resolver a verb reaches by name rather than through the
 	// chain: add's, which is handed a name of the user's own rather than an
@@ -381,16 +377,10 @@ func (e Env) path(name string) string {
 }
 
 // values are what a command for this worktree renders with: the worktree itself,
-// then the resolver that answered for it, then the ambient sources. The first to
-// supply a name owns it, and a source that will not answer costs only the values
-// it would have supplied.
+// then the resolver that answered for it.
 func (e Env) values(t worktree.Tree) worktree.Values {
-	sources := e.Systems.Sources
-	if s, ok := t.By.(worktree.Source); ok {
-		sources = slices.Concat([]worktree.Source{s}, sources)
-	}
 	vals := worktree.Values{"Name": t.Name, "Dir": t.Path}
-	for _, s := range sources {
+	if s, ok := t.By.(worktree.Source); ok {
 		if supplied, err := s.Supply(t); err == nil {
 			vals.Merge(supplied)
 		}

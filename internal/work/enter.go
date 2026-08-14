@@ -60,7 +60,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	// Past the creation and the actions, so every source is asked of a worktree that
+	// Past the creation and the actions, so the resolver is asked of a worktree that
 	// exists.
 	return opener.Open(t, e.values(t))
 }

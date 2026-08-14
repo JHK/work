@@ -89,8 +89,8 @@ type Claimant interface {
 // one supplied empty is a command element that drops out.
 type Values map[string]string
 
-// Merge takes in what another source supplied, leaving every name already set
-// alone: the first source asked owns a name.
+// Merge takes in another set of values, leaving every name already set alone: the
+// first to set a name owns it.
 func (v Values) Merge(other Values) {
 	for name, value := range other {
 		if _, taken := v[name]; !taken {
@@ -99,9 +99,11 @@ func (v Values) Merge(other Values) {
 	}
 }
 
-// Source is a system that knows values a command may need. Every source is asked
-// once, of a worktree that exists, and the answers are merged.
+// Source is a system that knows values a command may need. It is asked once, of a
+// worktree that exists.
 type Source interface {
+	System
+
 	Supply(t Tree) (Values, error)
 }
 

@@ -171,8 +171,8 @@ func TestTheConfiguredCommandsAreWhatRuns(t *testing.T) {
 	}
 }
 
-// Rendering is free of consequence: the values are the core's, gathered from every
-// source and handed to whichever action opens, so the one name this key places is
+// Rendering is free of consequence: the values are the core's account of the
+// worktree, handed to whichever action opens, so the one name this key places is
 // put on top of them rather than into them.
 func TestOpenLeavesTheValuesItWasHandedAlone(t *testing.T) {
 	o := stub([]string{"s1"}, nil)

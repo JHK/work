@@ -73,12 +73,12 @@ func TestHandoffDirectory(t *testing.T) {
 	}
 }
 
-// The first source asked owns a name, which is what puts the resolver's account
-// of the place it resolved ahead of any source answering for any worktree. A
-// value supplied empty is a value all the same.
+// The first to set a name owns it, which is what keeps the core's account of the
+// worktree ahead of what the resolver supplies. A value supplied empty is a value
+// all the same.
 func TestValuesMergeKeepsTheFirstAnswer(t *testing.T) {
 	vals := Values{"Name": "bd-1", "Editor": ""}
-	vals.Merge(Values{"Name": "the second source's", "Editor": "vi", "Shell": "fish"})
+	vals.Merge(Values{"Name": "the resolver's", "Editor": "vi", "Shell": "fish"})
 
 	want := Values{"Name": "bd-1", "Editor": "", "Shell": "fish"}
 	if !maps.Equal(vals, want) {

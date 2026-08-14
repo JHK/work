@@ -35,7 +35,8 @@ type resolver struct {
 	mute    bool   // cannot name a worktree from its branch alone, as an unreachable tracker cannot
 	bare    bool   // answers for any worktree, as the last resolver in a chain does
 
-	created string // where the core asked for the worktree to be made
+	created string   // where the core asked for the worktree to be made
+	asked   []string // the path of each worktree it was asked to supply values for
 }
 
 func (r *resolver) Name() string { return r.name }
@@ -95,7 +96,8 @@ func (r *resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 // Supply is this resolver's account of the place it answered for, which is what an
 // action learns about the system behind a worktree.
 func (r *resolver) Supply(t worktree.Tree) (worktree.Values, error) {
-	return worktree.Values{"ID": t.ID, "Label": "the resolver's"}, nil
+	r.asked = append(r.asked, t.Path)
+	return worktree.Values{"ID": t.ID, "Label": "the resolver's", "Name": "the resolver's"}, nil
 }
 
 func (r *resolver) Create(p worktree.Place, path string) error {
@@ -311,27 +313,13 @@ func TestUnrecognitionChainsAndFailureStops(t *testing.T) {
 	}
 }
 
-// source supplies a fixed set, and records the worktree it was asked about.
-type source struct {
-	supply worktree.Values
-	asked  []string // the path of each worktree it was asked about
-}
-
-func (s *source) Supply(t worktree.Tree) (worktree.Values, error) {
-	s.asked = append(s.asked, t.Path)
-	return s.supply, nil
-}
-
-// A command is rendered from what the systems wired together happen to know
-// between them: the resolver that answered for the place, then the ambient sources.
-// A name two of them supply is the resolver's, which is the only one describing the
-// place rather than any worktree.
-func TestValuesComeFromTheSourcesAndTheResolverFirst(t *testing.T) {
+// A command is rendered from the core's account of the worktree and from the
+// resolver that answered for the place, which is the only system describing the
+// place rather than any worktree. A name both supply is the core's.
+func TestValuesComeFromTheResolverThatAnswered(t *testing.T) {
 	var s steps
 	op := &opener{steps: &s, name: "far"}
-	e, _ := env(t, &s, op)
-	ambient := &source{supply: worktree.Values{"Shell": "/usr/bin/fish", "Label": "the source's"}}
-	e.Systems.Sources = []worktree.Source{ambient}
+	e, r := env(t, &s, op)
 
 	c, err := e.Resolve("x")
 	if err != nil {
@@ -341,21 +329,18 @@ func TestValuesComeFromTheSourcesAndTheResolverFirst(t *testing.T) {
 		t.Fatalf("Enter: %v", err)
 	}
 
-	// The worktree itself, the resolver's account of it, and the ambient source's,
-	// with the resolver winning the name they both supply.
 	want := worktree.Values{
 		"Name": "x", "Dir": op.got.Path,
 		"ID": "x", "Label": "the resolver's",
-		"Shell": "/usr/bin/fish",
 	}
 	if !maps.Equal(op.values, want) {
 		t.Errorf("the command was rendered with %v; want %v", op.values, want)
 	}
 
-	// Asked once, with the worktree there, so a source that can only answer from
+	// Asked once, with the worktree there, so a resolver that can only answer from
 	// inside one has one to answer from.
-	if len(ambient.asked) != 1 || ambient.asked[0] == "" {
-		t.Errorf("the source was asked about %q; want the worktree that now exists, once", ambient.asked)
+	if len(r.asked) != 1 || r.asked[0] == "" {
+		t.Errorf("the resolver was asked about %q; want the worktree that now exists, once", r.asked)
 	}
 }
 
