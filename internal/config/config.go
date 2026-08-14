@@ -23,7 +23,6 @@ type Config struct {
 	Beads    Beads
 	Mise     Mise
 	Claude   Claude
-	Open     Open
 }
 
 type Worktree struct {
@@ -67,7 +66,6 @@ func Default() Config {
 		Branch:   defaults,
 		Action:   defaultAction,
 		Claude:   defaultClaude,
-		Open:     defaultOpen,
 	}
 }
 
@@ -184,9 +182,6 @@ func (c *Config) validate(repo string) (string, error) {
 		return key, err
 	}
 	if key, err := c.Claude.validate(); err != nil {
-		return key, err
-	}
-	if key, err := c.Open.validate(); err != nil {
 		return key, err
 	}
 

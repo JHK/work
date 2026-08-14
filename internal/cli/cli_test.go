@@ -92,9 +92,9 @@ func TestCommandFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) error {
+			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
-				return nil
+				return worktree.Handoff{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
@@ -143,9 +143,9 @@ func TestTheWiredSystemsNameTheFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
 			var got options
-			err := executeOn(t, sys, tt.args, io.Discard, front{enter: func(o options, _ string) error {
+			err := executeOn(t, sys, tt.args, io.Discard, front{enter: func(o options, _ string) (worktree.Handoff, error) {
 				got = o
-				return nil
+				return worktree.Handoff{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
@@ -188,9 +188,9 @@ func TestSwitchFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) error {
+			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
-				return nil
+				return worktree.Handoff{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
@@ -255,9 +255,9 @@ func TestAddFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var name string
-			err := execute(t, tt.args, io.Discard, front{add: func(o options, n string) error {
+			err := execute(t, tt.args, io.Discard, front{add: func(o options, n string) (worktree.Handoff, error) {
 				got, name = o, n
-				return nil
+				return worktree.Handoff{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
@@ -369,7 +369,7 @@ func TestConfigDump(t *testing.T) {
 func TestConfigEdit(t *testing.T) {
 	var out strings.Builder
 	opened := false
-	err := execute(t, []string{"config", "edit"}, &out, front{edit: func() error {
+	err := execute(t, []string{"config", "edit"}, &out, front{edit: func(io.Writer) error {
 		opened = true
 		return nil
 	}})
@@ -563,10 +563,16 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f front) error {
 	t.Helper()
 	if f.enter == nil {
-		f.enter = func(options, string) error { t.Error("entered a worktree"); return nil }
+		f.enter = func(options, string) (worktree.Handoff, error) {
+			t.Error("entered a worktree")
+			return worktree.Handoff{}, nil
+		}
 	}
 	if f.add == nil {
-		f.add = func(options, string) error { t.Error("added a worktree"); return nil }
+		f.add = func(options, string) (worktree.Handoff, error) {
+			t.Error("added a worktree")
+			return worktree.Handoff{}, nil
+		}
 	}
 	if f.remove == nil {
 		f.remove = func(bool, string) (work.Deletion, error) {
@@ -578,7 +584,7 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 		f.dump = func(io.Writer) error { t.Error("dumped the configuration"); return nil }
 	}
 	if f.edit == nil {
-		f.edit = func() error { t.Error("opened the settings file"); return nil }
+		f.edit = func(io.Writer) error { t.Error("opened the settings file"); return nil }
 	}
 	if f.candidates == nil {
 		f.candidates = stub(nil, nil)

@@ -265,8 +265,14 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	}
 	// No key was configured, so this is action.create alone deciding what a fresh
 	// worktree opens on, and it may not name a system this repository never asked for.
-	if _, err := e.Enter(c, work.Options{}); err != nil {
+	h, err := e.Enter(c, work.Options{})
+	if err != nil {
 		t.Fatalf("Enter: %v", err)
+	}
+	// What a repository that configured nothing opens on is the worktree itself, so
+	// the wiring answers a front end with a directory rather than a command.
+	if !h.Directory() {
+		t.Errorf("a worktree no key spoke for opens on %q; want the worktree itself", h.Run)
 	}
 	if _, err := e.Worktrees(); err != nil {
 		t.Fatalf("Worktrees: %v", err)

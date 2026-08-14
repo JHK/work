@@ -30,11 +30,11 @@ type options struct {
 // front is what the command tree calls once cobra has read the flags: a
 // function per verb, and a listing per source for the verbs that complete.
 type front struct {
-	enter      func(o options, target string) error
-	add        func(o options, name string) error
+	enter      func(o options, target string) (worktree.Handoff, error)
+	add        func(o options, name string) (worktree.Handoff, error)
 	remove     func(force bool, target string) (work.Deletion, error)
 	dump       func(out io.Writer) error
-	edit       func() error
+	edit       func(out io.Writer) error
 	candidates func() ([]work.Candidate, error)
 	worktrees  func() ([]work.Candidate, error)
 	branches   func() ([]string, error)
@@ -49,21 +49,21 @@ func (v verbs) repository() (work.Env, error) {
 }
 
 // performEnter brings a worktree into being in the repository the shell stands
-// in and hands the terminal over to it.
-func (v verbs) performEnter(o options, target string) error {
+// in and hands back what it opens on.
+func (v verbs) performEnter(o options, target string) (worktree.Handoff, error) {
 	env, err := v.repository()
 	if err != nil {
-		return err
+		return worktree.Handoff{}, err
 	}
 	return enter(env, o, target)
 }
 
 // performAdd brings a worktree of the user's own name into being in the
-// repository the shell stands in and hands the terminal over to it.
-func (v verbs) performAdd(o options, name string) error {
+// repository the shell stands in and hands back what it opens on.
+func (v verbs) performAdd(o options, name string) (worktree.Handoff, error) {
 	env, err := v.repository()
 	if err != nil {
-		return err
+		return worktree.Handoff{}, err
 	}
 	return add(env, o, name)
 }
@@ -113,8 +113,8 @@ func command(version string, sys work.Systems, f front) *cobra.Command {
 		Use:   "work",
 		Short: "A smarter cd for git worktrees",
 		Long: `work is a smarter cd for git worktrees. It knows which worktrees a repository
-has open and which tickets and pull requests are waiting, and hands the terminal
-to what the one you pick opens on: your shell, or a command.
+has open and which tickets and pull requests are waiting, and hands you the one
+you pick: your shell stands in it, or a command takes the terminal.
 
 An identifier in the first position, or none at all, is work switch.`,
 		Version: version,

@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"io"
+
 	"github.com/spf13/cobra"
 
+	"github.com/JHK/work-cli/internal/shim"
 	"github.com/JHK/work-cli/internal/work"
 )
 
@@ -62,11 +65,16 @@ func initCommand() *cobra.Command {
 
     work init fish | source
 
-It completes the commands and each verb's argument.`,
+It puts a work function in front of the binary, which is what changes the shell
+into the worktree, and completes the commands and each verb's argument.`,
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: []cobra.Completion{cobra.CompletionWithDesc("fish", "fish shell integration")},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Root().GenFishCompletion(cmd.OutOrStdout(), true)
+			out := cmd.OutOrStdout()
+			if _, err := io.WriteString(out, shim.Fish); err != nil {
+				return err
+			}
+			return cmd.Root().GenFishCompletion(out, true)
 		},
 	}
 }

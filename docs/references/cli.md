@@ -42,7 +42,7 @@ A worktree with modified or untracked files is refused, as is a branch `git bran
 
 ### init
 
-`work init fish | source` in `config.fish` installs the [completion](#completion). Printing it touches no repository.
+`work init fish | source` in `config.fish` installs the [function](#the-function) and the [completion](#completion). Printing them touches no repository.
 
 ### config
 
@@ -111,12 +111,20 @@ The set is the same in every repository, being settled before there is one to re
 | Flag | Hands the worktree to |
 |---|---|
 | `--claude` | the [`claude` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
-| `--shell` | [`open.shell`](configuration.md#keys), one just created included |
+| `--shell` | nothing: the worktree is [handed back](#handoff), one just created included |
 
 ## Handoff
 
-`work` changes into the worktree and replaces itself with the command, so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in. A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
+`work` changes into the worktree and execs the command it opens on, so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
+
+The `shell` action hands the worktree back instead: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one.
+
+A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 
 [`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
 
-Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/settings/`; replacing the process with it is `internal/worktree/`.
+Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/settings/`; replacing the process with it is `internal/worktree/`, and the function and the file it names are `internal/shim/`.
+
+### The function
+
+`work` in a shell that sourced [`init`](#init) is a fish function calling the binary. It names a temporary file in `WORK_CD_FILE` and changes into the path the binary wrote there.

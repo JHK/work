@@ -62,6 +62,17 @@ func TestHandoffExecRejects(t *testing.T) {
 	}
 }
 
+// A handoff naming no command is the worktree itself, which a front end answers
+// with rather than running.
+func TestHandoffDirectory(t *testing.T) {
+	if !(Handoff{Dir: "/wt"}).Directory() {
+		t.Error("a handoff naming no command is not read as the worktree itself")
+	}
+	if (Handoff{Dir: "/wt", Run: []string{"fish"}}).Directory() {
+		t.Error("a handoff naming a command is read as the worktree itself")
+	}
+}
+
 // The first source asked owns a name, which is what puts the resolver's account
 // of the place it resolved ahead of any source answering for any worktree. A
 // value supplied empty is a value all the same.

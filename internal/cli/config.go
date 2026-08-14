@@ -10,7 +10,7 @@ import (
 
 // configCommand is the verb that answers for the settings. It runs nothing
 // itself: what it carries is dump and edit.
-func configCommand(run func(out io.Writer) error, open func() error) *cobra.Command {
+func configCommand(run, open func(out io.Writer) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Answer for the settings work reads",
@@ -64,7 +64,7 @@ func dump(out io.Writer) error {
 
 // editCommand opens the user's settings file. The repository's own is already
 // where the shell stands.
-func editCommand(run func() error) *cobra.Command {
+func editCommand(run func(out io.Writer) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",
 		Short: "Open your own settings file in $VISUAL, else $EDITOR",
@@ -77,18 +77,18 @@ Nothing is created where neither variable names an editor.
 
 Nothing runs after: the terminal is the editor's from here.`,
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return run()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd.OutOrStdout())
 		},
 	}
 }
 
 // edit opens the user's settings file and hands the terminal over to the editor
 // the environment names. It asks git nothing.
-func edit() error {
+func edit(out io.Writer) error {
 	h, err := settings.Edit()
 	if err != nil {
 		return err
 	}
-	return h.Exec()
+	return hand(h, out)
 }

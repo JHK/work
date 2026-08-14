@@ -31,6 +31,9 @@ func Main(m *testing.M) {
 		}
 	}
 	set("XDG_CONFIG_HOME", dir)
+	// A shell that ran the tests from inside work named a file of its own in
+	// shim.CDFile, which a front end under test would answer into.
+	set("WORK_CD_FILE", "")
 	// The runner's own git config would otherwise decide what git does: gpgsign on
 	// an empty commit, showUntrackedFiles on whether a worktree can be removed.
 	set("GIT_CONFIG_GLOBAL", os.DevNull)

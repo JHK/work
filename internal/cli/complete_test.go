@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JHK/work-cli/internal/shim"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -133,7 +134,8 @@ func TestGoneFlags(t *testing.T) {
 	}
 }
 
-// init prints the script, and the shell it names completes no further.
+// init prints the script, and the shell it names completes no further. The one
+// line that sources it installs the function and the completions together.
 func TestInitFish(t *testing.T) {
 	var out strings.Builder
 	err := execute(t, []string{"init", "fish"}, &out, front{})
@@ -142,6 +144,9 @@ func TestInitFish(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "complete -c work") {
 		t.Errorf("work init fish printed %q; want a fish completion script", out.String())
+	}
+	if !strings.Contains(out.String(), shim.Fish) {
+		t.Errorf("work init fish printed %q; want the shim in front of it", out.String())
 	}
 	// Both variants register the same completions; only this one asks for titles.
 	if strings.Contains(out.String(), cobra.ShellCompNoDescRequestCmd) {
@@ -155,9 +160,9 @@ func TestInitFish(t *testing.T) {
 // carries that command only once Execute ran.
 func TestNoCompletionCommand(t *testing.T) {
 	var target string
-	err := execute(t, []string{"completion"}, io.Discard, front{enter: func(_ options, id string) error {
+	err := execute(t, []string{"completion"}, io.Discard, front{enter: func(_ options, id string) (worktree.Handoff, error) {
 		target = id
-		return nil
+		return worktree.Handoff{}, nil
 	}})
 	if err != nil || target != "completion" {
 		t.Errorf(`work completion = %q, %v; want the worktree named completion`, target, err)

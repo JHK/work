@@ -31,7 +31,6 @@ Values are validated after the merge and before anything is created.
 | [`claude.start-pull-request`](../../internal/config/command.go) | the [command](#commands) a pull request's new worktree opens on |
 | [`claude.start-session`](../../internal/config/command.go) | the [command](#commands) a worktree opens on with no ticket and no conversation to name another |
 | [`claude.resume-session`](../../internal/config/command.go) | the [command](#commands) that returns to the conversation a worktree carries |
-| [`open.shell`](../../internal/config/command.go) | the [command](#commands) the `shell` action hands the worktree to, `--shell` included |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
@@ -71,11 +70,11 @@ An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, 
 | Value | Hands the worktree to |
 |---|---|
 | `claude` | what [`--claude`](cli.md#open-on-flags) hands it to |
-| `shell` | `open.shell` |
+| `shell` | nothing: the worktree is [handed back](cli.md#handoff) |
 
 ## Commands
 
-A `[claude]` or `[open]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
+A `[claude]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
 
 | Value | Rendered by | Is |
 |---|---|---|
@@ -84,7 +83,6 @@ A `[claude]` or `[open]` value is the argv of a command run without a shell, one
 | `.ID`, `.Title` | `claude.start-ticket` | the ticket id and its title |
 | `.Number` | `claude.start-pull-request` | the pull request number |
 | `.Session` | `claude.resume-session` | the conversation the worktree carries, empty where it carries several |
-| `.Shell` | `open.shell` | `$SHELL`, else `/bin/sh` |
 
 An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
 

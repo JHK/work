@@ -1,5 +1,5 @@
 // Command work turns a ticket, a pull request, or an open worktree into a git
-// worktree, and hands the terminal to what that worktree opens on.
+// worktree, and hands it to what that worktree opens on.
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	actionbeads "github.com/JHK/work-cli/internal/action/beads"
 	"github.com/JHK/work-cli/internal/action/claude"
 	"github.com/JHK/work-cli/internal/action/mise"
-	"github.com/JHK/work-cli/internal/action/open"
+	"github.com/JHK/work-cli/internal/action/shell"
 	"github.com/JHK/work-cli/internal/cli"
 	"github.com/JHK/work-cli/internal/config"
 	resolvebeads "github.com/JHK/work-cli/internal/resolve/beads"
@@ -69,17 +69,13 @@ func wire(repo, checkout string, cfg config.Config) work.Systems {
 		off = append(off, agent)
 	}
 	// Never off either: a worktree always has something to open on.
-	openers = append(openers, open.Shell(cfg.Open))
+	openers = append(openers, shell.Action{})
 
 	return work.Systems{
 		Resolvers: resolvers,
 		Actions:   actions,
 		Openers:   openers,
-		// What any worktree can be described by, whichever resolver answered for it.
-		Sources: []worktree.Source{
-			open.Values{},
-		},
-		Named:    plain.Named(repo, checkout),
-		Disabled: off,
+		Named:     plain.Named(repo, checkout),
+		Disabled:  off,
 	}
 }

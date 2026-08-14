@@ -111,15 +111,19 @@ type Source interface {
 var ErrUnknown = errors.New("no system answers for it")
 
 // Handoff is what a worktree opens on: work replaces itself with this command,
-// running inside the worktree.
+// running inside the worktree. One naming no command is the worktree itself,
+// which the front end answers with rather than running.
 type Handoff struct {
 	Dir string
 	Run []string
 }
 
+// Directory reports whether the answer is the worktree and nothing to run in it.
+func (h Handoff) Directory() bool { return len(h.Run) == 0 }
+
 // Exec hands the terminal over. It returns only on failure.
 func (h Handoff) Exec() error {
-	if len(h.Run) == 0 {
+	if h.Directory() {
 		return errors.New("nothing to run")
 	}
 	// Resolved before the chdir, so a failure leaves the process where it started.

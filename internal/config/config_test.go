@@ -183,18 +183,6 @@ func TestDefaultClaudeCommands(t *testing.T) {
 	}
 }
 
-// A zero Open is the compiled-in command: what the environment named for the
-// shell.
-func TestDefaultOpenCommands(t *testing.T) {
-	var o Open
-	l := worktree.Values{"Name": "bd-42", "Dir": "/w", "Shell": "/usr/bin/fish"}
-
-	got, err := o.Shell().Render(l)
-	if want := []string{"/usr/bin/fish"}; err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Shell() = %q, %v; want %q", got, err, want)
-	}
-}
-
 // An unset [action] key names an action even on a Config that never reached
 // Load, and names one no system has to be on for: what these keys fall to is
 // what a repository that configured nothing opens on, which the systems it never
@@ -400,11 +388,9 @@ func TestLoadRefusals(t *testing.T) {
 		{"a model or an effort", "[claude]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", startTicketKey},
 		// Only the arm a target with a session reaches names it.
 		{"a value named inside a branch", "[claude]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", resumeSessionKey},
-		{"a value belonging to no key at all", "[open]\nshell = [\"{{.Editor}}\"]\n", shellKey},
-		// The keys and the values of the actions work no longer has: a file written
-		// against the old shape is refused naming the key that held one.
-		{"the editor key", "[open]\neditor = [\"vi\", \"{{.Dir}}\"]\n", "unknown setting open.editor"},
-		{"the diff key", "[open]\ndiff = [\"git\", \"diff\"]\n", "unknown setting open.diff"},
+		// The whole table went with the commands that were under it: the shell action
+		// hands back the worktree now, and the editor and the diff are gone.
+		{"the table of commands to open on", "[open]\nshell = [\"fish\"]\neditor = [\"vi\", \"{{.Dir}}\"]\n", "unknown setting open"},
 		{"the editor action", "[action]\ncreate = \"editor\"\n", "action.create"},
 		{"the diff action", "[action]\nenter = \"diff\"\n", "action.enter"},
 		{"the screen, which was never a command", "[action]\ncreate = \"ask\"\n", "action.create"},

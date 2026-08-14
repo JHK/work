@@ -58,7 +58,6 @@ func (c Config) keys() []key {
 		{startPullRequestKey, value(argv(c.Claude.StartPullRequest()))},
 		{startSessionKey, value(argv(c.Claude.StartSession()))},
 		{resumeSessionKey, value(argv(c.Claude.ResumeSession()))},
-		{shellKey, value(argv(c.Open.Shell()))},
 	}
 }
 

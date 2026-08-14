@@ -44,8 +44,8 @@ func spelling(f reflect.StructField) string {
 func TestDumpNamesTheLayerBehindEachKey(t *testing.T) {
 	repo, home := t.TempDir(), testenv.Home(t)
 	user := filepath.Join(home, userRelPath)
-	testenv.Write(t, user, directory("trees")+"[open]\nshell = [\"fish\"]\n[mise]\nenabled = true\n")
-	testenv.Write(t, filepath.Join(repo, repoFile), "[open]\nshell = [\"zsh\"]\n[action]\nenter = \"shell\"\n[beads]\nenabled = true\n")
+	testenv.Write(t, user, directory("trees")+"[claude]\nstart-session = [\"claude\"]\n[mise]\nenabled = true\n")
+	testenv.Write(t, filepath.Join(repo, repoFile), "[claude]\nstart-session = [\"claude\", \"--continue\"]\n[action]\nenter = \"shell\"\n[beads]\nenabled = true\n")
 
 	got, err := Dump(repo)
 	if err != nil {
@@ -55,14 +55,14 @@ func TestDumpNamesTheLayerBehindEachKey(t *testing.T) {
 	// A system says which layer switched it on, and one nothing named says it is
 	// off and where that comes from, so what a dump shows is every system's state.
 	want := map[string]string{
-		"worktree.directory": user,
-		"open.shell":         repoFile,
-		"action.enter":       repoFile,
-		"action.create":      compiledIn,
-		"branch.ticket":      compiledIn,
-		"beads.enabled":      repoFile,
-		"mise.enabled":       user,
-		"claude.enabled":     compiledIn,
+		"worktree.directory":   user,
+		"claude.start-session": repoFile,
+		"action.enter":         repoFile,
+		"action.create":        compiledIn,
+		"branch.ticket":        compiledIn,
+		"beads.enabled":        repoFile,
+		"mise.enabled":         user,
+		"claude.enabled":       compiledIn,
 	}
 	for key, layer := range want {
 		if from[key] != layer {
@@ -109,7 +109,7 @@ func TestDumpRefusesWhatLoadRefuses(t *testing.T) {
 		user, repo string
 	}{
 		{"the repository's file", "", "[action]\nenter = \"vim\"\n"},
-		{"the user's file", "[open]\nshell = []\n", ""},
+		{"the user's file", "[claude]\nstart-session = []\n", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

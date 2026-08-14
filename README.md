@@ -5,7 +5,7 @@
 
 `work` is a smarter `cd` for git worktrees. It knows which worktrees a repository has open and which tickets and pull requests are waiting, so the place you meant to work is a few keystrokes away.
 
-Navigation is the whole remit. `work` provisions the worktree and hands the terminal to whatever it opens on: your shell, or a command. The second form makes it a launcher for [agentic work](docs/explanation/work-loop.md), one keystroke from a ticket to an agent running in its own checkout.
+Navigation is the whole remit. `work` provisions the worktree and hands it to whatever it opens on: your shell, or a command. The second form makes it a launcher for [agentic work](docs/explanation/work-loop.md), one keystroke from a ticket to an agent running in its own checkout.
 
 ## Install
 

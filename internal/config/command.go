@@ -86,27 +86,6 @@ var defaultClaude = Claude{
 	),
 }
 
-// Open is what a worktree is handed over to when no session is started.
-type Open struct {
-	ShellCommand Command `toml:"shell"`
-}
-
-const shellKey = "open.shell"
-
-// Shell is the command an existing worktree is entered with, and the one --shell
-// hands over to.
-func (o Open) Shell() Command { return o.ShellCommand.or(defaultOpen.ShellCommand) }
-
-func (o *Open) validate() (string, error) {
-	if err := o.ShellCommand.bind(shellValues); err != nil {
-		return shellKey, err
-	}
-	return "", nil
-}
-
-// defaultOpen places what the environment named for the shell.
-var defaultOpen = Open{ShellCommand: mustCommand(shellValues, "{{.Shell}}")}
-
 // Command is a whole command line: one [text/template] per argv element,
 // rendered with the values its key has. Which values those are is settled by
 // bind, once the key the command was read from says.
@@ -131,7 +110,6 @@ var (
 	startPullRequestValues = keyValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
 	startSessionValues     = keyValues{startSessionKey, common}
 	resumeSessionValues    = keyValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
-	shellValues            = keyValues{shellKey, slices.Concat(common, []string{"Shell"})}
 )
 
 // ErrUnsupplied is a value the key places that nothing in the wiring supplied. It
