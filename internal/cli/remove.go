@@ -26,7 +26,7 @@ With no name, choose among the repository's worktrees. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(list),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := run(force, firstArg(args))
+			d, err := run(force, arg(args, 0))
 			if err != nil {
 				return err
 			}
@@ -41,7 +41,7 @@ With no name, choose among the repository's worktrees. That form needs fzf.`,
 // remove takes a worktree away and returns what went. It hands over to nothing:
 // the invocation does its work and exits.
 func remove(env work.Env, force bool, target string) (work.Deletion, error) {
-	c, err := toRemove(env, target)
+	c, err := openWorktree(env, target)
 	if err != nil {
 		return work.Deletion{}, err
 	}
@@ -56,13 +56,4 @@ func removed(out io.Writer, d work.Deletion) error {
 	}
 	_, err := io.WriteString(out, said)
 	return err
-}
-
-// toRemove is the worktree to take away. The picker offers the open ones alone,
-// removing reaching nothing else.
-func toRemove(env work.Env, target string) (work.Candidate, error) {
-	if target == "" {
-		return pickFrom(env.Worktrees)
-	}
-	return env.Resolve(target)
 }

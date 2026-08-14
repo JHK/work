@@ -37,7 +37,7 @@ func TestCompleteBarePosition(t *testing.T) {
 	}
 	out := complete(t, front{candidates: stub(listed, nil)}, "")
 	offered := names(rows(out))
-	for _, verb := range []string{"switch", "add", "remove", "list", "init"} {
+	for _, verb := range []string{"switch", "add", "remove", "move", "list", "init"} {
 		if !slices.Contains(offered, verb) {
 			t.Errorf("completing the bare position gave %q; want a %s row", offered, verb)
 		}
@@ -97,6 +97,30 @@ func TestCompleteRemove(t *testing.T) {
 		t.Errorf("completing remove gave %q; want %q", rows(out), want)
 	}
 	assertNoFileComp(t, out)
+}
+
+// A tab press after move offers the worktrees at the name it takes and nothing
+// at the destination, which is a name nothing holds yet, nor a file name either.
+func TestCompleteMove(t *testing.T) {
+	worktrees := []work.Candidate{
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
+		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
+	}
+	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
+	f := front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)}
+
+	out := complete(t, f, "move", "")
+	want := []string{"bd-1\tDo a thing", "spike"}
+	if !slices.Equal(rows(out), want) {
+		t.Errorf("completing move gave %q; want %q", rows(out), want)
+	}
+	assertNoFileComp(t, out)
+
+	dest := complete(t, f, "move", "bd-1", "")
+	if got := rows(dest); got != nil {
+		t.Errorf("completing move's destination gave %q; want nothing", got)
+	}
+	assertNoFileComp(t, dest)
 }
 
 // A tab press after add offers nothing: the name is new, so no listing has it,

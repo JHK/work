@@ -25,6 +25,16 @@ const (
 	prompt = "work> "
 )
 
+// openWorktree is the worktree a verb that acts on one was named: an identifier
+// resolves to it, and without one the picker offers the open worktrees alone,
+// those verbs reaching nothing else.
+func openWorktree(env work.Env, target string) (work.Candidate, error) {
+	if target == "" {
+		return pickFrom(env.Worktrees)
+	}
+	return env.Resolve(target)
+}
+
 // pickFrom puts one listing in front of the picker.
 func pickFrom(list func() ([]work.Candidate, error)) (work.Candidate, error) {
 	candidates, err := list()
@@ -46,26 +56,53 @@ func choose(rows []string) (int, error) {
 		keyed[i] = fmt.Sprintf("%d\t%s", i, r)
 	}
 
-	fzf := exec.Command("fzf", "--ansi", "--height", "40%", "--reverse",
-		"--delimiter", "\t", "--with-nth", "2..", "--prompt", prompt)
-	fzf.Stdin = strings.NewReader(strings.Join(keyed, "\n") + "\n")
-	fzf.Stderr = os.Stderr
-	out, err := fzf.Output()
+	out, err := putThrough(strings.Join(keyed, "\n")+"\n",
+		"--ansi", "--delimiter", "\t", "--with-nth", "2..")
 	if err != nil {
-		// fzf exits 1 with no match and 130 when interrupted; anything else, a
-		// missing binary above all, is a failure the user has to be told about.
-		var exit *exec.ExitError
-		if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
-			return 0, errCancelled
-		}
-		return 0, fmt.Errorf("fzf: %w", err)
+		return 0, err
 	}
-	field, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+	field, _, _ := strings.Cut(strings.TrimSpace(out), "\t")
 	i, err := strconv.Atoi(field)
 	if err != nil || i < 0 || i >= len(rows) {
 		return 0, errCancelled
 	}
 	return i, nil
+}
+
+// putThrough runs fzf over a listing under the flags every screen work puts up
+// shares, and hands back what it printed whether or not it came back cancelled.
+// fzf exits 1 with no match and 130 when interrupted; anything else, a missing
+// binary above all, is a failure the user has to be told about.
+func putThrough(stdin string, args ...string) (string, error) {
+	fzf := exec.Command("fzf", append([]string{"--height", "40%", "--reverse", "--prompt", prompt}, args...)...)
+	fzf.Stdin = strings.NewReader(stdin)
+	fzf.Stderr = os.Stderr
+	out, err := fzf.Output()
+	if err == nil {
+		return string(out), nil
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
+		return string(out), errCancelled
+	}
+	return string(out), fmt.Errorf("fzf: %w", err)
+}
+
+// ask puts one question with an answer already in it, standing in for the
+// argument a verb was given only half of. It is the picker's fzf over a listing
+// of nothing, where the query is the answer.
+func ask(preset string) (string, error) {
+	// An answer matches none of the nothing on offer, so it comes back cancelled and
+	// is read off what was printed rather than off the status.
+	out, err := putThrough("", "--print-query", "--query", preset)
+	if err != nil && !errors.Is(err, errCancelled) {
+		return "", err
+	}
+	answer, _, _ := strings.Cut(strings.TrimSpace(out), "\n")
+	if answer == "" {
+		return "", errCancelled
+	}
+	return answer, nil
 }
 
 // column is where the titles line up: behind the widest name that has one. A

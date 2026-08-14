@@ -3,6 +3,7 @@
 package git
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +114,27 @@ func NewWorktree(from, path, branch string) error {
 	return add(from, path, "-b", branch)
 }
 
+// MoveWorktree moves a worktree's directory and registers it where it landed.
+// git nests the worktree inside a destination already there rather than refusing
+// it, so that refusal is this adapter's. The main checkout is git's to refuse.
+func MoveWorktree(repo, from, to string) error {
+	if _, err := os.Lstat(to); err == nil {
+		return fmt.Errorf("%s already exists", to)
+	}
+	if err := mkParent(to); err != nil {
+		return err
+	}
+	_, err := git(repo, "worktree", "move", from, to)
+	return err
+}
+
+// RenameBranch renames a local branch, the worktree that has it checked out
+// following it. git refuses a name another branch already holds.
+func RenameBranch(repo, from, to string) error {
+	_, err := git(repo, "branch", "--move", from, to)
+	return err
+}
+
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
 // one with modified or untracked files unless force, and the main checkout
 // either way.
@@ -135,11 +157,16 @@ func DeleteBranch(repo, branch string) error {
 // add makes the directory the worktree goes in, then adds it. -q leaves the
 // progress line off stderr, where a failure's own message is read from.
 func add(dir, path string, args ...string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := mkParent(path); err != nil {
 		return err
 	}
 	_, err := git(dir, append([]string{"worktree", "add", "-q", path}, args...)...)
 	return err
+}
+
+// mkParent makes the directory a worktree is about to sit in.
+func mkParent(path string) error {
+	return os.MkdirAll(filepath.Dir(path), 0o755)
 }
 
 func git(dir string, args ...string) (string, error) {

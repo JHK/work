@@ -7,6 +7,7 @@
 | [`work switch [<identifier>]`](#switch) | enters the worktree an [identifier](#identifiers) names, creating it if there is none |
 | [`work add <name>`](#add) | creates a worktree on a new branch of that name and opens it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
+| [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
 | [`work init fish`](#init) | prints the shell integration |
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
@@ -35,6 +36,16 @@ A [system](systems.md) can add to either form.
 With no name, [the picker](#the-picker) offers the worktrees alone.
 
 Only a clean worktree can be removed, an unclean one with `--force`. The main checkout cannot be removed, and neither can the worktree the shell is standing in.
+
+### move
+
+`work move <name> <destination>` moves the worktree git reports for that [identifier](#identifiers) and renames the branch it has checked out to the destination's last element. Both land or neither does. An identifier with no worktree open is refused, and so are a destination already there and a branch name already taken, each before anything moves.
+
+A destination spelled as a bare name lands the worktree beside where it sits; one carrying a path separator is a path, absolute or read from the directory work was invoked in. The last element is held to the [naming rule](#identifiers) either way.
+
+With no destination, [the prompt](#the-prompt) asks for one. With no name either, [the picker](#the-picker) offers the worktrees first.
+
+No tracker is asked and no action runs. The main checkout cannot be moved, and neither can the worktree the shell is standing in.
 
 ### list
 
@@ -80,11 +91,15 @@ Where several worktrees match one ticket, the shortest branch takes it, ties set
 
 ### The picker
 
-An fzf list standing in for the argument a verb was not given. It is the one thing that needs `fzf`: name the argument instead, and every verb runs without it.
+An fzf list standing in for the argument a verb was not given. It and [the prompt](#the-prompt) are the only things that need `fzf`: name the arguments instead, and every verb runs without it.
 
 A worktree row is one git reports, read off its branch, and offered under that branch where no [system](systems.md) names it.
 
 Beside the worktrees, a system can add rows of its own and the titles on them.
+
+### The prompt
+
+One question with the answer already typed into it, standing in for the destination [`move`](#move) was not given. What it carries is the name the worktree goes by now. An answer left empty, and an interruption, are the invocation cancelled.
 
 ### Completion
 
@@ -96,6 +111,7 @@ What [`init`](#init)'s integration offers at each position:
 | [`config`](#config)'s sub-verb | `dump` and `edit` |
 | [`switch`](#switch)'s identifier | what [the picker](#the-picker) offers |
 | [`remove`](#remove)'s name | the worktrees |
+| [`move`](#move)'s name | the worktrees |
 | [`add`](#add)'s name | nothing |
 
 A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell.
@@ -121,7 +137,7 @@ The `shell` action hands the worktree back instead: the path goes into the file 
 
 A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 
-[`remove`](#remove), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what is open, and the configuration are printed on stdout.
+[`remove`](#remove), [`move`](#move), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what moved and what its branch became, what is open, and the configuration are printed on stdout.
 
 Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/settings/`; replacing the process with it is `internal/worktree/`, and the function and the file it names are `internal/shim/`.
 

@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -135,6 +136,29 @@ type Candidate struct {
 	by     Resolver
 	path   string // where that worktree sits
 	branch string // what it has checked out, empty when it is detached
+}
+
+// Dir is what the worktree's directory is called, empty where the candidate has
+// none. A branch may be spelled with separators in it; a directory never is.
+func (c Candidate) Dir() string {
+	if c.path == "" {
+		return ""
+	}
+	return filepath.Base(c.path)
+}
+
+// actOn is why a verb may not act on the worktree a candidate has: there is
+// none, or the process stands inside the one git is about to move or take away,
+// which would leave the shell in a directory that is gone. Never the main
+// checkout, which every other worktree sits under and which git refuses outright.
+func (e Env) actOn(c Candidate, verb string) error {
+	if !c.Open {
+		return fmt.Errorf("%s has no worktree to %s", c.Name, verb)
+	}
+	if wd, err := os.Getwd(); err == nil && !git.SameDir(c.path, e.Repo) && git.Inside(wd, c.path) {
+		return fmt.Errorf("%s is the worktree you are standing in; run work %s from outside it", c.Name, verb)
+	}
+	return nil
 }
 
 // Resolve maps an identifier to the place it names and to the worktree that

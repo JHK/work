@@ -35,7 +35,7 @@ the worktree add.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(list),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			h, err := run(o, firstArg(args))
+			h, err := run(o, arg(args, 0))
 			if err != nil {
 				return err
 			}

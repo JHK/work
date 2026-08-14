@@ -2,7 +2,6 @@ package work
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/JHK/work-cli/internal/git"
 )
@@ -18,13 +17,8 @@ type Deletion struct {
 // touched, no tracker asked and no action run. The worktree is git's to refuse,
 // and where it is not refused the branch goes with it.
 func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
-	if !c.Open {
-		return Deletion{}, fmt.Errorf("%s has no worktree to remove", c.Name)
-	}
-	// git removes the worktree the process stands in without a word. Not the main
-	// checkout, which every other worktree sits under and which git refuses outright.
-	if wd, err := os.Getwd(); err == nil && !git.SameDir(c.path, e.Repo) && git.Inside(wd, c.path) {
-		return Deletion{}, fmt.Errorf("%s is the worktree you are standing in; run work remove from outside it", c.Name)
+	if err := e.actOn(c, "remove"); err != nil {
+		return Deletion{}, err
 	}
 	if err := git.RemoveWorktree(e.Repo, c.path, force); err != nil {
 		return Deletion{}, err

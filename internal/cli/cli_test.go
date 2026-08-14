@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -179,6 +180,7 @@ func TestSwitchFlags(t *testing.T) {
 		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
 		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
 		{"a worktree named remove", []string{"switch", "remove"}, options{}, "remove"},
+		{"a worktree named move", []string{"switch", "move"}, options{}, "move"},
 		{"a worktree named list", []string{"switch", "list"}, options{}, "list"},
 		{"a worktree named switch", []string{"switch", "switch"}, options{}, "switch"},
 		{"a worktree named config", []string{"switch", "config"}, options{}, "config"},
@@ -300,6 +302,131 @@ func TestRemoveFlags(t *testing.T) {
 				t.Errorf("Execute(%q) = %v, %q; want %v, %q", tt.args, force, target, tt.force, tt.target)
 			}
 		})
+	}
+}
+
+// move is a verb of its own, taking the name and the destination in the two
+// argument positions. Either may be left out, the picker standing in for the
+// first and the prompt for the second.
+func TestMoveFlags(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		target, dest string
+	}{
+		{"a named worktree and where it goes", []string{"move", "scratch", "settled"}, "scratch", "settled"},
+		{"a destination that is a path", []string{"move", "scratch", "../beside"}, "scratch", "../beside"},
+		{"no destination", []string{"move", "scratch"}, "scratch", ""},
+		{"neither", []string{"move"}, "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var target, dest string
+			err := execute(t, tt.args, io.Discard, front{move: func(id, to string) (work.Move, error) {
+				target, dest = id, to
+				return work.Move{}, nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if target != tt.target || dest != tt.dest {
+				t.Errorf("Execute(%q) = %q, %q; want %q, %q", tt.args, target, dest, tt.target, tt.dest)
+			}
+		})
+	}
+}
+
+// A worktree goes by its branch where nothing else names it, and a branch may be
+// spelled with separators in it. The question carries the directory instead, so
+// that the answer left as it stands is a bare name and not a path.
+func TestMoveAsksWithTheDirectoryNotTheBranch(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	dir := filepath.Join(repo, config.Default().Worktree.Dir())
+	testenv.Git(t, repo, "worktree", "add", "-b", "feature/login", filepath.Join(dir, "login"))
+	t.Chdir(repo)
+	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "login\n", Exits: 1})
+
+	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
+		return work.Systems{Resolvers: []work.Resolver{last{}}}
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := move(env, "feature/login", ""); err == nil {
+		t.Error("move onto the directory it already sits in: want it refused")
+	}
+	if asked := strings.Join(ran(), "\n"); !strings.Contains(asked, "--query login") {
+		t.Errorf("the destination was asked for as %q; want the directory in it", asked)
+	}
+}
+
+// A move given no destination asks for one with the current name already in it,
+// so the answer is the name edited rather than retyped.
+func TestMoveAsksForTheDestination(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	dir := filepath.Join(repo, config.Default().Worktree.Dir())
+	testenv.Git(t, repo, "worktree", "add", "-b", "scratch", filepath.Join(dir, "scratch"))
+	t.Chdir(repo)
+	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
+
+	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
+		return work.Systems{Resolvers: []work.Resolver{last{}}}
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	m, err := move(env, "scratch", "")
+	if err != nil {
+		t.Fatalf("move: %v", err)
+	}
+
+	if asked := strings.Join(ran(), "\n"); !strings.Contains(asked, "--query scratch") {
+		t.Errorf("the destination was asked for as %q; want the current name in it", asked)
+	}
+	if want := filepath.Join(dir, "settled"); m.To != want || m.Now != "settled" {
+		t.Errorf("move = %+v; want it at %q on branch settled", m, want)
+	}
+}
+
+// What moved is printed on the writer cobra handed the command, a line per half,
+// and a branch that took no new name is a half that did not happen.
+func TestMovePrints(t *testing.T) {
+	moved := work.Move{
+		From: "/repo/.worktrees/bd-1", To: "/repo/.worktrees/settled",
+		Was: "bd-1-do-a-thing", Now: "settled",
+	}
+	tests := []struct {
+		name string
+		went work.Move
+		want string
+	}{
+		{
+			"a worktree and its branch",
+			moved,
+			"moved worktree /repo/.worktrees/bd-1 to /repo/.worktrees/settled\nrenamed branch bd-1-do-a-thing to settled\n",
+		},
+		{
+			"a detached worktree",
+			work.Move{From: "/repo/.worktrees/spike", To: "/elsewhere/spike"},
+			"moved worktree /repo/.worktrees/spike to /elsewhere/spike\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			f := front{move: func(string, string) (work.Move, error) { return tt.went, nil }}
+			if err := execute(t, []string{"move", "scratch", "settled"}, &out, f); err != nil {
+				t.Fatalf("work move: %v", err)
+			}
+			if out.String() != tt.want {
+				t.Errorf("work move printed %q; want %q", out.String(), tt.want)
+			}
+		})
+	}
+
+	f := front{move: func(string, string) (work.Move, error) { return moved, nil }}
+	if err := execute(t, []string{"move", "scratch", "settled"}, refusing{}, f); err == nil {
+		t.Error("work move onto a writer that refuses: want the write's error")
 	}
 }
 
@@ -478,6 +605,10 @@ func TestCommandRejects(t *testing.T) {
 		// remove declares --force and nothing else, so a root flag is unknown to it.
 		{"a root flag on remove", []string{"remove", "scratch", "--shell"}},
 		{"removing two worktrees at once", []string{"remove", "scratch", "other"}},
+		// move takes the two positions and no flag at all.
+		{"a name, a destination and a third word", []string{"move", "scratch", "settled", "over"}},
+		{"a root flag on move", []string{"move", "scratch", "--shell"}},
+		{"another verb's flag on move", []string{"move", "scratch", "--force"}},
 		// Listing takes no argument: a name to filter on is switch's.
 		{"list with a name", []string{"list", "scratch"}},
 		{"a root flag on list", []string{"list", "--shell"}},
@@ -578,6 +709,12 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 		f.remove = func(bool, string) (work.Deletion, error) {
 			t.Error("removed a worktree")
 			return work.Deletion{}, nil
+		}
+	}
+	if f.move == nil {
+		f.move = func(string, string) (work.Move, error) {
+			t.Error("moved a worktree")
+			return work.Move{}, nil
 		}
 	}
 	if f.dump == nil {

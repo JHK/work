@@ -33,6 +33,7 @@ type front struct {
 	enter      func(o options, target string) (worktree.Handoff, error)
 	add        func(o options, name string) (worktree.Handoff, error)
 	remove     func(force bool, target string) (work.Deletion, error)
+	move       func(target, dest string) (work.Move, error)
 	dump       func(out io.Writer) error
 	edit       func(out io.Writer) error
 	candidates func() ([]work.Candidate, error)
@@ -77,10 +78,20 @@ func (v verbs) performRemove(force bool, target string) (work.Deletion, error) {
 	return remove(env, force, target)
 }
 
+// performMove moves a worktree of the repository the shell stands in and takes
+// its branch with it.
+func (v verbs) performMove(target, dest string) (work.Move, error) {
+	env, err := v.repository()
+	if err != nil {
+		return work.Move{}, err
+	}
+	return move(env, target, dest)
+}
+
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
 	v := verbs{wire: wire}
-	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
+	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -127,7 +138,7 @@ An identifier in the first position, or none at all, is work switch.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), moveCommand(f.move, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
@@ -203,11 +214,11 @@ func renamedFlag(cmd *cobra.Command, was, now string) {
 	_ = cmd.Flags().MarkHidden(was)
 }
 
-// firstArg is the name a verb was given, empty where it was left out for the
-// picker. Cobra has already refused a second.
-func firstArg(args []string) string {
-	if len(args) == 0 {
+// arg is the word a verb was given at a position, empty where it was left out
+// for the picker or the prompt. Cobra has already refused one past the last.
+func arg(args []string, at int) string {
+	if at >= len(args) {
 		return ""
 	}
-	return args[0]
+	return args[at]
 }
