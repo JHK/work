@@ -47,6 +47,9 @@ func move(env work.Env, target, dest string) (work.Move, error) {
 	if err != nil {
 		return work.Move{}, err
 	}
+	if err := env.Movable(c); err != nil {
+		return work.Move{}, err
+	}
 	if dest == "" {
 		// The directory rather than the name, which for a plain worktree is its branch
 		// and may carry a separator the destination would read as a path.

@@ -388,6 +388,49 @@ func TestMoveAsksForTheDestination(t *testing.T) {
 	}
 }
 
+// What a candidate is refused over is known from the candidate alone, so the
+// refusal lands where a destination was given and where one was not, and the
+// question is never put where it is thrown away.
+func TestMoveRefusesBeforeAsking(t *testing.T) {
+	tests := []struct {
+		name, target, want string
+		stoodIn            bool
+	}{
+		{"the worktree stood in", "scratch", "standing in", true},
+		{"no worktree open", "nowhere", "no worktree", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := testenv.InitRepo(t)
+			path := filepath.Join(repo, config.Default().Worktree.Dir(), "scratch")
+			testenv.Git(t, repo, "worktree", "add", "-b", "scratch", path)
+			from := repo
+			if tt.stoodIn {
+				from = path
+			}
+			t.Chdir(from)
+			ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
+
+			env, err := work.Open(".", func(string, string, config.Config) work.Systems {
+				return work.Systems{Resolvers: []work.Resolver{anything{}}}
+			})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			// A destination given and one left for the prompt alike: neither is what the
+			// refusal waits on.
+			for _, dest := range []string{"", "settled"} {
+				if _, err := move(env, tt.target, dest); err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Errorf("move(%q, %q) = %v; want a refusal naming %q", tt.target, dest, err, tt.want)
+				}
+			}
+			if asked := ran(); len(asked) > 0 {
+				t.Errorf("the destination was asked for as %q; want the refusal ahead of the question", asked)
+			}
+		})
+	}
+}
+
 // What moved is printed on the writer cobra handed the command, a line per half,
 // and a branch that took no new name is a half that did not happen.
 func TestMovePrints(t *testing.T) {
@@ -772,6 +815,20 @@ func (last) Identify(id string, o worktree.Open) (worktree.Place, error) {
 func (last) Offer() ([]worktree.Place, error)                 { return nil, nil }
 func (last) Prepare(p worktree.Place) (worktree.Place, error) { return p, nil }
 func (last) Create(worktree.Place, string) error              { return nil }
+
+// anything is last with an identifier of its own: a name no worktree is open for
+// still resolves, which is a candidate to refuse rather than one nothing answers
+// for.
+type anything struct{ last }
+
+func (anything) Name() string { return "anything" }
+
+func (a anything) Identify(id string, o worktree.Open) (worktree.Place, error) {
+	if o.None() {
+		return worktree.Place{ID: id, Name: id, Branch: id}, nil
+	}
+	return a.last.Identify(id, o)
+}
 
 // Every verb that reaches the core reaches it through the wiring the call
 // carries, so two wirings in one process each answer for their own systems.

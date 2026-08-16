@@ -146,25 +146,6 @@ func TestMoveRefusesAnOccupiedDestination(t *testing.T) {
 	}
 }
 
-// git moves the worktree the process stands in and leaves the shell in a
-// directory that is gone, so the refusal is work's own.
-func TestMoveRefusesTheWorktreeStoodIn(t *testing.T) {
-	repo := testenv.InitRepo(t)
-	e, _ := bare(t, repo)
-	c := opened(t, e, "scratch")
-
-	within := filepath.Join(c.path, "within")
-	if err := os.Mkdir(within, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	for _, dir := range []string{c.path, within} {
-		t.Chdir(dir)
-		if _, err := e.Move(c, "settled"); err == nil || !strings.Contains(err.Error(), "standing in") {
-			t.Errorf("Move from %q = %v; want it refused", dir, err)
-		}
-	}
-}
-
 // Moving the main checkout is git's to refuse, and the refusal has to survive
 // being asked for from inside a worktree that sits under it.
 func TestGitRefusesToMoveTheMainCheckout(t *testing.T) {
@@ -208,19 +189,5 @@ func TestMoveADetachedWorktreeTakesNoBranch(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, defaultDir, "settled")); err != nil {
 		t.Errorf("the worktree did not land: %v", err)
-	}
-}
-
-// A place with no worktree is nothing to move, whatever else it names.
-func TestMoveWithoutAWorktree(t *testing.T) {
-	repo := testenv.InitRepo(t)
-	e, _ := bare(t, repo)
-
-	c, err := e.Resolve("nowhere")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if _, err := e.Move(c, "settled"); err == nil || !strings.Contains(err.Error(), "no worktree") {
-		t.Errorf("Move = %v; want no worktree to move", err)
 	}
 }

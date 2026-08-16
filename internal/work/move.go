@@ -19,13 +19,15 @@ type Move struct {
 // Renamed reports whether the branch took a name it did not already have.
 func (m Move) Renamed() bool { return m.Was != m.Now }
 
+// Movable is why a worktree cannot be moved at all, which is known from the
+// candidate alone: a front end asks it ahead of the destination rather than
+// after.
+func (e Env) Movable(c Candidate) error { return e.actOn(c, "move") }
+
 // Move moves a worktree's directory and renames its branch to the destination's
 // last element. No ticket is touched, no tracker asked and no action run. Both
-// halves land or neither does.
+// halves land or neither does. The candidate is [Env.Movable]'s to vet.
 func (e Env) Move(c Candidate, dest string) (Move, error) {
-	if err := e.actOn(c, "move"); err != nil {
-		return Move{}, err
-	}
 	to, err := destination(c.path, dest)
 	if err != nil {
 		return Move{}, err
