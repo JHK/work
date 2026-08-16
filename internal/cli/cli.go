@@ -105,7 +105,7 @@ func Execute(version string, wire work.Wiring) int {
 // them to the reader.
 func report(w io.Writer, refused []error) {
 	for _, err := range refused {
-		fmt.Fprintln(w, "work:", err)
+		_, _ = fmt.Fprintln(w, "work:", err)
 	}
 }
 
