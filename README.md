@@ -15,10 +15,11 @@ Build it from source. There is no package yet.
 mise run install
 ```
 
-Then one line in `config.fish`:
+Then one line in your shell's startup file:
 
 ```
-work init fish | source
+source <(work init bash)    # .bashrc
+work init fish | source     # config.fish
 ```
 
 `git` is the only dependency. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
@@ -42,11 +43,11 @@ A worktree name, a ticket id or a pull request skips the chooser. See also [the 
 
 ## Still in development
 
-What ships is locked to one instance of each integration, and [a missing one](docs/references/systems.md) fails its path rather than degrading it.
+What ships is locked to the integrations named below, and [a missing one](docs/references/systems.md) fails its path rather than degrading it.
 
 - **The resolvers are `beads` and `github`.** A ticket is a bead over `bd`; a pull request one of `origin`'s, fetched in that one forge's ref layout.
 - **The agent opener is `claude`.**
-- **The shell integration is fish.**
+- **The shell integration is bash and fish.**
 - **The picker is `fzf`.** The no-argument form needs it.
 
 ## License

@@ -158,25 +158,47 @@ func TestGoneFlags(t *testing.T) {
 	}
 }
 
-// init prints the script, and the shell it names completes no further. The one
-// line that sources it installs the function and the completions together.
-func TestInitFish(t *testing.T) {
-	var out strings.Builder
-	err := execute(t, []string{"init", "fish"}, &out, front{})
-	if err != nil {
-		t.Fatalf("work init fish: %v", err)
+// init prints the shell's own function and then its completions, the one line
+// that sources it installing both. The shell it names completes no further.
+func TestInit(t *testing.T) {
+	for _, c := range []struct{ shell, function, registers string }{
+		{"fish", shim.Fish, "complete -c work"},
+		{"bash", shim.Bash, "complete -o default -F __start_work work"},
+	} {
+		t.Run(c.shell, func(t *testing.T) {
+			var out strings.Builder
+			if err := execute(t, []string{"init", c.shell}, &out, front{}); err != nil {
+				t.Fatalf("work init %s: %v", c.shell, err)
+			}
+			if !strings.Contains(out.String(), c.registers) {
+				t.Errorf("work init %s printed %q; want a %s completion script", c.shell, out.String(), c.shell)
+			}
+			if !strings.HasPrefix(out.String(), c.function) {
+				t.Errorf("work init %s printed %q; want the shim in front of it", c.shell, out.String())
+			}
+			// Cobra writes each script in two variants; init prints the one with titles.
+			if strings.Contains(out.String(), cobra.ShellCompNoDescRequestCmd) {
+				t.Errorf("work init %s printed a script that asks for no descriptions", c.shell)
+			}
+		})
 	}
-	if !strings.Contains(out.String(), "complete -c work") {
-		t.Errorf("work init fish printed %q; want a fish completion script", out.String())
+}
+
+// A tab press on the shell offers the ones work prints and nothing else, and a
+// word past it completes nothing: init takes the one shell.
+func TestCompleteInit(t *testing.T) {
+	out := complete(t, front{}, "init", "")
+	want := []string{"bash\tbash shell integration", "fish\tfish shell integration"}
+	if !slices.Equal(rows(out), want) {
+		t.Errorf("completing init gave %q; want %q", rows(out), want)
 	}
-	if !strings.Contains(out.String(), shim.Fish) {
-		t.Errorf("work init fish printed %q; want the shim in front of it", out.String())
+	assertNoFileComp(t, out)
+
+	second := complete(t, front{}, "init", "fish", "")
+	if got := rows(second); got != nil {
+		t.Errorf("completing a second shell after init gave %q; want nothing", got)
 	}
-	// Both variants register the same completions; only this one asks for titles.
-	if strings.Contains(out.String(), cobra.ShellCompNoDescRequestCmd) {
-		t.Error("work init fish printed a script that asks for no descriptions")
-	}
-	assertNoFileComp(t, complete(t, front{}, "init", "fish", ""))
+	assertNoFileComp(t, second)
 }
 
 // cobra's own completion command is gone, so work init fish is the one door and

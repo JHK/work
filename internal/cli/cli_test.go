@@ -621,8 +621,8 @@ func TestCommandRejects(t *testing.T) {
 		{"config edit with an argument", []string{"config", "edit", "extra"}},
 		{"a verb's flag on config edit", []string{"config", "edit", "--shell"}},
 		{"init without a shell", []string{"init"}},
-		{"init with a shell work does not print", []string{"init", "bash"}},
-		{"init with two shells", []string{"init", "fish", "zsh"}},
+		{"init with a shell work does not print", []string{"init", "tcsh"}},
+		{"init with two shells", []string{"init", "bash", "fish"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

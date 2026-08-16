@@ -1,4 +1,4 @@
-// Package shim is the fish function work is called through: the file that
+// Package shim is the shell function work is called through: the file that
 // function names for the worktree, and the worktree written back into it.
 package shim
 
@@ -16,6 +16,11 @@ const CDFile = "WORK_CD_FILE"
 //
 //go:embed work.fish
 var Fish string
+
+// Bash is the function [work init bash] prints above the completions.
+//
+//go:embed work.bash
+var Bash string
 
 // Answer hands the worktree back: into the file the shim named, else on out.
 func Answer(dir string, out io.Writer) error {

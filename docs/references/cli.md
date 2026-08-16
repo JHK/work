@@ -9,7 +9,7 @@
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
-| [`work init fish`](#init) | prints the shell integration |
+| [`work init <shell>`](#init) | prints the shell integration |
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
 | [`work config edit`](#config) | opens your own [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work help [<command>]` | prints a command's help, the root's with none |
@@ -53,7 +53,12 @@ No tracker is asked and no action runs. The main checkout cannot be moved, and n
 
 ### init
 
-`work init fish | source` in `config.fish` installs the [function](#the-function) and the [completion](#completion). Printing them touches no repository.
+`work init <shell>` prints the [function](#the-function) and the [completion](#completion), both installed by the one line that sources it:
+
+- bash: `source <(work init bash)` in `.bashrc`
+- fish: `work init fish | source` in `config.fish`
+
+Printing touches no repository.
 
 ### config
 
@@ -113,8 +118,9 @@ What [`init`](#init)'s integration offers at each position:
 | [`remove`](#remove)'s name | the worktrees |
 | [`move`](#move)'s name | the worktrees |
 | [`add`](#add)'s name | nothing |
+| [`init`](#init)'s shell | the shells it prints |
 
-A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell.
+A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it.
 
 ## Opening
 
@@ -143,4 +149,4 @@ Which command each path runs is the actions under `internal/action/`, `config ed
 
 ### The function
 
-`work` in a shell that sourced [`init`](#init) is a fish function calling the binary. It names a temporary file in `WORK_CD_FILE` and changes into the path the binary wrote there.
+`work` in a shell that sourced [`init`](#init) is a shell function calling the binary. It names a temporary file in `WORK_CD_FILE` and changes into the path the binary wrote there.

@@ -141,7 +141,7 @@ An identifier in the first position, or none at all, is work switch.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	// One documented door to the shell integration: work init fish.
+	// One documented door to the shell integration: work init <shell>.
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.

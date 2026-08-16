@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -58,26 +59,51 @@ func completions(candidates []work.Candidate) []cobra.Completion {
 	return out
 }
 
+// integration is a shell work prints for.
+type integration struct {
+	shell      string
+	function   string
+	completion func(root *cobra.Command, out io.Writer, desc bool) error
+}
+
+// integrations are the shells [work init] answers to.
+var integrations = []integration{
+	{"bash", shim.Bash, (*cobra.Command).GenBashCompletionV2},
+	{"fish", shim.Fish, (*cobra.Command).GenFishCompletion},
+}
+
 // initCommand prints the shell integration. It runs at every shell start, so it
 // reaches for nothing.
 func initCommand() *cobra.Command {
+	valid := make([]cobra.Completion, len(integrations))
+	for i, in := range integrations {
+		valid[i] = cobra.CompletionWithDesc(in.shell, in.shell+" shell integration")
+	}
 	return &cobra.Command{
-		Use:   "init fish",
+		Use:   "init <shell>",
 		Short: "Print the shell integration to source",
-		Long: `Print the shell integration for fish. Source it from config.fish:
+		Long: `Print the shell integration for bash or fish. Source it from the shell's own
+startup file:
 
-    work init fish | source
+    source <(work init bash)    # .bashrc
+    work init fish | source     # config.fish
 
 It puts a work function in front of the binary, which is what changes the shell
 into the worktree, and completes the commands and each verb's argument.`,
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-		ValidArgs: []cobra.Completion{cobra.CompletionWithDesc("fish", "fish shell integration")},
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		ValidArgs: valid,
+		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			if _, err := io.WriteString(out, shim.Fish); err != nil {
-				return err
+			for _, in := range integrations {
+				if in.shell != args[0] {
+					continue
+				}
+				if _, err := io.WriteString(out, in.function); err != nil {
+					return err
+				}
+				return in.completion(cmd.Root(), out, true)
 			}
-			return cmd.Root().GenFishCompletion(out, true)
+			return fmt.Errorf("no %s integration", args[0])
 		},
 	}
 }
