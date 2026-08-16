@@ -7,7 +7,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	actionbeads "github.com/JHK/work-cli/internal/action/beads"
 	"github.com/JHK/work-cli/internal/config"
+	resolvebeads "github.com/JHK/work-cli/internal/resolve/beads"
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -194,6 +196,16 @@ func TestSwitchingASystemOnWiresIt(t *testing.T) {
 				t.Errorf("[%s] enabled = true wired %q; want the system its table names among them", name, on)
 			}
 		})
+	}
+}
+
+// The action and the resolver behind the one tracker go by one name, which is
+// what lets a place resolved by the one be recognised by the other, and what
+// --no-claim spells. It is asked here because R4 leaves neither half naming the
+// other, and the wiring is what names both.
+func TestBothHalvesGoByOneName(t *testing.T) {
+	if actionbeads.Name != resolvebeads.Name {
+		t.Errorf("the action goes by %q and the resolver by %q; want one name on both seams", actionbeads.Name, resolvebeads.Name)
 	}
 }
 

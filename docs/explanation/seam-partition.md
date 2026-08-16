@@ -8,7 +8,7 @@ The core runs one sequence over a repository's worktrees. A seam is a place in t
 
 The core decides what happens at a seam. It states what it needs at each step, and a system that wants to take part meets those conditions. The core declares the interfaces because the core calls them.
 
-Systems stay independent of each other. They share no state and no logic, and no implementation imports another implementation. The interfaces sit in the core, so an implementation imports only what its own work needs.
+Systems stay independent of each other. They share no state and no logic, and no implementation imports another implementation ([R4](../rules/package-boundaries.md#r4--no-system-reaches-another-system)). The interfaces sit in the core, so an implementation imports only what its own work needs.
 
 The set of interfaces can still grow. Every system meets them in their present form, but a new system or a new requirement can change them. A change starts in the core, because the core declares them, and every implementation must then meet the new form. Removal has no seam yet.
 
@@ -26,7 +26,7 @@ A richer contract might let a system choose when the core asks it, or let it rea
 
 The core is responsible for [that sequence](scope-of-work.md#the-remit-is-the-sequence-not-the-systems-at-its-ends) and nothing more. Everything that the core reaches through a seam is an addition to it. Each addition belongs to the system that it came from.
 
-[R3](../rules/package-boundaries.md) holds the two apart. If the core named one implementation, the two concerns would become one concern. The sequence would then carry a tracker's idea of what a claim is. With the rule in place, you can see the boundary in the imports alone.
+[R3](../rules/package-boundaries.md#r3--the-core-reaches-the-vocabulary-git-and-the-settings) holds the two apart. If the core named one implementation, the two concerns would become one concern. The sequence would then carry a tracker's idea of what a claim is. With the rule in place, you can see the boundary in the imports alone.
 
 ## The compiler decided where the shared words go, and the design did not
 

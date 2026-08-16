@@ -4,7 +4,6 @@ import (
 	"slices"
 	"testing"
 
-	resolvebeads "github.com/JHK/work-cli/internal/resolve/beads"
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -39,14 +38,5 @@ func TestClaimGoesByTheSource(t *testing.T) {
 				t.Errorf("a place sourced to %q asked bd %q; want %q", tt.source, got, tt.want)
 			}
 		})
-	}
-}
-
-// This action and the resolver behind the same tracker go by one name, which is
-// what lets a place resolved by the one be recognised by the other, and what
-// --no-claim spells.
-func TestBothHalvesGoByOneName(t *testing.T) {
-	if Name != resolvebeads.Name {
-		t.Errorf("the action goes by %q and the resolver by %q; want one name on both seams", Name, resolvebeads.Name)
 	}
 }

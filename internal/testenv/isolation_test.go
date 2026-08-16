@@ -5,12 +5,9 @@ import (
 	"go/build"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"maps"
-	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/testenv"
@@ -18,20 +15,16 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// module is where the packages below sit, and root is where it does, from the
-// directory a test runs in.
-const (
-	module = "github.com/JHK/work-cli"
-	root   = "../.."
-)
+// root is where the module sits, from the directory a test runs in.
+const root = "../.."
 
 // doors are the packages a test reaches the machine running it through: git,
 // which reads the runner's config, the settings, which read the runner's home,
 // and testenv, which stands in front of both.
 var doors = []string{
-	module + "/internal/git",
-	module + "/internal/config",
-	module + "/internal/testenv",
+	testenv.Module + "/internal/git",
+	testenv.Module + "/internal/config",
+	testenv.Module + "/internal/testenv",
 }
 
 // TestEveryTestPackageReachingGitOrTheSettingsIsIsolated guards the isolation
@@ -39,7 +32,7 @@ var doors = []string{
 // for nothing else, so a package that reaches a door without declaring it is
 // judged against whatever the machine running the tests keeps of its own.
 func TestEveryTestPackageReachingGitOrTheSettingsIsIsolated(t *testing.T) {
-	pkgs := packages(t)
+	pkgs := testenv.Packages(t, root)
 
 	for _, p := range slices.Sorted(maps.Keys(pkgs)) {
 		pkg := pkgs[p]
@@ -120,39 +113,4 @@ func callsMain(body *ast.BlockStmt) bool {
 		return !found
 	})
 	return found
-}
-
-// packages reads every package of the module, keyed by import path.
-func packages(t *testing.T) map[string]*build.Package {
-	t.Helper()
-	ctx := build.Default
-	ctx.UseAllFiles = true // a build tag is not a way out of the rule
-	pkgs := map[string]*build.Package{}
-	err := filepath.WalkDir(root, func(dir string, d fs.DirEntry, err error) error {
-		if err != nil || !d.IsDir() {
-			return err
-		}
-		// The worktrees of this same module sit under a dot directory, as the
-		// repository itself does.
-		if name := d.Name(); dir != root && (strings.HasPrefix(name, ".") || name == "testdata") {
-			return fs.SkipDir
-		}
-		pkg, err := ctx.ImportDir(dir, 0)
-		if _, empty := err.(*build.NoGoError); empty {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, dir)
-		if err != nil {
-			return err
-		}
-		pkgs[path.Join(module, filepath.ToSlash(rel))] = pkg
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("read the module's packages: %v", err)
-	}
-	return pkgs
 }
