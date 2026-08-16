@@ -57,6 +57,7 @@ No tracker is asked and no action runs. The main checkout cannot be moved, and n
 
 - bash: `source <(work init bash)` in `.bashrc`
 - fish: `work init fish | source` in `config.fish`
+- zsh: `source <(work init zsh)` in `.zshrc`
 
 Printing touches no repository.
 
@@ -120,7 +121,7 @@ What [`init`](#init)'s integration offers at each position:
 | [`add`](#add)'s name | nothing |
 | [`init`](#init)'s shell | the shells it prints |
 
-A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it.
+A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
 
 ## Opening
 

@@ -20,6 +20,7 @@ Then one line in your shell's startup file:
 ```
 source <(work init bash)    # .bashrc
 work init fish | source     # config.fish
+source <(work init zsh)     # .zshrc, below compinit
 ```
 
 `git` is the only dependency. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
@@ -47,7 +48,6 @@ What ships is locked to the integrations named below, and [a missing one](docs/r
 
 - **The resolvers are `beads` and `github`.** A ticket is a bead over `bd`; a pull request one of `origin`'s, fetched in that one forge's ref layout.
 - **The agent opener is `claude`.**
-- **The shell integration is bash and fish.**
 - **The picker is `fzf`.** The no-argument form needs it.
 
 ## License

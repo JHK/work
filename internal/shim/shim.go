@@ -17,7 +17,8 @@ const CDFile = "WORK_CD_FILE"
 //go:embed work.fish
 var Fish string
 
-// Bash is the function [work init bash] prints above the completions.
+// Bash is the function [work init bash] and [work init zsh] print above the
+// completions. It is written in the words both shells read.
 //
 //go:embed work.bash
 var Bash string

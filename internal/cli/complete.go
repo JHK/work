@@ -70,6 +70,13 @@ type integration struct {
 var integrations = []integration{
 	{"bash", shim.Bash, (*cobra.Command).GenBashCompletionV2},
 	{"fish", shim.Fish, (*cobra.Command).GenFishCompletion},
+	{"zsh", shim.Bash, zshCompletion},
+}
+
+// zshCompletion is cobra's zsh generator in the shape the others take. That
+// generator spells no argument for the descriptions and writes them regardless.
+func zshCompletion(root *cobra.Command, out io.Writer, _ bool) error {
+	return root.GenZshCompletion(out)
 }
 
 // initCommand prints the shell integration. It runs at every shell start, so it
@@ -82,11 +89,12 @@ func initCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init <shell>",
 		Short: "Print the shell integration to source",
-		Long: `Print the shell integration for bash or fish. Source it from the shell's own
-startup file:
+		Long: `Print the shell integration for bash, fish or zsh. Source it from the shell's
+own startup file:
 
     source <(work init bash)    # .bashrc
     work init fish | source     # config.fish
+    source <(work init zsh)     # .zshrc, below compinit
 
 It puts a work function in front of the binary, which is what changes the shell
 into the worktree, and completes the commands and each verb's argument.`,

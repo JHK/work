@@ -63,7 +63,8 @@ func TestAnswerRefusesAFileItCannotWrite(t *testing.T) {
 }
 
 // functions are the shells', each with the words that declare work's and the
-// command that parses the file without running it.
+// command that parses the file without running it. bash and zsh read the one
+// file, each row holding it to the words they share.
 var functions = []struct {
 	shell    string
 	function string
@@ -72,6 +73,7 @@ var functions = []struct {
 }{
 	{"fish", Fish, "function work", "--no-execute"},
 	{"bash", Bash, "work()", "-n"},
+	{"zsh", Bash, "work()", "-n"},
 }
 
 // The function and the binary are two halves of one contract, so the variable

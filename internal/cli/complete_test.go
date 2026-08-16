@@ -164,6 +164,7 @@ func TestInit(t *testing.T) {
 	for _, c := range []struct{ shell, function, registers string }{
 		{"fish", shim.Fish, "complete -c work"},
 		{"bash", shim.Bash, "complete -o default -F __start_work work"},
+		{"zsh", shim.Bash, "compdef _work work"},
 	} {
 		t.Run(c.shell, func(t *testing.T) {
 			var out strings.Builder
@@ -188,7 +189,7 @@ func TestInit(t *testing.T) {
 // word past it completes nothing: init takes the one shell.
 func TestCompleteInit(t *testing.T) {
 	out := complete(t, front{}, "init", "")
-	want := []string{"bash\tbash shell integration", "fish\tfish shell integration"}
+	want := []string{"bash\tbash shell integration", "fish\tfish shell integration", "zsh\tzsh shell integration"}
 	if !slices.Equal(rows(out), want) {
 		t.Errorf("completing init gave %q; want %q", rows(out), want)
 	}
