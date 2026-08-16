@@ -4,9 +4,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+
+	"github.com/JHK/work-cli/internal/testenv"
 )
+
+func TestMain(m *testing.M) { testenv.Main(m) }
 
 // The file the shim named is where the worktree goes, as the one line the
 // function reads back.
@@ -98,14 +105,76 @@ func TestTheFunctionEnds(t *testing.T) {
 func TestTheFunctionParses(t *testing.T) {
 	for _, f := range functions {
 		t.Run(f.shell, func(t *testing.T) {
-			shell, err := exec.LookPath(f.shell)
-			if err != nil {
-				t.Skipf("%s is not on PATH", f.shell)
-			}
-			cmd := exec.Command(shell, f.parse)
+			cmd := exec.Command(onPath(t, f.shell), f.parse)
 			cmd.Stdin = strings.NewReader(f.function)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Errorf("%s %s: %v\n%s", f.shell, f.parse, err, out)
+			}
+		})
+	}
+}
+
+// onPath hands back the shell, the case skipped where the machine has none.
+func onPath(t *testing.T, shell string) string {
+	t.Helper()
+	path, err := exec.LookPath(shell)
+	if err != nil {
+		t.Skipf("%s is not on PATH", shell)
+	}
+	return path
+}
+
+// through runs script in the shell with the function sourced, and hands back
+// what the shell printed, having found nothing left in the temporary directory.
+func through(t *testing.T, shell, function, script string) string {
+	t.Helper()
+	sourced, tmp := filepath.Join(t.TempDir(), "function"), t.TempDir()
+	testenv.Write(t, sourced, function)
+	// Named after the directories are made, so t.TempDir puts none of its own here.
+	t.Setenv("TMPDIR", tmp)
+
+	out, err := exec.Command(onPath(t, shell), "-c", "source "+sourced+"\n"+script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s: %v\n%s", shell, err, out)
+	}
+	left, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatalf("read the temporary directory: %v", err)
+	}
+	if len(left) != 0 {
+		t.Errorf("%q left %d file(s) behind", script, len(left))
+	}
+	return string(out)
+}
+
+// A tab press hands back no worktree, so the function passes the completion to
+// the binary with no file named.
+func TestTheFunctionRelaysCompletion(t *testing.T) {
+	for _, f := range functions {
+		t.Run(f.shell, func(t *testing.T) {
+			ran := testenv.Stubs(t, testenv.Stub{Name: "work", Shell: "echo \"file=$WORK_CD_FILE\"\n"})
+
+			asked := "work " + cobra.ShellCompRequestCmd + " switch"
+			if out := through(t, f.shell, f.function, asked); out != "file=\n" {
+				t.Errorf("the completion printed %q; want %q", out, "file=\n")
+			}
+			if want := []string{asked}; !slices.Equal(ran(), want) {
+				t.Errorf("the binary was asked %q; want %q", ran(), want)
+			}
+		})
+	}
+}
+
+// Every other verb still hands the worktree back through the file, the shell
+// standing in it once the function returns.
+func TestTheFunctionChangesIntoTheWorktree(t *testing.T) {
+	for _, f := range functions {
+		t.Run(f.shell, func(t *testing.T) {
+			worktree := t.TempDir()
+			testenv.Stubs(t, testenv.Stub{Name: "work", Shell: "echo " + worktree + " >\"$WORK_CD_FILE\"\n"})
+
+			if out := through(t, f.shell, f.function, "work bd-1\npwd"); out != worktree+"\n" {
+				t.Errorf("the shell stands in %q; want %q", out, worktree+"\n")
 			}
 		})
 	}

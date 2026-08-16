@@ -1,6 +1,11 @@
 # The binary writes the worktree into the file this names, and the function
 # changes into it.
 function work
+    # A completion hands back no worktree, so it needs no file to hand it in.
+    if string match -q -- '__complete*' "$argv[1]"
+        command work $argv
+        return $status
+    end
     set -l answer (mktemp -t work.XXXXXXXX)
     or return 1
     WORK_CD_FILE=$answer command work $argv
