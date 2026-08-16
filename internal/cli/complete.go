@@ -16,7 +16,10 @@ func (v verbs) listing() ([]work.Candidate, error) {
 	if err != nil {
 		return nil, err
 	}
-	return env.Candidates()
+	// The rows alone: a refusal on stderr would land in the middle of the shell
+	// drawing its completions.
+	list, _, err := env.Candidates()
+	return list, err
 }
 
 // worktreeListing is what a tab press after remove gets: the repository's

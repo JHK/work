@@ -225,7 +225,7 @@ func TestWorktreesListsWorktreesAlone(t *testing.T) {
 	}
 
 	// The same repository offers that place where what is worth starting is asked for.
-	all, err := e.Candidates()
+	all, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}

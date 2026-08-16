@@ -2,7 +2,6 @@
 package beads
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/JHK/work-cli/internal/run"
@@ -24,7 +23,7 @@ type Bead struct {
 // Show looks up one bead. A missing bead and an unreachable database are both
 // errors here; callers decide which paths may proceed without one.
 func Show(repo, id string) (Bead, error) {
-	beads, err := decode(bd(repo, "show", id, "--json"))
+	beads, err := run.JSON[[]Bead](repo, Command, "show", id, "--json")
 	if err != nil {
 		return Bead{}, err
 	}
@@ -37,38 +36,23 @@ func Show(repo, id string) (Bead, error) {
 // All lists every bead the tracker knows, closed ones included: a worktree
 // outlives the status of the ticket it was opened for.
 func All(repo string) ([]Bead, error) {
-	return decode(bd(repo, "list", "--all", "--limit", "0", "--json"))
+	return run.JSON[[]Bead](repo, Command, "list", "--all", "--limit", "0", "--json")
 }
 
 // Ready lists every bead whose dependencies are satisfied.
 func Ready(repo string) ([]Bead, error) {
-	return decode(bd(repo, "ready", "--limit", "0", "--json"))
+	return run.JSON[[]Bead](repo, Command, "ready", "--limit", "0", "--json")
 }
 
 // Claim assigns the bead to the current actor and moves it to in_progress.
 func Claim(repo, id string) error {
-	_, err := bd(repo, "update", id, "--claim")
+	_, err := run.Output(repo, Command, "update", id, "--claim")
 	return err
 }
 
 // CreateWorktree adds a worktree wired to the repository's shared database. bd
 // takes no fork point, so the branch forks from what the checkout at from has at HEAD.
 func CreateWorktree(from, path, branch string) error {
-	_, err := bd(from, "worktree", "create", path, "--branch", branch)
+	_, err := run.Output(from, Command, "worktree", "create", path, "--branch", branch)
 	return err
-}
-
-func decode(out string, err error) ([]Bead, error) {
-	if err != nil {
-		return nil, err
-	}
-	var beads []Bead
-	if err := json.Unmarshal([]byte(out), &beads); err != nil {
-		return nil, fmt.Errorf("bd: %w", err)
-	}
-	return beads, nil
-}
-
-func bd(dir string, args ...string) (string, error) {
-	return run.Output(dir, Command, args...)
 }

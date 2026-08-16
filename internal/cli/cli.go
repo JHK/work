@@ -101,6 +101,14 @@ func Execute(version string, wire work.Wiring) int {
 	return 0
 }
 
+// report says the refusals a listing came back short of, nothing else carrying
+// them to the reader.
+func report(w io.Writer, refused []error) {
+	for _, err := range refused {
+		fmt.Fprintln(w, "work:", err)
+	}
+}
+
 // run puts args through the tree. The tree is never executed on the words as
 // typed: [dispatch] belongs to every way in.
 func run(cmd *cobra.Command, args []string) error {

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,18 +11,17 @@ import (
 // The stand-ins are the tests' own: internal/testenv reaches the machine through
 // this package, so its helpers cannot be used from inside it.
 
-// A tool the machine does not have is said where work reached for it, once
-// however many questions that one invocation put to it, and the caller is handed
-// the same sentence. Once, because a listing asks a tracker for more than one
-// thing; said at all, because the listing swallows what it was told.
-func TestAToolTheMachineDoesNotHaveIsSaidOnce(t *testing.T) {
+// A tool the machine does not have is refused as the question that reached for
+// it, and nothing is said here: the refusal goes to whoever asked, and one of
+// them says it. Every later question to that tool is refused with it, unasked.
+func TestAToolTheMachineDoesNotHaveIsRefusedRatherThanSaid(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PATH", dir)
-	var out strings.Builder
-	quoting(t, &out)
+	said := quoting(t)
 
-	if _, err := Output(dir, "nowhere", "list"); err == nil || !strings.Contains(err.Error(), "nowhere is not on PATH") {
-		t.Errorf("Output = %v; want the caller told which command is missing", err)
+	_, err := Output(dir, "nowhere", "list")
+	if err == nil || err.Error() != "nowhere list: nowhere is not on PATH" {
+		t.Errorf("Output = %v; want the question and the tool that is not there", err)
 	}
 	if _, err := Output(dir, "nowhere", "show"); err == nil {
 		t.Error("a second question to a tool that is not there was answered")
@@ -30,9 +30,20 @@ func TestAToolTheMachineDoesNotHaveIsSaidOnce(t *testing.T) {
 		t.Error("a second missing tool was answered")
 	}
 
-	want := "work: nowhere is not on PATH\nwork: elsewhere is not on PATH\n"
-	if out.String() != want {
-		t.Errorf("work said %q; want %q", out.String(), want)
+	if said() != "" {
+		t.Errorf("work said %q of refusals it handed back; want them left to whoever asked", said())
+	}
+}
+
+// Say is for the one caller that throws a refusal away rather than handing it
+// on, a worktree left untrusted by a mise that is not there being the one.
+func TestSayPutsARefusalOnStderr(t *testing.T) {
+	said := quoting(t)
+
+	Say(errors.New("mise trust: mise is not on PATH"))
+
+	if want := "work: mise trust: mise is not on PATH\n"; said() != want {
+		t.Errorf("work said %q; want %q", said(), want)
 	}
 }
 
@@ -42,8 +53,7 @@ func TestAToolTheMachineDoesNotHaveIsSaidOnce(t *testing.T) {
 func TestAToolAlreadyMissedIsNotTriedAgain(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PATH", dir)
-	var out strings.Builder
-	quoting(t, &out)
+	quoting(t)
 
 	if _, err := Output(dir, "later", "list"); err == nil {
 		t.Fatal("a tool that is not there answered")
@@ -61,8 +71,7 @@ func TestAToolAlreadyMissedIsNotTriedAgain(t *testing.T) {
 // the message, and nothing claims the machine does not have it. git is the one
 // every test here already rests on.
 func TestAToolThatRanAndFailedIsNotReportedMissing(t *testing.T) {
-	var out strings.Builder
-	quoting(t, &out)
+	said := quoting(t)
 
 	_, err := Output(t.TempDir(), "git", "not-a-git-command")
 	if err == nil {
@@ -71,17 +80,56 @@ func TestAToolThatRanAndFailedIsNotReportedMissing(t *testing.T) {
 	if strings.Contains(err.Error(), "is not on PATH") {
 		t.Errorf("Output = %v; want what the tool said of itself", err)
 	}
-	if out.String() != "" {
-		t.Errorf("work said %q of a tool that ran; want nothing", out.String())
+	if said() != "" {
+		t.Errorf("work said %q of a tool that ran; want nothing", said())
 	}
 }
 
-// quoting sends what work says about the machine to the test rather than to the
+// A refusal names the whole command work put, arguments and all: whoever reads
+// it has to be able to run the same thing by hand to find out why it failed.
+func TestARefusalNamesTheWholeCommand(t *testing.T) {
+	quoting(t)
+
+	_, err := Output(t.TempDir(), "git", "not-a-git-command", "--and-a-flag")
+	if err == nil {
+		t.Fatal("git answered a command it does not have")
+	}
+	if !strings.HasPrefix(err.Error(), "git not-a-git-command --and-a-flag: ") {
+		t.Errorf("Output = %v; want the command as it was run", err)
+	}
+}
+
+// An answer that is not the JSON work asked for is a refusal like any other, and
+// names the command that gave it: whoever reads it can go and see what the tool
+// answered with instead. Nothing is said here, the refusal being the caller's.
+func TestAnAnswerThatIsNotJSONNamesTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	said := quoting(t)
+	if err := os.WriteFile(filepath.Join(dir, "teller"), []byte("#!/bin/sh\necho not json\n"), 0o755); err != nil {
+		t.Fatalf("write teller: %v", err)
+	}
+
+	rows, err := JSON[[]string](dir, "teller", "rows", "--json")
+	if err == nil {
+		t.Fatalf("JSON = %q; want an answer that is not JSON refused", rows)
+	}
+	if want := "teller rows --json: "; !strings.HasPrefix(err.Error(), want) {
+		t.Errorf("JSON = %v; want the refusal to open %q", err, want)
+	}
+	if said() != "" {
+		t.Errorf("work said %q of a refusal it handed back; want it left to the caller", said())
+	}
+}
+
+// quoting hands back what work has said of the machine, keeping it off the
 // terminal, and forgets which tools earlier cases found missing.
-func quoting(t *testing.T, w *strings.Builder) {
+func quoting(t *testing.T) func() string {
 	t.Helper()
-	was := warnings
-	warnings = w
+	var said strings.Builder
+	was := Warnings
+	Warnings = &said
 	gone.Clear()
-	t.Cleanup(func() { warnings = was; gone.Clear() })
+	t.Cleanup(func() { Warnings = was; gone.Clear() })
+	return said.String
 }

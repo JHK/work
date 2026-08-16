@@ -445,6 +445,23 @@ func TestSupplyIsTheTicket(t *testing.T) {
 	}
 }
 
+// A tracker work cannot reach is refused as the command bd was put and what it
+// answered with: reaching for the tracker and failing is not the same as a
+// repository with nothing ready, and the command is what the reader runs to find
+// out which it was.
+func TestARefusedListingNamesTheCommandItRan(t *testing.T) {
+	testenv.Stubs(t, testenv.Stub{Name: "bd", Grumbles: "the database is not there", Exits: 1})
+	r := New(t.TempDir(), t.TempDir(), pattern)
+
+	places, err := r.Offer()
+	if err == nil {
+		t.Fatalf("Offer = %v; want the refusal handed on", places)
+	}
+	if head, tail := "bd ready ", ": the database is not there"; !strings.HasPrefix(err.Error(), head) || !strings.HasSuffix(err.Error(), tail) {
+		t.Errorf("Offer = %v; want a refusal from %q to %q", err, head, tail)
+	}
+}
+
 func with(b beads.Bead, f func(*beads.Bead)) beads.Bead {
 	f(&b)
 	return b

@@ -38,7 +38,8 @@ type Resolver interface {
 	// shown, and the next one is asked. Every other error stops the run.
 	Identify(id string, o worktree.Open) (worktree.Place, error)
 
-	// Offer lists the places worth starting, whether or not they have a worktree.
+	// Offer lists the places worth starting, whether or not they have a worktree. A
+	// refusal costs the offered rows and nothing else.
 	Offer() ([]worktree.Place, error)
 
 	// Prepare completes a place a worktree is about to be made for, naming the
@@ -362,22 +363,24 @@ func detached(c Candidate) int {
 
 // Candidates lists what the repository offers to work on: every worktree git
 // knows, then what each resolver offers that has none. A resolver that will not
-// answer costs its own rows, never the worktrees.
-func (e Env) Candidates() ([]Candidate, error) {
+// answer costs its own rows, never the worktrees, and its refusal comes back
+// beside them for the front end to say.
+func (e Env) Candidates() ([]Candidate, []error, error) {
 	var (
-		open   []Candidate
-		err    error
-		offers = make([][]worktree.Place, len(e.Systems.Resolvers))
+		open    []Candidate
+		err     error
+		offers  = make([][]worktree.Place, len(e.Systems.Resolvers))
+		refused = make([]error, len(e.Systems.Resolvers))
 	)
 	// No resolver reads another's answer.
 	var wg sync.WaitGroup
 	wg.Go(func() { open, err = e.Worktrees() })
 	for i, r := range e.Systems.Resolvers {
-		wg.Go(func() { offers[i], _ = r.Offer() })
+		wg.Go(func() { offers[i], refused[i] = r.Offer() })
 	}
 	wg.Wait()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Keyed on the name, which is what a place of any source is retyped as.
@@ -406,7 +409,7 @@ func (e Env) Candidates() ([]Candidate, error) {
 			out = append(out, answered(r, Candidate{Place: p}))
 		}
 	}
-	return out, nil
+	return out, slices.DeleteFunc(refused, func(err error) bool { return err == nil }), nil
 }
 
 // path is where a worktree for a place would be created.

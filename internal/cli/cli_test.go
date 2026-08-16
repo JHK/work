@@ -738,6 +738,23 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	return run(cmd, args)
 }
 
+// A system that would not answer is said on the way past, so a listing short of
+// its rows does not read as a repository with none. Each refusal is one line,
+// naming the command that was put and what came back.
+func TestEveryRefusalIsSaidOnce(t *testing.T) {
+	var said strings.Builder
+	report(&said, []error{
+		errors.New("bd ready --limit 0 --json: the database is not there"),
+		errors.New("gh pr list: gh is not on PATH"),
+	})
+
+	want := "work: bd ready --limit 0 --json: the database is not there\n" +
+		"work: gh pr list: gh is not on PATH\n"
+	if said.String() != want {
+		t.Errorf("work said %q; want %q", said.String(), want)
+	}
+}
+
 // last is the resolver at the end of a chain: it answers for whatever worktree
 // git reports, the main checkout included, and for no identifier.
 type last struct{}

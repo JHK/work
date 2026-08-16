@@ -30,14 +30,13 @@ const (
 // those verbs reaching nothing else.
 func openWorktree(env work.Env, target string) (work.Candidate, error) {
 	if target == "" {
-		return pickFrom(env.Worktrees)
+		return pickFrom(env.Worktrees())
 	}
 	return env.Resolve(target)
 }
 
 // pickFrom puts one listing in front of the picker.
-func pickFrom(list func() ([]work.Candidate, error)) (work.Candidate, error) {
-	candidates, err := list()
+func pickFrom(candidates []work.Candidate, err error) (work.Candidate, error) {
 	if err != nil {
 		return work.Candidate{}, err
 	}

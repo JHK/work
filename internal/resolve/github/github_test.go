@@ -5,6 +5,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/config"
@@ -168,7 +169,7 @@ func TestOfferListsTheOpenPullRequests(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	// gh is asked only where origin says which repository to ask about.
 	testenv.Git(t, repo, "remote", "add", "origin", "https://github.com/o/r")
-	gh(t, `[{"number":7,"title":"Seventh pull request"},{"number":9,"title":"Ninth pull request"}]`, 0)
+	gh(t, `[{"number":7,"title":"Seventh pull request"},{"number":9,"title":"Ninth pull request"}]`)
 
 	got, err := New(repo, pattern).Offer()
 	if err != nil {
@@ -184,25 +185,35 @@ func TestOfferListsTheOpenPullRequests(t *testing.T) {
 }
 
 // gh being absent, unauthenticated or offline costs these rows and nothing else,
-// which the core reads as a resolver that will not list.
+// which the core reads as a resolver that will not list. The refusal names the
+// command gh was put, that being all a reader is given to go on.
 func TestOfferReportsAGhThatWillNotAnswer(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	testenv.Git(t, repo, "remote", "add", "origin", "https://github.com/o/r")
-	gh(t, "not authenticated", 1)
+	testenv.Stubs(t, testenv.Stub{Name: "gh", Grumbles: "not authenticated", Exits: 1})
 
-	if _, err := New(repo, pattern).Offer(); err == nil {
-		t.Error("Offer() with a gh that fails: want the failure reported")
+	_, err := New(repo, pattern).Offer()
+	if err == nil {
+		t.Fatal("Offer() with a gh that fails: want the failure reported")
+	}
+	if head, tail := "gh pr list ", ": not authenticated"; !strings.HasPrefix(err.Error(), head) || !strings.HasSuffix(err.Error(), tail) {
+		t.Errorf("Offer = %v; want a refusal from %q to %q", err, head, tail)
 	}
 }
 
-// A repository with no origin has no host to ask about, so the rows are refused
-// rather than asked of whichever remote gh would have preferred.
+// A repository with no origin has no host to ask about, so it has no pull
+// requests rather than a listing work could not make: gh is left unasked, and
+// there is nothing to report to anybody.
 func TestOfferWithoutAnOrigin(t *testing.T) {
 	repo := testenv.InitRepo(t)
-	gh(t, "[]", 0)
+	ran := gh(t, "[]")
 
-	if _, err := New(repo, pattern).Offer(); err == nil {
-		t.Error("Offer() without an origin: want no host to ask")
+	got, err := New(repo, pattern).Offer()
+	if err != nil || len(got) != 0 {
+		t.Errorf("Offer() = %+v, %v; want no rows and nothing to say", got, err)
+	}
+	if n := len(ran()); n != 0 {
+		t.Errorf("gh was asked %d times; want a repository with no origin asking nothing", n)
 	}
 }
 
@@ -281,10 +292,10 @@ func configured(t *testing.T, text string) config.Branch {
 	return cfg.Branch
 }
 
-// gh puts a gh on PATH ahead of the real one that answers with out and exits
-// with code. work's one question to the host is which pull requests are open,
-// which is a listing rather than a session.
-func gh(t *testing.T, out string, code int) {
+// gh puts a gh on PATH ahead of the real one that answers with out. work's one
+// question to the host is which pull requests are open, which is a listing
+// rather than a session.
+func gh(t *testing.T, out string) func() []string {
 	t.Helper()
-	testenv.Stubs(t, testenv.Stub{Name: "gh", Says: out, Exits: code})
+	return testenv.Stubs(t, testenv.Stub{Name: "gh", Says: out})
 }

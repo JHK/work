@@ -144,7 +144,7 @@ func TestCandidatesGatherTheWorktreesThenTheOffers(t *testing.T) {
 	e, _ := bare(t, repo)
 	e.Systems.Resolvers = append([]Resolver{tracker}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestARowIsMarkedByTheResolverThatAnsweredForIt(t *testing.T) {
 	e, _ := bare(t, repo)
 	e.Systems.Resolvers = append([]Resolver{tracker}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestAnOpenPlaceTakesTheTitleFromItsOffer(t *testing.T) {
 	forge := &offering{name: "forge", places: []string{"one"}, untitled: true}
 	e.Systems.Resolvers = append([]Resolver{forge}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestAnOpenPlaceTakesNoTitleFromAnotherResolversOffer(t *testing.T) {
 		&offering{name: "tracker", places: []string{"one"}},
 	}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
@@ -272,21 +272,29 @@ func TestAnOpenPlaceTakesNoTitleFromAnotherResolversOffer(t *testing.T) {
 }
 
 // A resolver that will not answer costs its own rows and never the worktrees.
+// Its refusal comes back beside them rather than being dropped here, the front
+// end being what has a reader to say it to.
 func TestAResolverThatWillNotOfferCostsItsOwnRows(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	testenv.Git(t, repo, "worktree", "add", "-b", "loose", filepath.Join(repo, defaultDir, "loose"))
 
 	e, _ := bare(t, repo)
+	refusal := errors.New("bd is not answering")
 	e.Systems.Resolvers = append([]Resolver{
-		&offering{name: "tracker", places: []string{"one"}, fails: errors.New("bd is not answering")},
+		&offering{name: "tracker", places: []string{"one"}, fails: refusal},
+		&offering{name: "forge", places: []string{"two"}},
 	}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, refused, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
-	if want := []string{"main", "loose"}; !slices.Equal(names(got), want) {
-		t.Errorf("Candidates() = %q; want the worktrees alone", names(got))
+	if want := []string{"main", "loose", "two"}; !slices.Equal(names(got), want) {
+		t.Errorf("Candidates() = %q; want the worktrees and what the other resolver offered", names(got))
+	}
+	// One refusal, the resolver that answered leaving none of its own.
+	if len(refused) != 1 || !errors.Is(refused[0], refusal) {
+		t.Errorf("Candidates refused %v; want the one refusal handed back", refused)
 	}
 }
 
@@ -299,7 +307,7 @@ func TestCandidatesDropAnOfferThatCouldNotBeMade(t *testing.T) {
 		&offering{name: "tracker", places: []string{"..", "a/b", "-5", "fine"}},
 	}, e.Systems.Resolvers...)
 
-	got, err := e.Candidates()
+	got, _, err := e.Candidates()
 	if err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
@@ -319,7 +327,7 @@ func TestCandidatesListAtOnce(t *testing.T) {
 		&offering{name: "second", places: []string{"two"}, blocks: both},
 	}, e.Systems.Resolvers...)
 
-	if _, err := e.Candidates(); err != nil {
+	if _, _, err := e.Candidates(); err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
 	if both.alone.Load() {

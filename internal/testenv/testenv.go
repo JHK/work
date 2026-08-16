@@ -5,6 +5,7 @@ package testenv
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,9 @@ func Main(m *testing.M) {
 	set("GIT_AUTHOR_EMAIL", "t@t")
 	set("GIT_COMMITTER_NAME", "t")
 	set("GIT_COMMITTER_EMAIL", "t@t")
+	// What work says of the tools it reached for belongs on a terminal, not in a
+	// test run; a test that reads one takes it with [Warnings].
+	run.Warnings = io.Discard
 	m.Run()
 }
 
@@ -77,21 +81,40 @@ func Git(t *testing.T, dir string, args ...string) string {
 	return out
 }
 
-// Stub is a stand-in for one tool: the name it answers to, what it answers
-// with, and the status it exits with. Shell is the way out for a stub that has
-// to do more than answer, run after it has recorded and before it answers.
+// Warnings hands back what work has said of the tools it reached for, which
+// [Main] otherwise keeps off a test run.
+func Warnings(t *testing.T) func() string {
+	t.Helper()
+	var said strings.Builder
+	was := run.Warnings
+	run.Warnings = &said
+	t.Cleanup(func() { run.Warnings = was })
+	return said.String
+}
+
+// Stub is a stand-in for one tool: the name it answers to, what it answers with
+// on stdout and on stderr, and the status it exits with. Shell is the way out
+// for a stub that has to do more than answer, run after it has recorded and
+// before it answers.
 type Stub struct {
-	Name  string
-	Says  string
-	Exits int
-	Shell string
+	Name     string
+	Says     string
+	Grumbles string
+	Exits    int
+	Shell    string
 }
 
 // Stubs puts a stand-in for each tool on PATH ahead of whatever the machine has
 // installed, and hands back what they were asked to run: one line per
-// invocation, the tool and its arguments, in the order they ran.
+// invocation, the tool and its arguments, in the order they ran. One that
+// answers reads its answer with cat, so a test emptying PATH first gets a stub
+// that can exit but not speak.
 func Stubs(t *testing.T, stubs ...Stub) func() []string {
 	t.Helper()
+	// A tool an earlier case found missing is out for the rest of the process, which
+	// would leave the stand-ins put here unasked.
+	run.Forget()
+	t.Cleanup(run.Forget)
 	dir := t.TempDir()
 	log := filepath.Join(dir, "log")
 	for _, s := range stubs {
@@ -102,6 +125,11 @@ func Stubs(t *testing.T, stubs ...Stub) func() []string {
 			answer := filepath.Join(dir, "says-"+s.Name)
 			Write(t, answer, s.Says)
 			says = fmt.Sprintf("cat %q\n", answer)
+		}
+		if s.Grumbles != "" {
+			answer := filepath.Join(dir, "grumbles-"+s.Name)
+			Write(t, answer, s.Grumbles)
+			says += fmt.Sprintf("cat %q >&2\n", answer)
 		}
 		record := fmt.Sprintf("printf '%%s %%s\\n' %q \"$*\" >> %q\n", s.Name, log)
 		body := "#!/bin/sh\n" + record + s.Shell + says + fmt.Sprintf("exit %d\n", s.Exits)

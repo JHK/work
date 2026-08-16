@@ -3,6 +3,7 @@ package run
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +14,8 @@ import (
 )
 
 var (
-	// warnings is where a tool the machine does not have is said to be missing.
-	warnings io.Writer = os.Stderr
+	// Warnings is where what work says of the tools it reached for goes.
+	Warnings io.Writer = os.Stderr
 
 	// gone are the commands this run has already found missing.
 	gone sync.Map
@@ -27,7 +28,7 @@ var (
 // question to it fails and every later one fails with it, unasked.
 func Output(dir, bin string, args ...string) (string, error) {
 	if _, missing := gone.Load(bin); missing {
-		return "", absent(asked(bin, args), bin)
+		return "", absent(asked(bin, args...), bin)
 	}
 
 	cmd := exec.Command(bin, args...)
@@ -37,7 +38,7 @@ func Output(dir, bin string, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		what := asked(bin, args)
+		what := asked(bin, args...)
 		if errors.Is(err, exec.ErrNotFound) {
 			return "", absent(what, bin)
 		}
@@ -49,19 +50,44 @@ func Output(dir, bin string, args ...string) (string, error) {
 	return strings.TrimRight(stdout.String(), "\n"), nil
 }
 
-// asked is the tool and the question put to it, as a refusal names them.
-func asked(bin string, args []string) string {
+// JSON runs bin the way [Output] does and reads what it answered with into a
+// value of type T. An answer that is not the JSON asked for is a refusal like
+// any other, and names the command that gave it.
+func JSON[T any](dir, bin string, args ...string) (T, error) {
+	var v T
+	out, err := Output(dir, bin, args...)
+	if err != nil {
+		return v, err
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		return v, fmt.Errorf("%s: %w", asked(bin, args...), err)
+	}
+	return v, nil
+}
+
+// asked is the tool and the question put to it, as a refusal names them: the
+// command as it was run, for whoever has to put it again by hand.
+func asked(bin string, args ...string) string {
 	if len(args) == 0 {
 		return bin
 	}
-	return bin + " " + args[0]
+	return bin + " " + strings.Join(args, " ")
 }
 
-// absent is a tool work reached for and the machine does not have. It warns once
-// here as well as refusing: a caller that swallows the error would go quiet.
+// absent is a tool work reached for and the machine does not have. The refusal
+// is the answer to every question put to that tool for the rest of the run.
 func absent(what, bin string) error {
-	if _, before := gone.LoadOrStore(bin, true); !before {
-		_, _ = fmt.Fprintf(warnings, "work: %s is not on PATH\n", bin)
-	}
+	gone.Store(bin, true)
 	return fmt.Errorf("%s: %s is not on PATH", what, bin)
+}
+
+// Forget drops what this run has found missing, so a tool that has since arrived
+// on PATH is asked again. It is for tests, whose machine changes between cases.
+func Forget() { gone.Clear() }
+
+// Say puts a refusal on stderr, for the one caller that throws one away rather
+// than handing it on. Everywhere else it is whoever is handed a refusal that
+// says it, so nothing says one twice.
+func Say(err error) {
+	_, _ = fmt.Fprintln(Warnings, "work:", err)
 }

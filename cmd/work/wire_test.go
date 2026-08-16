@@ -256,7 +256,7 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	cfg := load(t, repo)
 	e := work.Env{Repo: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
 	// The picker's rows, and switch with a name of its own.
-	if _, err := e.Candidates(); err != nil {
+	if _, _, err := e.Candidates(); err != nil {
 		t.Fatalf("Candidates: %v", err)
 	}
 	c, err := e.Add("scratch")

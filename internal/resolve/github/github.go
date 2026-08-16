@@ -4,8 +4,6 @@ package github
 
 import (
 	"cmp"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -142,21 +140,15 @@ type pull struct {
 // prLimit caps the list; gh stops at 30 by default and has no unlimited form.
 const prLimit = "200"
 
-// pulls asks gh which pull requests are open. The remote is named rather than
-// left to gh, which resolves a checkout with several to whichever it prefers.
+// pulls asks gh which pull requests are open, and asks nothing of a repository
+// with no origin, which has none rather than an answer work could not get. The
+// remote is named rather than left to gh, which resolves a checkout with several
+// to whichever it prefers.
 func (r Resolver) pulls() ([]pull, error) {
 	remote := git.OriginURL(r.repo)
 	if remote == "" {
-		return nil, errors.New("gh: no remote to list pull requests of")
+		return nil, nil
 	}
-	out, err := run.Output(r.repo, Command, "pr", "list", "--repo", remote,
+	return run.JSON[[]pull](r.repo, Command, "pr", "list", "--repo", remote,
 		"--state", "open", "--limit", prLimit, "--json", "number,title")
-	if err != nil {
-		return nil, err
-	}
-	var pulls []pull
-	if err := json.Unmarshal([]byte(out), &pulls); err != nil {
-		return nil, fmt.Errorf("gh: %w", err)
-	}
-	return pulls, nil
 }

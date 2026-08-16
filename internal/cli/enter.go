@@ -2,6 +2,7 @@ package cli
 
 import (
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -62,7 +63,9 @@ func enter(env work.Env, o options, target string) (worktree.Handoff, error) {
 // one the picker hands one over.
 func candidate(env work.Env, target string) (work.Candidate, error) {
 	if target == "" {
-		return pickFrom(env.Candidates)
+		list, refused, err := env.Candidates()
+		report(os.Stderr, refused)
+		return pickFrom(list, err)
 	}
 	return env.Resolve(target)
 }
