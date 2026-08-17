@@ -20,7 +20,7 @@
 
 ### go
 
-`work go <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the checkout the shell is standing in.
+`work go <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the directory the shell is standing in.
 
 With no identifier, [the picker](#the-picker) stands in for one.
 
@@ -34,7 +34,7 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 ### add
 
-`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the checkout the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
+`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
 
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 

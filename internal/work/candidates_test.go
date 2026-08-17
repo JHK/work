@@ -780,6 +780,52 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 	}
 }
 
+// A bare clone opens as the repository it is from the directory itself, which
+// git reports no toplevel for. That directory is no worktree to stand in, so
+// what work reads there is what it reads from inside one of the clone's own.
+func TestOpenTheDirectoryOfABareRepository(t *testing.T) {
+	src := testenv.InitRepo(t)
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo.git")
+	testenv.Git(t, dir, "clone", "--bare", src, repo)
+	one := filepath.Join(repo, defaultDir, "one")
+	testenv.Git(t, repo, "worktree", "add", "-b", "one", one)
+
+	wiring := func(string, string, config.Config) Systems { return Systems{} }
+	e, err := Open(repo, wiring)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	inside, err := Open(one, wiring)
+	if err != nil {
+		t.Fatalf("Open from the worktree at %q: %v", one, err)
+	}
+	if !git.SameDir(e.Repo, repo) || !git.SameDir(inside.Repo, e.Repo) {
+		t.Fatalf("Open(%q) = %q and Open(%q) = %q; want the bare repository at %q from both",
+			repo, e.Repo, one, inside.Repo, repo)
+	}
+
+	// The seam work add creates through, asked where the bare directory is both the
+	// repository a worktree lands under and the checkout its branch forks from.
+	two := e.path("two")
+	if err := git.NewWorktree(repo, two, "two"); err != nil {
+		t.Fatalf("NewWorktree: %v", err)
+	}
+	if head, made := testenv.Git(t, repo, "rev-parse", "HEAD"), testenv.Git(t, two, "rev-parse", "HEAD"); made != head {
+		t.Errorf("the worktree at %q is at %s; want the repository's HEAD %s", two, made, head)
+	}
+
+	// work list from there prints that clone's worktrees, the one created there
+	// among them.
+	branches, err := e.Branches()
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	if want := []string{"one", "two"}; !slices.Equal(branches, want) {
+		t.Errorf("Branches() = %q; want %q", branches, want)
+	}
+}
+
 // Outside a repository nothing is wired and the refusal is work's own: git names
 // the question it was put and every directory it walked, which is the first
 // thing a new user would meet.

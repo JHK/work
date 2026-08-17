@@ -13,9 +13,10 @@ import (
 )
 
 // Root reports the main checkout of the repository containing dir, so a call
-// from inside a linked worktree still resolves to the main checkout.
+// from inside a linked worktree still resolves to the main checkout. A bare
+// repository is its own, having no checkout to stand in.
 func Root(dir string) (string, error) {
-	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel")
+	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--is-bare-repository")
 	if err != nil {
 		// Only a directory with no repository is work's own; a git that cannot read
 		// the one that is there keeps its own words, which name the way out.
@@ -25,18 +26,23 @@ func Root(dir string) (string, error) {
 		return "", errors.New("no git repository here")
 	}
 	gitDir, rest, _ := strings.Cut(out, "\n")
-	commonDir, toplevel, _ := strings.Cut(rest, "\n")
+	commonDir, bare, _ := strings.Cut(rest, "\n")
 	commonDir = filepath.Clean(commonDir)
 
-	// The two differ only inside a linked worktree.
-	if filepath.Clean(gitDir) == commonDir {
-		return toplevel, nil
+	if bare == "true" {
+		return commonDir, nil
 	}
-	// Inside one, the main checkout is where the common git directory sits.
-	if filepath.Base(commonDir) == ".git" {
-		return filepath.Dir(commonDir), nil
+	// The two differ only inside a linked worktree, where the main checkout is where
+	// the common git directory sits.
+	if filepath.Clean(gitDir) != commonDir {
+		if filepath.Base(commonDir) == ".git" {
+			return filepath.Dir(commonDir), nil
+		}
+		return commonDir, nil
 	}
-	return commonDir, nil
+	// Asked rather than inferred: a main checkout's git directory need not be the
+	// .git beside it, and only git knows where its working tree is.
+	return git(dir, "rev-parse", "--show-toplevel")
 }
 
 // SameDir reports whether two paths name the same directory.
