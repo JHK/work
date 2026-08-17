@@ -11,7 +11,7 @@ import (
 
 // removeCommand is the verb that takes a worktree away. It carries --force and
 // nothing else, and a tab press after it offers what its picker offers.
-func removeCommand(run func(force bool, target string) (work.Deletion, error), list func() ([]work.Candidate, error)) *cobra.Command {
+func removeCommand(verb offering[removes]) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
@@ -25,9 +25,9 @@ checkout cannot be removed, and neither can the worktree you are standing in.
 With no name, choose among the repository's worktrees, less the one you are
 standing in and the main checkout. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: suggest(list),
+		ValidArgsFunction: suggest(verb.list),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := run(force, arg(args, 0))
+			d, err := verb.run(force, arg(args, 0))
 			if err != nil {
 				return err
 			}
@@ -41,8 +41,8 @@ standing in and the main checkout. That form needs fzf.`,
 
 // remove takes a worktree away and returns what went. It hands over to nothing:
 // the invocation does its work and exits.
-func remove(env work.Env, force bool, target string) (work.Deletion, error) {
-	c, err := openWorktree(env, target, "no worktree to remove", env.Removable)
+func remove(env work.Env, l listing, force bool, target string) (work.Deletion, error) {
+	c, err := offered(env, l, target, env.Resolve)
 	if err != nil {
 		return work.Deletion{}, err
 	}

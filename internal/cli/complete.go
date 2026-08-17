@@ -10,37 +10,17 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
-// listing is where a tab press on the identifier gets its rows: the same
-// candidates the picker renders.
-func (v verbs) listing() ([]work.Candidate, error) { return v.completes(work.Env.Candidates) }
-
-// enterableListing is what a tab press after switch gets: the worktrees it can enter.
-func (v verbs) enterableListing() ([]work.Candidate, error) { return v.offers(work.Env.Enterable) }
-
-// removableListing is what a tab press after remove or move gets: the worktrees
-// either can act on.
-func (v verbs) removableListing() ([]work.Candidate, error) { return v.offers(work.Env.Removable) }
-
-// addableListing is what a tab press after add gets: the places with no worktree
-// yet.
-func (v verbs) addableListing() ([]work.Candidate, error) { return v.completes(work.Env.Addable) }
-
-// offers is one verb's own listing put up for the shell.
-func (v verbs) offers(list func(work.Env) ([]work.Candidate, error)) ([]work.Candidate, error) {
-	env, err := v.repository()
-	if err != nil {
-		return nil, err
-	}
-	return list(env)
-}
-
-// completes is a listing carrying its refusals put up for the shell: the rows
-// alone, a refusal on stderr landing in the completions it is drawing.
-func (v verbs) completes(list func(work.Env) ([]work.Candidate, []error, error)) ([]work.Candidate, error) {
-	return v.offers(func(env work.Env) ([]work.Candidate, error) {
-		rows, _, err := list(env)
+// offers is a verb's listing put up for the shell: the rows alone, a refusal on
+// stderr landing in the completions it is drawing.
+func (v verbs) offers(l listing) func() ([]work.Candidate, error) {
+	return func() ([]work.Candidate, error) {
+		env, err := v.repository()
+		if err != nil {
+			return nil, err
+		}
+		rows, _, err := l.rows(env)
 		return rows, err
-	})
+	}
 }
 
 // suggest answers a tab press on a verb's argument. A second word completes

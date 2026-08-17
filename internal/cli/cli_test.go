@@ -100,10 +100,10 @@ func TestCommandFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{reach: func(o options, id string) (worktree.Handoff, error) {
+			err := execute(t, tt.args, io.Discard, front{reach: runs(func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
 				return worktree.Handoff{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -158,10 +158,10 @@ func TestTheWiredSystemsNameTheFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
 			var got options
-			err := executeOn(t, sys, tt.args, io.Discard, front{reach: func(o options, _ string) (worktree.Handoff, error) {
+			err := executeOn(t, sys, tt.args, io.Discard, front{reach: runs(func(o options, _ string) (worktree.Handoff, error) {
 				got = o
 				return worktree.Handoff{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -205,10 +205,10 @@ func TestGoFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{reach: func(o options, id string) (worktree.Handoff, error) {
+			err := execute(t, tt.args, io.Discard, front{reach: runs(func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
 				return worktree.Handoff{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -239,10 +239,10 @@ func TestSwitchFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) (worktree.Handoff, error) {
+			err := execute(t, tt.args, io.Discard, front{enter: runs(func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
 				return worktree.Handoff{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -322,10 +322,10 @@ func TestAddFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{add: func(o options, id string) (worktree.Handoff, error) {
+			err := execute(t, tt.args, io.Discard, front{add: runs(func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
 				return worktree.Handoff{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -356,10 +356,10 @@ func TestRemoveFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var force bool
 			var target string
-			err := execute(t, tt.args, io.Discard, front{remove: func(f bool, id string) (work.Deletion, error) {
+			err := execute(t, tt.args, io.Discard, front{remove: runs(func(f bool, id string) (work.Deletion, error) {
 				force, target = f, id
 				return work.Deletion{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -387,10 +387,10 @@ func TestMoveFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var target, dest string
-			err := execute(t, tt.args, io.Discard, front{move: func(id, to string) (work.Move, error) {
+			err := execute(t, tt.args, io.Discard, front{move: runs(func(id, to string) (work.Move, error) {
 				target, dest = id, to
 				return work.Move{}, nil
-			}})
+			})})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
@@ -406,16 +406,16 @@ func TestMoveFlags(t *testing.T) {
 func TestOnlyGoNamesAddForAnIdentifierNothingAnswersFor(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	t.Chdir(repo)
-	env := opened(t, last{})
+	f := standing(last{})
 
-	if _, err := reach(env, options{}, "typo"); err == nil || !strings.Contains(err.Error(), "work add typo") {
+	if _, err := f.reach.run(options{}, "typo"); err == nil || !strings.Contains(err.Error(), "work add typo") {
 		t.Errorf("reach(typo) = %v; want it refused, naming the verb that makes a worktree of it", err)
 	}
 
 	acting := map[string]error{}
-	_, acting["remove"] = remove(env, false, "typo")
-	_, acting["move"] = move(env, "typo", "other")
-	_, acting["switch"] = enter(env, options{}, "typo")
+	_, acting["remove"] = f.remove.run(false, "typo")
+	_, acting["move"] = f.move.run("typo", "other")
+	_, acting["switch"] = f.enter.run(options{}, "typo")
 	for verb, err := range acting {
 		if err == nil || !strings.Contains(err.Error(), `nothing answers for "typo"`) {
 			t.Errorf("%s(typo) = %v; want it refused as a name nothing answers for", verb, err)
@@ -436,8 +436,7 @@ func TestMoveAsksWithTheDirectoryNotTheBranch(t *testing.T) {
 	t.Chdir(repo)
 	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "login\n", Exits: 1})
 
-	env := opened(t, last{})
-	if _, err := move(env, "feature/login", ""); err == nil {
+	if _, err := standing(last{}).move.run("feature/login", ""); err == nil {
 		t.Error("move onto the directory it already sits in: want it refused")
 	}
 	if asked := strings.Join(ran(), "\n"); !strings.Contains(asked, "--query login") {
@@ -454,8 +453,7 @@ func TestMoveAsksForTheDestination(t *testing.T) {
 	t.Chdir(repo)
 	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
 
-	env := opened(t, last{})
-	m, err := move(env, "scratch", "")
+	m, err := standing(last{}).move.run("scratch", "")
 	if err != nil {
 		t.Fatalf("move: %v", err)
 	}
@@ -491,11 +489,11 @@ func TestMoveRefusesBeforeAsking(t *testing.T) {
 			t.Chdir(from)
 			ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
 
-			env := opened(t, anything{})
+			f := standing(anything{})
 			// A destination given and one left for the prompt alike: neither is what the
 			// refusal waits on.
 			for _, dest := range []string{"", "settled"} {
-				if _, err := move(env, tt.target, dest); err == nil || !strings.Contains(err.Error(), tt.want) {
+				if _, err := f.move.run(tt.target, dest); err == nil || !strings.Contains(err.Error(), tt.want) {
 					t.Errorf("move(%q, %q) = %v; want a refusal naming %q", tt.target, dest, err, tt.want)
 				}
 			}
@@ -532,7 +530,7 @@ func TestMovePrints(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out strings.Builder
-			f := front{move: func(string, string) (work.Move, error) { return tt.went, nil }}
+			f := front{move: runs(func(string, string) (work.Move, error) { return tt.went, nil })}
 			if err := execute(t, []string{"move", "scratch", "settled"}, &out, f); err != nil {
 				t.Fatalf("work move: %v", err)
 			}
@@ -542,7 +540,7 @@ func TestMovePrints(t *testing.T) {
 		})
 	}
 
-	f := front{move: func(string, string) (work.Move, error) { return moved, nil }}
+	f := front{move: runs(func(string, string) (work.Move, error) { return moved, nil })}
 	if err := execute(t, []string{"move", "scratch", "settled"}, refusing{}, f); err == nil {
 		t.Error("work move onto a writer that refuses: want the write's error")
 	}
@@ -577,7 +575,7 @@ func TestRemovePrints(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out strings.Builder
-			f := front{remove: func(bool, string) (work.Deletion, error) { return tt.went, nil }}
+			f := front{remove: runs(func(bool, string) (work.Deletion, error) { return tt.went, nil })}
 			if err := execute(t, []string{"remove", "scratch"}, &out, f); err != nil {
 				t.Fatalf("work remove: %v", err)
 			}
@@ -587,7 +585,7 @@ func TestRemovePrints(t *testing.T) {
 		})
 	}
 
-	f := front{remove: func(bool, string) (work.Deletion, error) { return both, nil }}
+	f := front{remove: runs(func(bool, string) (work.Deletion, error) { return both, nil })}
 	if err := execute(t, []string{"remove", "scratch"}, refusing{}, f); err == nil {
 		t.Error("work remove onto a writer that refuses: want the write's error")
 	}
@@ -655,11 +653,9 @@ func TestListPrints(t *testing.T) {
 	}
 
 	var out strings.Builder
-	f := front{
-		branches:   func() ([]string, error) { return []string{"bd-1-do-a-thing", "spike"}, nil },
-		enterable:  resolved,
-		removable:  resolved,
-		candidates: resolved,
+	f := front{branches: func() ([]string, error) { return []string{"bd-1-do-a-thing", "spike"}, nil }}
+	for _, list := range lists(&f) {
+		*list = resolved
 	}
 	if err := execute(t, []string{"list"}, &out, f); err != nil {
 		t.Fatalf("work list: %v", err)
@@ -802,6 +798,18 @@ const (
 	dumped      = "the configuration\n"
 )
 
+// runs is a verb doing what a case wants of it and offering nothing:
+// [executeOn] fills in a listing left unnamed.
+func runs[T any](run T) offering[T] { return offering[T]{run: run} }
+
+// lists is what each verb in a front completes with, under the verb it belongs to.
+func lists(f *front) map[string]*func() ([]work.Candidate, error) {
+	return map[string]*func() ([]work.Candidate, error){
+		"go": &f.reach.list, "switch": &f.enter.list, "add": &f.add.list,
+		"remove": &f.remove.list, "move": &f.move.list,
+	}
+}
+
 // execute puts args through the tree the way [Execute] does, dispatch included,
 // over the systems the command line records.
 func execute(t *testing.T, args []string, out io.Writer, f front) error {
@@ -814,32 +822,32 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 // rather than passing silently.
 func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f front) error {
 	t.Helper()
-	if f.reach == nil {
-		f.reach = func(options, string) (worktree.Handoff, error) {
+	if f.reach.run == nil {
+		f.reach.run = func(options, string) (worktree.Handoff, error) {
 			t.Error("reached a place")
 			return worktree.Handoff{}, nil
 		}
 	}
-	if f.enter == nil {
-		f.enter = func(options, string) (worktree.Handoff, error) {
+	if f.enter.run == nil {
+		f.enter.run = func(options, string) (worktree.Handoff, error) {
 			t.Error("entered a worktree")
 			return worktree.Handoff{}, nil
 		}
 	}
-	if f.add == nil {
-		f.add = func(options, string) (worktree.Handoff, error) {
+	if f.add.run == nil {
+		f.add.run = func(options, string) (worktree.Handoff, error) {
 			t.Error("added a worktree")
 			return worktree.Handoff{}, nil
 		}
 	}
-	if f.remove == nil {
-		f.remove = func(bool, string) (work.Deletion, error) {
+	if f.remove.run == nil {
+		f.remove.run = func(bool, string) (work.Deletion, error) {
 			t.Error("removed a worktree")
 			return work.Deletion{}, nil
 		}
 	}
-	if f.move == nil {
-		f.move = func(string, string) (work.Move, error) {
+	if f.move.run == nil {
+		f.move.run = func(string, string) (work.Move, error) {
 			t.Error("moved a worktree")
 			return work.Move{}, nil
 		}
@@ -850,17 +858,10 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	if f.edit == nil {
 		f.edit = func(io.Writer) error { t.Error("opened the settings file"); return nil }
 	}
-	if f.candidates == nil {
-		f.candidates = stub(nil, nil)
-	}
-	if f.enterable == nil {
-		f.enterable = stub(nil, nil)
-	}
-	if f.removable == nil {
-		f.removable = stub(nil, nil)
-	}
-	if f.addable == nil {
-		f.addable = stub(nil, nil)
+	for _, list := range lists(&f) {
+		if *list == nil {
+			*list = stub(nil, nil)
+		}
 	}
 	if f.branches == nil {
 		f.branches = func() ([]string, error) { t.Error("listed the branches"); return nil, nil }
@@ -895,25 +896,19 @@ func wiring(chain ...work.Resolver) work.Wiring {
 	}
 }
 
-// opened is the repository the shell stands in, under resolvers of the case's own.
-func opened(t *testing.T, chain ...work.Resolver) work.Env {
-	t.Helper()
-	env, err := work.Open(".", wiring(chain...))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	return env
-}
+// standing is the front the shell stands in, under resolvers of the case's own:
+// each verb wired to its listing the way [Execute] wires it.
+func standing(chain ...work.Resolver) front { return fronting(verbs{wire: wiring(chain...)}) }
 
-// pickers is each verb's screen put up over env with no argument given, under
-// the verb it belongs to.
-func pickers(env work.Env) map[string]func() error {
+// pickers is each verb's screen put up with no argument given, under the verb it
+// belongs to.
+func pickers(f front) map[string]func() error {
 	return map[string]func() error{
-		"go":     func() error { _, err := reach(env, options{}, ""); return err },
-		"switch": func() error { _, err := enter(env, options{}, ""); return err },
-		"add":    func() error { _, err := add(env, options{}, ""); return err },
-		"remove": func() error { _, err := remove(env, false, ""); return err },
-		"move":   func() error { _, err := move(env, "", ""); return err },
+		"go":     func() error { _, err := f.reach.run(options{}, ""); return err },
+		"switch": func() error { _, err := f.enter.run(options{}, ""); return err },
+		"add":    func() error { _, err := f.add.run(options{}, ""); return err },
+		"remove": func() error { _, err := f.remove.run(false, ""); return err },
+		"move":   func() error { _, err := f.move.run("", ""); return err },
 	}
 }
 
@@ -957,26 +952,27 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	t.Chdir(testenv.InitRepo(t))
 
 	var asked []string
-	listings := []struct {
+	calls := []struct {
 		name string
-		ask  func(verbs) error
+		ask  func(front) error
 	}{
-		{"candidates", func(v verbs) error { _, err := v.listing(); return err }},
-		{"enterable", func(v verbs) error { _, err := v.enterableListing(); return err }},
-		{"removable", func(v verbs) error { _, err := v.removableListing(); return err }},
-		{"addable", func(v verbs) error { _, err := v.addableListing(); return err }},
-		{"branches", func(v verbs) error { _, err := v.branchListing(); return err }},
+		{"go", func(f front) error { _, err := f.reach.list(); return err }},
+		{"switch", func(f front) error { _, err := f.enter.list(); return err }},
+		{"add", func(f front) error { _, err := f.add.list(); return err }},
+		{"remove", func(f front) error { _, err := f.remove.list(); return err }},
+		{"move", func(f front) error { _, err := f.move.list(); return err }},
+		{"branches", func(f front) error { _, err := f.branches(); return err }},
 	}
 	var want []string
-	for _, l := range listings {
+	for _, c := range calls {
 		wire := func(repo, checkout string, cfg config.Config) work.Systems {
-			asked = append(asked, l.name)
+			asked = append(asked, c.name)
 			return wiring(last{})(repo, checkout, cfg)
 		}
-		if err := l.ask(verbs{wire: wire}); err != nil {
-			t.Fatalf("%s: %v", l.name, err)
+		if err := c.ask(fronting(verbs{wire: wire})); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
 		}
-		want = append(want, l.name)
+		want = append(want, c.name)
 	}
 	if !slices.Equal(asked, want) {
 		t.Errorf("the wirings asked were %q; want %q", asked, want)

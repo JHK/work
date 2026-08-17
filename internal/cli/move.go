@@ -12,7 +12,7 @@ import (
 // moveCommand is the verb that moves a worktree and takes its branch with it. It
 // carries no flag, and a tab press offers what its picker offers at the name and
 // nothing at the destination, which is a name nothing holds yet.
-func moveCommand(run func(target, dest string) (work.Move, error), list func() ([]work.Candidate, error)) *cobra.Command {
+func moveCommand(verb offering[moves]) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move [<name>] [<destination>]",
 		Short: "Move a worktree and rename its branch to the destination",
@@ -29,9 +29,9 @@ the one you are standing in and the main checkout. Both forms need fzf.
 No tracker is asked and nothing opens. The worktree you are standing in cannot
 be moved, and neither can the main checkout.`,
 		Args:              cobra.MaximumNArgs(2),
-		ValidArgsFunction: suggest(list),
+		ValidArgsFunction: suggest(verb.list),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := run(arg(args, 0), arg(args, 1))
+			m, err := verb.run(arg(args, 0), arg(args, 1))
 			if err != nil {
 				return err
 			}
@@ -42,8 +42,8 @@ be moved, and neither can the main checkout.`,
 
 // move moves a worktree and renames its branch with it. It hands over to
 // nothing: the invocation does its work and exits.
-func move(env work.Env, target, dest string) (work.Move, error) {
-	c, err := openWorktree(env, target, "no worktree to move", env.Removable)
+func move(env work.Env, l listing, target, dest string) (work.Move, error) {
+	c, err := offered(env, l, target, env.Resolve)
 	if err != nil {
 		return work.Move{}, err
 	}

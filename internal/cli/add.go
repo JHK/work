@@ -9,7 +9,7 @@ import (
 
 // addCommand is the verb that brings a worktree into being. A tab press after it
 // offers the places with no worktree yet.
-func addCommand(sys work.Systems, run func(o options, id string) (worktree.Handoff, error), list func() ([]work.Candidate, error)) *cobra.Command {
+func addCommand(sys work.Systems, verb offering[opens]) *cobra.Command {
 	return opening(&cobra.Command{
 		Use:   "add [<name>|<id>|<pr>|<url>]",
 		Short: "Create the worktree an identifier names and open it",
@@ -24,12 +24,12 @@ With no identifier, choose among the repository's ready tickets and open pull
 requests that have no worktree yet. That form needs fzf.
 
 The worktree opens on what action.create names.`,
-	}, sys, sys.Actions, run, list)
+	}, sys, sys.Actions, verb)
 }
 
 // add makes the worktree the identifier asks for and says what it opens on.
-func add(env work.Env, o options, id string) (worktree.Handoff, error) {
-	c, err := offered(id, "nothing left to add", env.Addable, env.Add)
+func add(env work.Env, l listing, o options, id string) (worktree.Handoff, error) {
+	c, err := offered(env, l, id, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

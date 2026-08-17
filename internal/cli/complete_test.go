@@ -40,7 +40,7 @@ func TestCompleteBarePosition(t *testing.T) {
 		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}},
 		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}},
 	}
-	out := complete(t, front{candidates: stub(listed, nil)}, "")
+	out := complete(t, front{reach: offering[opens]{list: stub(listed, nil)}}, "")
 	offered := names(rows(out))
 	for _, verb := range []string{"go", "switch", "add", "remove", "move", "list", "init"} {
 		if !slices.Contains(offered, verb) {
@@ -65,46 +65,40 @@ func TestEachVerbCompletesFromItsOwnListing(t *testing.T) {
 	}
 	want := []string{"bd-1\tDo a thing", "spike"}
 
-	for _, tt := range []struct{ verb, from string }{
-		{"go", "candidates"},
-		{"switch", "enterable"},
-		{"add", "addable"},
-		{"remove", "removable"},
-		{"move", "removable"},
-	} {
-		t.Run(tt.verb, func(t *testing.T) {
-			out := complete(t, completing(tt.from, own), tt.verb, "")
+	for _, verb := range []string{"go", "switch", "add", "remove", "move"} {
+		t.Run(verb, func(t *testing.T) {
+			out := complete(t, completing(verb, own), verb, "")
 			if !slices.Equal(rows(out), want) {
-				t.Errorf("completing %s gave %q; want %q", tt.verb, rows(out), want)
+				t.Errorf("completing %s gave %q; want %q", verb, rows(out), want)
 			}
 			assertNoFileComp(t, out)
 
-			past := complete(t, completing(tt.from, own), tt.verb, "bd-1", "")
+			past := complete(t, completing(verb, own), verb, "bd-1", "")
 			if got := rows(past); got != nil {
-				t.Errorf("completing past %s's position gave %q; want nothing", tt.verb, got)
+				t.Errorf("completing past %s's position gave %q; want nothing", verb, got)
 			}
 			assertNoFileComp(t, past)
 		})
 	}
 
 	// A repository that will not answer costs the rows, not the shell.
-	silent := complete(t, front{candidates: stub(nil, errCancelled)}, "go", "")
+	silent := complete(t, front{reach: offering[opens]{list: stub(nil, errCancelled)}}, "go", "")
 	if got := rows(silent); got != nil {
 		t.Errorf("completing go on a silent repository gave %q; want nothing", got)
 	}
 	assertNoFileComp(t, silent)
 }
 
-// completing is a front whose listings all answer with rows of somebody else's
-// but the one named, so what a verb offers names the listing it read.
-func completing(named string, own []work.Candidate) front {
+// completing is a front whose verbs all offer rows of somebody else's but the
+// one named, so what a verb offers names the listing it read.
+func completing(verb string, own []work.Candidate) front {
 	elsewhere := stub([]work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}, nil)
-	f := front{candidates: elsewhere, enterable: elsewhere, removable: elsewhere, addable: elsewhere}
-	listings := map[string]*func() ([]work.Candidate, error){
-		"candidates": &f.candidates, "enterable": &f.enterable,
-		"removable": &f.removable, "addable": &f.addable,
+	var f front
+	offers := lists(&f)
+	for _, list := range offers {
+		*list = elsewhere
 	}
-	*listings[named] = stub(own, nil)
+	*offers[verb] = stub(own, nil)
 	return f
 }
 
@@ -113,7 +107,11 @@ func completing(named string, own []work.Candidate) front {
 func TestCompleteList(t *testing.T) {
 	listed := []work.Candidate{{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true}}
 
-	out := complete(t, front{candidates: stub(listed, nil), enterable: stub(listed, nil), removable: stub(listed, nil)}, "list", "")
+	var f front
+	for _, list := range lists(&f) {
+		*list = stub(listed, nil)
+	}
+	out := complete(t, f, "list", "")
 	if got := rows(out); got != nil {
 		t.Errorf("completing list gave %q; want nothing", got)
 	}
@@ -180,10 +178,10 @@ func TestCompleteInit(t *testing.T) {
 // carries that command only once Execute ran.
 func TestNoCompletionCommand(t *testing.T) {
 	var target string
-	err := execute(t, []string{"completion"}, io.Discard, front{reach: func(_ options, id string) (worktree.Handoff, error) {
+	err := execute(t, []string{"completion"}, io.Discard, front{reach: runs(func(_ options, id string) (worktree.Handoff, error) {
 		target = id
 		return worktree.Handoff{}, nil
-	}})
+	})})
 	if err != nil || target != "completion" {
 		t.Errorf(`work completion = %q, %v; want the worktree named completion`, target, err)
 	}
@@ -206,10 +204,9 @@ func TestEachVerbCompletesWhatItsPickerOffers(t *testing.T) {
 	// act on one.
 	testenv.Stubs(t, testenv.Stub{Name: "fzf", Shell: "cat > " + putUp + "\n", Exits: 1})
 
-	v := verbs{wire: wiring(spare{})}
-	f := front{candidates: v.listing, enterable: v.enterableListing, removable: v.removableListing, addable: v.addableListing}
+	f := standing(spare{})
 
-	for verb, pick := range pickers(opened(t, spare{})) {
+	for verb, pick := range pickers(f) {
 		t.Run(verb, func(t *testing.T) {
 			if err := os.Remove(putUp); err != nil && !os.IsNotExist(err) {
 				t.Fatalf("clear the listing: %v", err)

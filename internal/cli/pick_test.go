@@ -17,7 +17,7 @@ func TestAnEmptyListingIsRefusedRatherThanPutUp(t *testing.T) {
 	// main checkout to offer, so it is not asked.
 	t.Chdir(testenv.InitRepo(t))
 	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "0\trow\n"})
-	screens := pickers(opened(t, last{}))
+	screens := pickers(standing(last{}))
 
 	for verb, want := range map[string]string{
 		"switch": "no worktree to switch to",

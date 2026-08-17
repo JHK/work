@@ -25,24 +25,41 @@ const (
 	prompt = "work> "
 )
 
-// offered is the place a verb was given, or the one its picker hands over where
-// it was given none. nothing is how that verb says it has none to offer.
-func offered(id, nothing string, list func() ([]work.Candidate, []error, error), resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
+// listing is what a verb has to offer: where its rows come from, and the words
+// it has for having none.
+type listing struct {
+	nothing string
+	rows    func(work.Env) ([]work.Candidate, []error, error)
+}
+
+// The listing each verb offers. remove and move share the rows and not the
+// words.
+var (
+	workable  = listing{"nothing to work on", work.Env.Candidates}
+	enterable = listing{"no worktree to switch to", rowsAlone(work.Env.Enterable)}
+	addable   = listing{"nothing left to add", work.Env.Addable}
+	removable = listing{"no worktree to remove", rowsAlone(work.Env.Removable)}
+	movable   = listing{"no worktree to move", rowsAlone(work.Env.Removable)}
+)
+
+// rowsAlone puts a source that names no refusals in the shape one that names
+// them takes.
+func rowsAlone(list func(work.Env) ([]work.Candidate, error)) func(work.Env) ([]work.Candidate, []error, error) {
+	return func(env work.Env) ([]work.Candidate, []error, error) {
+		rows, err := list(env)
+		return rows, nil, err
+	}
+}
+
+// offered is the place a verb was given, or the one its listing hands over where
+// it was given none.
+func offered(env work.Env, l listing, id string, resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
 	if id != "" {
 		return resolve(id)
 	}
-	rows, refused, err := list()
+	rows, refused, err := l.rows(env)
 	report(os.Stderr, refused)
-	return pickFrom(nothing, rows, err)
-}
-
-// openWorktree is the worktree a verb that acts on one was named: an identifier
-// resolves to it, and without one the picker offers what that verb can act on.
-func openWorktree(env work.Env, target, nothing string, list func() ([]work.Candidate, error)) (work.Candidate, error) {
-	return offered(target, nothing, func() ([]work.Candidate, []error, error) {
-		rows, err := list()
-		return rows, nil, err
-	}, env.Resolve)
+	return pickFrom(l.nothing, rows, err)
 }
 
 // pickFrom puts one listing in front of the picker, refusing one left with no

@@ -27,21 +27,31 @@ type options struct {
 	skip []string
 }
 
-// front is what the command tree calls once cobra has read the flags: a
-// function per verb, and a listing per source for the verbs that complete.
+// The shape each verb takes once the flags are read: an opening verb hands a
+// worktree over, the two that act on one hand back what they did.
+type (
+	opens   = func(o options, target string) (worktree.Handoff, error)
+	removes = func(force bool, target string) (work.Deletion, error)
+	moves   = func(target, dest string) (work.Move, error)
+)
+
+// offering is a verb and the listing it has to offer.
+type offering[T any] struct {
+	run  T
+	list func() ([]work.Candidate, error)
+}
+
+// front is what the command tree calls once cobra has read the flags: an
+// offering per verb, and the verbs that offer nothing.
 type front struct {
-	reach      func(o options, target string) (worktree.Handoff, error)
-	enter      func(o options, target string) (worktree.Handoff, error)
-	add        func(o options, id string) (worktree.Handoff, error)
-	remove     func(force bool, target string) (work.Deletion, error)
-	move       func(target, dest string) (work.Move, error)
-	dump       func(out io.Writer) error
-	edit       func(out io.Writer) error
-	candidates func() ([]work.Candidate, error)
-	enterable  func() ([]work.Candidate, error)
-	removable  func() ([]work.Candidate, error)
-	addable    func() ([]work.Candidate, error)
-	branches   func() ([]string, error)
+	reach    offering[opens]
+	enter    offering[opens]
+	add      offering[opens]
+	remove   offering[removes]
+	move     offering[moves]
+	dump     func(out io.Writer) error
+	edit     func(out io.Writer) error
+	branches func() ([]string, error)
 }
 
 // verbs answers the front's calls against the wiring Execute was handed.
@@ -52,40 +62,40 @@ func (v verbs) repository() (work.Env, error) {
 	return work.Open(".", v.wire)
 }
 
-// performs puts one of the opening verbs over the repository the shell stands in.
-func (v verbs) performs(verb func(env work.Env, o options, target string) (worktree.Handoff, error)) func(options, string) (worktree.Handoff, error) {
-	return func(o options, target string) (worktree.Handoff, error) {
-		env, err := v.repository()
-		if err != nil {
-			return worktree.Handoff{}, err
-		}
-		return verb(env, o, target)
+// performs puts a verb over the repository the shell stands in, and puts the
+// listing it was wired with up for the shell.
+func performs[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B) (R, error)) offering[func(A, B) (R, error)] {
+	return offering[func(A, B) (R, error)]{
+		run: func(a A, b B) (R, error) {
+			env, err := v.repository()
+			if err != nil {
+				var none R
+				return none, err
+			}
+			return verb(env, l, a, b)
+		},
+		list: v.offers(l),
 	}
 }
 
-// performRemove takes a worktree out of the repository the shell stands in.
-func (v verbs) performRemove(force bool, target string) (work.Deletion, error) {
-	env, err := v.repository()
-	if err != nil {
-		return work.Deletion{}, err
+// fronting wires each verb to the listing it offers, which its picker and its
+// completion are both put up from.
+func fronting(v verbs) front {
+	return front{
+		reach:    performs(v, workable, reach),
+		enter:    performs(v, enterable, enter),
+		add:      performs(v, addable, add),
+		remove:   performs(v, removable, remove),
+		move:     performs(v, movable, move),
+		dump:     dump,
+		edit:     edit,
+		branches: v.branchListing,
 	}
-	return remove(env, force, target)
-}
-
-// performMove moves a worktree of the repository the shell stands in and takes
-// its branch with it.
-func (v verbs) performMove(target, dest string) (work.Move, error) {
-	env, err := v.repository()
-	if err != nil {
-		return work.Move{}, err
-	}
-	return move(env, target, dest)
 }
 
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
-	v := verbs{wire: wire}
-	f := front{reach: v.performs(reach), enter: v.performs(enter), add: v.performs(add), remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, enterable: v.enterableListing, removable: v.removableListing, addable: v.addableListing, branches: v.branchListing}
+	f := fronting(verbs{wire: wire})
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -140,7 +150,7 @@ An identifier in the first position, or none at all, is work go.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), goCommand(sys, f.reach, f.candidates), switchCommand(sys, f.enter, f.enterable), addCommand(sys, f.add, f.addable), removeCommand(f.remove, f.removable), moveCommand(f.move, f.removable), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
@@ -152,13 +162,13 @@ An identifier in the first position, or none at all, is work go.`,
 // opening builds a verb that reaches a worktree and hands it to something: the
 // one identifier, the open-on flags and the one handoff. declines are the
 // actions it may be told not to run.
-func opening(help *cobra.Command, sys work.Systems, declines []work.Action, run func(o options, target string) (worktree.Handoff, error), list func() ([]work.Candidate, error)) *cobra.Command {
+func opening(help *cobra.Command, sys work.Systems, declines []work.Action, verb offering[opens]) *cobra.Command {
 	var o options
 
 	help.Args = cobra.MaximumNArgs(1)
-	help.ValidArgsFunction = suggest(list)
+	help.ValidArgsFunction = suggest(verb.list)
 	help.RunE = func(cmd *cobra.Command, args []string) error {
-		h, err := run(o, arg(args, 0))
+		h, err := verb.run(o, arg(args, 0))
 		if err != nil {
 			return err
 		}
