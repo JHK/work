@@ -406,12 +406,7 @@ func TestMoveFlags(t *testing.T) {
 func TestOnlyGoNamesAddForAnIdentifierNothingAnswersFor(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	t.Chdir(repo)
-	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
-		return work.Systems{Resolvers: []work.Resolver{last{}}}
-	})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	env := opened(t, last{})
 
 	if _, err := reach(env, options{}, "typo"); err == nil || !strings.Contains(err.Error(), "work add typo") {
 		t.Errorf("reach(typo) = %v; want it refused, naming the verb that makes a worktree of it", err)
@@ -441,12 +436,7 @@ func TestMoveAsksWithTheDirectoryNotTheBranch(t *testing.T) {
 	t.Chdir(repo)
 	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "login\n", Exits: 1})
 
-	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
-		return work.Systems{Resolvers: []work.Resolver{last{}}}
-	})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	env := opened(t, last{})
 	if _, err := move(env, "feature/login", ""); err == nil {
 		t.Error("move onto the directory it already sits in: want it refused")
 	}
@@ -464,12 +454,7 @@ func TestMoveAsksForTheDestination(t *testing.T) {
 	t.Chdir(repo)
 	ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
 
-	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
-		return work.Systems{Resolvers: []work.Resolver{last{}}}
-	})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	env := opened(t, last{})
 	m, err := move(env, "scratch", "")
 	if err != nil {
 		t.Fatalf("move: %v", err)
@@ -506,12 +491,7 @@ func TestMoveRefusesBeforeAsking(t *testing.T) {
 			t.Chdir(from)
 			ran := testenv.Stubs(t, testenv.Stub{Name: "fzf", Says: "settled\n", Exits: 1})
 
-			env, err := work.Open(".", func(string, string, config.Config) work.Systems {
-				return work.Systems{Resolvers: []work.Resolver{anything{}}}
-			})
-			if err != nil {
-				t.Fatalf("Open: %v", err)
-			}
+			env := opened(t, anything{})
 			// A destination given and one left for the prompt alike: neither is what the
 			// refusal waits on.
 			for _, dest := range []string{"", "settled"} {
@@ -677,7 +657,8 @@ func TestListPrints(t *testing.T) {
 	var out strings.Builder
 	f := front{
 		branches:   func() ([]string, error) { return []string{"bd-1-do-a-thing", "spike"}, nil },
-		worktrees:  resolved,
+		enterable:  resolved,
+		removable:  resolved,
 		candidates: resolved,
 	}
 	if err := execute(t, []string{"list"}, &out, f); err != nil {
@@ -872,8 +853,11 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	if f.candidates == nil {
 		f.candidates = stub(nil, nil)
 	}
-	if f.worktrees == nil {
-		f.worktrees = stub(nil, nil)
+	if f.enterable == nil {
+		f.enterable = stub(nil, nil)
+	}
+	if f.removable == nil {
+		f.removable = stub(nil, nil)
 	}
 	if f.addable == nil {
 		f.addable = stub(nil, nil)
@@ -901,6 +885,35 @@ func TestEveryRefusalIsSaidOnce(t *testing.T) {
 		"work: gh pr list: gh is not on PATH\n"
 	if said.String() != want {
 		t.Errorf("work said %q; want %q", said.String(), want)
+	}
+}
+
+// wiring is a repository's systems as a case names them, read without settings.
+func wiring(chain ...work.Resolver) work.Wiring {
+	return func(string, string, config.Config) work.Systems {
+		return work.Systems{Resolvers: chain}
+	}
+}
+
+// opened is the repository the shell stands in, under resolvers of the case's own.
+func opened(t *testing.T, chain ...work.Resolver) work.Env {
+	t.Helper()
+	env, err := work.Open(".", wiring(chain...))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	return env
+}
+
+// pickers is each verb's screen put up over env with no argument given, under
+// the verb it belongs to.
+func pickers(env work.Env) map[string]func() error {
+	return map[string]func() error{
+		"go":     func() error { _, err := reach(env, options{}, ""); return err },
+		"switch": func() error { _, err := enter(env, options{}, ""); return err },
+		"add":    func() error { _, err := add(env, options{}, ""); return err },
+		"remove": func() error { _, err := remove(env, false, ""); return err },
+		"move":   func() error { _, err := move(env, "", ""); return err },
 	}
 }
 
@@ -944,25 +957,28 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	t.Chdir(testenv.InitRepo(t))
 
 	var asked []string
-	wire := func(name string) work.Wiring {
-		return func(string, string, config.Config) work.Systems {
-			asked = append(asked, name)
-			return work.Systems{Resolvers: []work.Resolver{last{}}}
+	listings := []struct {
+		name string
+		ask  func(verbs) error
+	}{
+		{"candidates", func(v verbs) error { _, err := v.listing(); return err }},
+		{"enterable", func(v verbs) error { _, err := v.enterableListing(); return err }},
+		{"removable", func(v verbs) error { _, err := v.removableListing(); return err }},
+		{"addable", func(v verbs) error { _, err := v.addableListing(); return err }},
+		{"branches", func(v verbs) error { _, err := v.branchListing(); return err }},
+	}
+	var want []string
+	for _, l := range listings {
+		wire := func(repo, checkout string, cfg config.Config) work.Systems {
+			asked = append(asked, l.name)
+			return wiring(last{})(repo, checkout, cfg)
 		}
+		if err := l.ask(verbs{wire: wire}); err != nil {
+			t.Fatalf("%s: %v", l.name, err)
+		}
+		want = append(want, l.name)
 	}
-	if _, err := (verbs{wire: wire("first")}).listing(); err != nil {
-		t.Fatalf("listing: %v", err)
-	}
-	if _, err := (verbs{wire: wire("second")}).worktreeListing(); err != nil {
-		t.Fatalf("worktreeListing: %v", err)
-	}
-	if _, err := (verbs{wire: wire("third")}).addableListing(); err != nil {
-		t.Fatalf("addableListing: %v", err)
-	}
-	if _, err := (verbs{wire: wire("fourth")}).branchListing(); err != nil {
-		t.Fatalf("branchListing: %v", err)
-	}
-	if want := []string{"first", "second", "third", "fourth"}; !slices.Equal(asked, want) {
+	if !slices.Equal(asked, want) {
 		t.Errorf("the wirings asked were %q; want %q", asked, want)
 	}
 }

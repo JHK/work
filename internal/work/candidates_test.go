@@ -2,6 +2,7 @@ package work
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -805,6 +806,157 @@ func TestBranchesAreWhatTheWorktreesHaveCheckedOut(t *testing.T) {
 		t.Errorf("Branches() = %q; want the main checkout and then %q", got, want)
 	}
 }
+
+// What each verb's screen offers is what that verb can act on: reaching and
+// entering leave out the worktree the shell stands in, and removing and moving
+// leave out the main checkout beside it. Moving reads removing's listing, and
+// the tracker offers a place one worktree already stands for.
+func TestEachListingOffersWhatItsVerbCanActOn(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	testenv.Git(t, repo, "branch", "--move", "trunk")
+	one := filepath.Join(repo, defaultDir, "one")
+	two := filepath.Join(repo, defaultDir, "two")
+	// git reports a worktree outside the repository like any other. Standing in one,
+	// nothing holds the main checkout, so the listing is the only thing leaving it out.
+	away := filepath.Join(t.TempDir(), "away")
+	for path, branch := range map[string]string{one: "one", two: "two", away: "away"} {
+		testenv.Git(t, repo, "worktree", "add", "-b", branch, path)
+	}
+
+	for _, tt := range []struct {
+		name, from           string
+		reach, enter, remove []string
+	}{
+		{"the main checkout", repo, []string{"away", "one", "spare", "two"}, []string{"away", "one", "two"}, []string{"away", "one", "two"}},
+		{"a directory under it", filepath.Join(repo, "under"), []string{"away", "one", "spare", "two"}, []string{"away", "one", "two"}, []string{"away", "one", "two"}},
+		{"a worktree", one, []string{"away", "spare", "trunk", "two"}, []string{"away", "trunk", "two"}, []string{"away", "two"}},
+		{"a directory under a worktree", filepath.Join(two, "under"), []string{"away", "one", "spare", "trunk"}, []string{"away", "one", "trunk"}, []string{"away", "one"}},
+		{"a worktree outside the repository", away, []string{"one", "spare", "trunk", "two"}, []string{"one", "trunk", "two"}, []string{"one", "two"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e, _ := bare(t, repo)
+			e.Systems.Resolvers = append([]Resolver{tracker("one", "spare")}, e.Systems.Resolvers...)
+			standingIn(t, tt.from)
+
+			want := map[string][]string{"go": tt.reach, "switch": tt.enter, "remove": tt.remove, "add": {"spare"}}
+			for verb, got := range listings(t, e) {
+				if !slices.Equal(got, want[verb]) {
+					t.Errorf("work %s from %q offers %q; want %q", verb, tt.from, got, want[verb])
+				}
+			}
+		})
+	}
+}
+
+// The rows removing and moving offer are the rows those verbs accept, the
+// listing and the refusal being one rule. A worktree nested in another goes
+// with the tree above it, which standing in the nested one leaves out too, and
+// only the main checkout is left out without being refused.
+func TestRemovableOffersWhatItsVerbAccepts(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	one := filepath.Join(repo, defaultDir, "one")
+	testenv.Git(t, repo, "worktree", "add", "-b", "one", one)
+	testenv.Git(t, repo, "worktree", "add", "-b", "nested", filepath.Join(one, "nested"))
+	testenv.Git(t, repo, "worktree", "add", "-b", "two", filepath.Join(repo, defaultDir, "two"))
+	e, _ := bare(t, repo)
+	standingIn(t, filepath.Join(one, "nested"))
+
+	offered, err := e.Removable()
+	if err != nil {
+		t.Fatalf("Removable: %v", err)
+	}
+	if want := []string{"two"}; !slices.Equal(sorted(offered), want) {
+		t.Fatalf("Removable() = %q; want %q", sorted(offered), want)
+	}
+	open, err := e.Worktrees()
+	if err != nil {
+		t.Fatalf("Worktrees: %v", err)
+	}
+	for _, c := range open {
+		left, refused := !slices.Contains(names(offered), c.Name), e.Movable(c) != nil
+		if left != refused && !e.mainCheckout(c) {
+			t.Errorf("Removable left %q out: %v; the verb refuses it: %v", c.Name, left, refused)
+		}
+	}
+}
+
+// A bare repository lists a row for itself with no working tree behind it, which
+// is nothing for any verb to act on. Every listing a screen puts up leaves it
+// out, whatever git still reports.
+func TestNoListingOffersTheRowABareRepositoryListsForItself(t *testing.T) {
+	src := testenv.InitRepo(t)
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo.git")
+	testenv.Git(t, dir, "clone", "--bare", src, repo)
+	testenv.Git(t, repo, "worktree", "add", "-b", "one", filepath.Join(dir, "one"))
+
+	e, _ := bare(t, repo)
+	standingIn(t, dir)
+
+	// git reports it, so the screens are what leave it out rather than the listing
+	// the core reads.
+	open, err := e.Worktrees()
+	if err != nil {
+		t.Fatalf("Worktrees: %v", err)
+	}
+	if want := []string{"one", "repo.git"}; !slices.Equal(sorted(open), want) {
+		t.Fatalf("Worktrees() = %q; want %q, git's own answer", sorted(open), want)
+	}
+
+	got := listings(t, e)
+	// The one place there is has a worktree, so there is nothing to add either way.
+	delete(got, "add")
+	for verb, rows := range got {
+		if want := []string{"one"}; !slices.Equal(rows, want) {
+			t.Errorf("work %s offers %q; want %q, a bare repository being no worktree to reach", verb, rows, want)
+		}
+	}
+
+	// Naming it reaches no further than the listings do: nothing is open there to
+	// enter, move or take away.
+	c, err := e.Resolve("repo.git")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if c.Open {
+		t.Errorf("Resolve(repo.git) = a worktree at %q; want none, a bare repository having no working tree", c.path)
+	}
+}
+
+// listings is what each verb's screen would offer, under the verb it belongs to
+// and in an order git's own has no say in.
+func listings(t *testing.T, e Env) map[string][]string {
+	t.Helper()
+	out := map[string][]string{}
+	for verb, list := range map[string]func() ([]Candidate, error){"switch": e.Enterable, "remove": e.Removable} {
+		got, err := list()
+		if err != nil {
+			t.Fatalf("work %s: %v", verb, err)
+		}
+		out[verb] = sorted(got)
+	}
+	for verb, list := range map[string]func() ([]Candidate, []error, error){"go": e.Candidates, "add": e.Addable} {
+		got, _, err := list()
+		if err != nil {
+			t.Fatalf("work %s: %v", verb, err)
+		}
+		out[verb] = sorted(got)
+	}
+	return out
+}
+
+// standingIn puts the process in a directory, making it first where the case
+// names one that is not there yet.
+func standingIn(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	t.Chdir(dir)
+}
+
+// sorted is what a listing holds, in an order git's own has no say in.
+func sorted(list []Candidate) []string { return slices.Sorted(slices.Values(names(list))) }
 
 // Without a repository git would answer for whatever directory the process
 // happens to be in, so there is nothing to list rather than someone else's

@@ -26,30 +26,33 @@ const (
 )
 
 // offered is the place a verb was given, or the one its picker hands over where
-// it was given none.
-func offered(id string, list func() ([]work.Candidate, []error, error), resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
+// it was given none. nothing is how that verb says it has none to offer.
+func offered(id, nothing string, list func() ([]work.Candidate, []error, error), resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
 	if id != "" {
 		return resolve(id)
 	}
 	rows, refused, err := list()
 	report(os.Stderr, refused)
-	return pickFrom(rows, err)
+	return pickFrom(nothing, rows, err)
 }
 
 // openWorktree is the worktree a verb that acts on one was named: an identifier
-// resolves to it, and without one the picker offers the open worktrees alone,
-// those verbs reaching nothing else.
-func openWorktree(env work.Env, target string) (work.Candidate, error) {
-	if target == "" {
-		return pickFrom(env.Worktrees())
-	}
-	return env.Resolve(target)
+// resolves to it, and without one the picker offers what that verb can act on.
+func openWorktree(env work.Env, target, nothing string, list func() ([]work.Candidate, error)) (work.Candidate, error) {
+	return offered(target, nothing, func() ([]work.Candidate, []error, error) {
+		rows, err := list()
+		return rows, nil, err
+	}, env.Resolve)
 }
 
-// pickFrom puts one listing in front of the picker.
-func pickFrom(candidates []work.Candidate, err error) (work.Candidate, error) {
+// pickFrom puts one listing in front of the picker, refusing one left with no
+// rows in the words its verb has for having none.
+func pickFrom(nothing string, candidates []work.Candidate, err error) (work.Candidate, error) {
 	if err != nil {
 		return work.Candidate{}, err
+	}
+	if len(candidates) == 0 {
+		return work.Candidate{}, errors.New(nothing)
 	}
 	i, err := choose(labels(candidates))
 	if err != nil {

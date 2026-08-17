@@ -19,8 +19,8 @@ func goCommand(sys work.Systems, run func(o options, target string) (worktree.Ha
 		Long: `Reach the worktree an identifier names, creating it if there is none. An
 identifier is a worktree name, a ticket id or a pull request.
 
-With no identifier, choose among the repository's worktrees, its ready tickets
-and its open pull requests. That form needs fzf.
+With no identifier, choose among the repository's worktrees, less the one you are
+standing in, its ready tickets and its open pull requests. That form needs fzf.
 
 An existing worktree opens on what action.enter names, a new one on what
 action.create names.
@@ -37,7 +37,7 @@ worktree add.`,
 // reach resolves the target and asks work to bring its worktree into being, and
 // is the one verb whose refusal names add.
 func reach(env work.Env, o options, target string) (worktree.Handoff, error) {
-	c, err := offered(target, env.Candidates, env.Resolve)
+	c, err := offered(target, "nothing to work on", env.Candidates, env.Resolve)
 	if work.Unanswered(err) {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes a worktree of it", err, target)
 	}

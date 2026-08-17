@@ -29,7 +29,7 @@ The worktree opens on what action.create names.`,
 
 // add makes the worktree the identifier asks for and says what it opens on.
 func add(env work.Env, o options, id string) (worktree.Handoff, error) {
-	c, err := offered(id, env.Addable, env.Add)
+	c, err := offered(id, "nothing left to add", env.Addable, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

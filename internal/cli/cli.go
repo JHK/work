@@ -38,7 +38,8 @@ type front struct {
 	dump       func(out io.Writer) error
 	edit       func(out io.Writer) error
 	candidates func() ([]work.Candidate, error)
-	worktrees  func() ([]work.Candidate, error)
+	enterable  func() ([]work.Candidate, error)
+	removable  func() ([]work.Candidate, error)
 	addable    func() ([]work.Candidate, error)
 	branches   func() ([]string, error)
 }
@@ -84,7 +85,7 @@ func (v verbs) performMove(target, dest string) (work.Move, error) {
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
 	v := verbs{wire: wire}
-	f := front{reach: v.performs(reach), enter: v.performs(enter), add: v.performs(add), remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, addable: v.addableListing, branches: v.branchListing}
+	f := front{reach: v.performs(reach), enter: v.performs(enter), add: v.performs(add), remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, enterable: v.enterableListing, removable: v.removableListing, addable: v.addableListing, branches: v.branchListing}
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -139,7 +140,7 @@ An identifier in the first position, or none at all, is work go.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), goCommand(sys, f.reach, f.candidates), switchCommand(sys, f.enter, f.worktrees), addCommand(sys, f.add, f.addable), removeCommand(f.remove, f.worktrees), moveCommand(f.move, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), goCommand(sys, f.reach, f.candidates), switchCommand(sys, f.enter, f.enterable), addCommand(sys, f.add, f.addable), removeCommand(f.remove, f.removable), moveCommand(f.move, f.removable), listCommand(f.branches), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()

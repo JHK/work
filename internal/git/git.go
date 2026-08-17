@@ -58,6 +58,7 @@ func resolve(path string) string {
 type Worktree struct {
 	Path   string
 	Branch string // short name; empty when the worktree is detached
+	Bare   bool   // no working tree, as a bare repository reports for itself
 }
 
 // Worktrees lists every worktree the repository has, in git's order.
@@ -70,8 +71,16 @@ func Worktrees(repo string) ([]Worktree, error) {
 	for line := range strings.SplitSeq(out, "\n") {
 		if p, ok := strings.CutPrefix(line, "worktree "); ok {
 			list = append(list, Worktree{Path: p})
-		} else if ref, ok := strings.CutPrefix(line, "branch "); ok && len(list) > 0 {
-			list[len(list)-1].Branch = strings.TrimPrefix(ref, "refs/heads/")
+			continue
+		}
+		if len(list) == 0 {
+			continue
+		}
+		at := &list[len(list)-1]
+		if ref, ok := strings.CutPrefix(line, "branch "); ok {
+			at.Branch = strings.TrimPrefix(ref, "refs/heads/")
+		} else if line == "bare" {
+			at.Bare = true
 		}
 	}
 	return list, nil

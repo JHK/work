@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -9,7 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/shim"
+	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -50,29 +55,37 @@ func TestCompleteBarePosition(t *testing.T) {
 	assertNoFileComp(t, out)
 }
 
-// A tab press after go offers what the picker offers, and never a file name:
-// not on a silent repository, and not on a second word.
-func TestCompleteGo(t *testing.T) {
-	listed := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}},
+// A tab press after a verb offers that verb's own listing and nothing else: not
+// another verb's rows, and never a file name. Past the position it takes, which
+// for move is the destination, it offers nothing at all.
+func TestEachVerbCompletesFromItsOwnListing(t *testing.T) {
+	own := []work.Candidate{
+		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
 		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
 	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
-	f := front{candidates: stub(listed, nil), worktrees: stub(elsewhere, nil), addable: stub(elsewhere, nil)}
-
-	out := complete(t, f, "go", "")
 	want := []string{"bd-1\tDo a thing", "spike"}
-	if !slices.Equal(rows(out), want) {
-		t.Errorf("completing go gave %q; want %q", rows(out), want)
-	}
-	assertNoFileComp(t, out)
 
-	// There is one identifier, so a second word completes to nothing.
-	second := complete(t, f, "go", "bd-1", "")
-	if got := rows(second); got != nil {
-		t.Errorf("completing a second identifier after go gave %q; want nothing", got)
+	for _, tt := range []struct{ verb, from string }{
+		{"go", "candidates"},
+		{"switch", "enterable"},
+		{"add", "addable"},
+		{"remove", "removable"},
+		{"move", "removable"},
+	} {
+		t.Run(tt.verb, func(t *testing.T) {
+			out := complete(t, completing(tt.from, own), tt.verb, "")
+			if !slices.Equal(rows(out), want) {
+				t.Errorf("completing %s gave %q; want %q", tt.verb, rows(out), want)
+			}
+			assertNoFileComp(t, out)
+
+			past := complete(t, completing(tt.from, own), tt.verb, "bd-1", "")
+			if got := rows(past); got != nil {
+				t.Errorf("completing past %s's position gave %q; want nothing", tt.verb, got)
+			}
+			assertNoFileComp(t, past)
+		})
 	}
-	assertNoFileComp(t, second)
 
 	// A repository that will not answer costs the rows, not the shell.
 	silent := complete(t, front{candidates: stub(nil, errCancelled)}, "go", "")
@@ -82,87 +95,17 @@ func TestCompleteGo(t *testing.T) {
 	assertNoFileComp(t, silent)
 }
 
-// A tab press after switch offers the worktrees alone: entering is all it does,
-// so the tickets and pull requests the picker's rows carry are not its to offer.
-func TestCompleteSwitch(t *testing.T) {
-	worktrees := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
-		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
+// completing is a front whose listings all answer with rows of somebody else's
+// but the one named, so what a verb offers names the listing it read.
+func completing(named string, own []work.Candidate) front {
+	elsewhere := stub([]work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}, nil)
+	f := front{candidates: elsewhere, enterable: elsewhere, removable: elsewhere, addable: elsewhere}
+	listings := map[string]*func() ([]work.Candidate, error){
+		"candidates": &f.candidates, "enterable": &f.enterable,
+		"removable": &f.removable, "addable": &f.addable,
 	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
-
-	out := complete(t, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil), addable: stub(elsewhere, nil)}, "switch", "")
-	want := []string{"bd-1\tDo a thing", "spike"}
-	if !slices.Equal(rows(out), want) {
-		t.Errorf("completing switch gave %q; want %q", rows(out), want)
-	}
-	assertNoFileComp(t, out)
-}
-
-// A tab press after remove offers the worktrees and nothing else: not the
-// tickets and pull requests the identifier completes to, and not a file name.
-func TestCompleteRemove(t *testing.T) {
-	worktrees := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
-		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
-	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
-
-	out := complete(t, front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)}, "remove", "")
-	want := []string{"bd-1\tDo a thing", "spike"}
-	if !slices.Equal(rows(out), want) {
-		t.Errorf("completing remove gave %q; want %q", rows(out), want)
-	}
-	assertNoFileComp(t, out)
-}
-
-// A tab press after move offers the worktrees at the name it takes and nothing
-// at the destination, which is a name nothing holds yet, nor a file name either.
-func TestCompleteMove(t *testing.T) {
-	worktrees := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true},
-		{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true},
-	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}}}
-	f := front{worktrees: stub(worktrees, nil), candidates: stub(elsewhere, nil)}
-
-	out := complete(t, f, "move", "")
-	want := []string{"bd-1\tDo a thing", "spike"}
-	if !slices.Equal(rows(out), want) {
-		t.Errorf("completing move gave %q; want %q", rows(out), want)
-	}
-	assertNoFileComp(t, out)
-
-	dest := complete(t, f, "move", "bd-1", "")
-	if got := rows(dest); got != nil {
-		t.Errorf("completing move's destination gave %q; want nothing", got)
-	}
-	assertNoFileComp(t, dest)
-}
-
-// A tab press after add offers the places with no worktree yet, and never the
-// ones already open. A name of the user's own is typed rather than offered.
-func TestCompleteAdd(t *testing.T) {
-	addable := []work.Candidate{
-		{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}},
-		{Place: worktree.Place{Source: "github", ID: "7", Name: "pr-7", Label: "Review this"}},
-	}
-	elsewhere := []work.Candidate{{Place: worktree.Place{Source: "plain", ID: "/elsewhere", Name: "spike"}, Open: true}}
-	f := front{addable: stub(addable, nil), worktrees: stub(elsewhere, nil), candidates: stub(elsewhere, nil)}
-
-	out := complete(t, f, "add", "")
-	want := []string{"bd-1\tDo a thing", "pr-7\tReview this"}
-	if !slices.Equal(rows(out), want) {
-		t.Errorf("completing add gave %q; want %q", rows(out), want)
-	}
-	assertNoFileComp(t, out)
-
-	// There is one identifier, so a second word completes to nothing.
-	second := complete(t, f, "add", "bd-1", "")
-	if got := rows(second); got != nil {
-		t.Errorf("completing a second identifier after add gave %q; want nothing", got)
-	}
-	assertNoFileComp(t, second)
+	*listings[named] = stub(own, nil)
+	return f
 }
 
 // A tab press after list offers nothing: it takes no argument, and a file name
@@ -170,7 +113,7 @@ func TestCompleteAdd(t *testing.T) {
 func TestCompleteList(t *testing.T) {
 	listed := []work.Candidate{{Place: worktree.Place{Source: "beads", ID: "bd-1", Name: "bd-1", Label: "Do a thing"}, Open: true}}
 
-	out := complete(t, front{candidates: stub(listed, nil), worktrees: stub(listed, nil)}, "list", "")
+	out := complete(t, front{candidates: stub(listed, nil), enterable: stub(listed, nil), removable: stub(listed, nil)}, "list", "")
 	if got := rows(out); got != nil {
 		t.Errorf("completing list gave %q; want nothing", got)
 	}
@@ -244,6 +187,78 @@ func TestNoCompletionCommand(t *testing.T) {
 	if err != nil || target != "completion" {
 		t.Errorf(`work completion = %q, %v; want the worktree named completion`, target, err)
 	}
+}
+
+// Each verb's completion offers exactly what its picker offers, row for row and
+// in the same order: a tab press and a screen read the one listing that verb
+// owns, so neither puts up a choice the other would leave out.
+func TestEachVerbCompletesWhatItsPickerOffers(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	dir := config.Default().Worktree.Dir()
+	for _, name := range []string{"one", "two", "three"} {
+		testenv.Git(t, repo, "worktree", "add", "-b", name, filepath.Join(repo, dir, name))
+	}
+	// Standing in a worktree, so each verb has its own reason to leave a row out.
+	t.Chdir(filepath.Join(repo, dir, "one"))
+
+	putUp := filepath.Join(t.TempDir(), "listing")
+	// Cancelled, so the rows are all that comes of the picker and no verb goes on to
+	// act on one.
+	testenv.Stubs(t, testenv.Stub{Name: "fzf", Shell: "cat > " + putUp + "\n", Exits: 1})
+
+	v := verbs{wire: wiring(spare{})}
+	f := front{candidates: v.listing, enterable: v.enterableListing, removable: v.removableListing, addable: v.addableListing}
+
+	for verb, pick := range pickers(opened(t, spare{})) {
+		t.Run(verb, func(t *testing.T) {
+			if err := os.Remove(putUp); err != nil && !os.IsNotExist(err) {
+				t.Fatalf("clear the listing: %v", err)
+			}
+			if err := pick(); !errors.Is(err, errCancelled) {
+				t.Fatalf("work %s = %v; want the picker dismissed", verb, err)
+			}
+			offered, completed := picked(t, putUp), names(rows(complete(t, f, verb, "")))
+			if len(offered) != len(completed) {
+				t.Fatalf("work %s put up %q and completes %q; want the one listing", verb, offered, completed)
+			}
+			for i, name := range completed {
+				// A row is rendered for a screen rather than for a shell, so what the two
+				// have in common is the name.
+				if !strings.Contains(offered[i], name) {
+					t.Errorf("work %s put up %q at row %d and completes %q there", verb, offered[i], i, name)
+				}
+			}
+		})
+	}
+}
+
+// picked is the rows a picker was put up with, read off what fzf was handed: the
+// index each row is keyed on is the picker's own and not part of the row.
+func picked(t *testing.T, file string) []string {
+	t.Helper()
+	out, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("read %s: %v", file, err)
+	}
+	var got []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			_, row, _ := strings.Cut(line, "\t")
+			got = append(got, row)
+		}
+	}
+	return got
+}
+
+// spare is the resolver these cases are wired with: it answers for whatever
+// worktree git reports, as [last] does, and offers one place that has none, so
+// add has a row of its own to put up.
+type spare struct{ last }
+
+func (spare) Name() string { return "spare" }
+
+func (spare) Offer() ([]worktree.Place, error) {
+	return []worktree.Place{{ID: "spare", Name: "spare", Label: "no worktree yet"}}, nil
 }
 
 func stub(candidates []work.Candidate, err error) func() ([]work.Candidate, error) {

@@ -11,7 +11,7 @@ import (
 )
 
 // switchCommand is the verb that enters a worktree already open. A tab press
-// after it offers the worktrees alone, and it declines no action.
+// after it offers what its picker offers, and it declines no action.
 func switchCommand(sys work.Systems, run func(o options, target string) (worktree.Handoff, error), list func() ([]work.Candidate, error)) *cobra.Command {
 	return opening(&cobra.Command{
 		Use:   "switch [<name>|<id>|<pr>|<url>]",
@@ -20,7 +20,8 @@ func switchCommand(sys work.Systems, run func(o options, target string) (worktre
 ticket id or a pull request; one with no worktree open is refused, work add
 being what makes one.
 
-With no identifier, choose among the repository's worktrees. That form needs fzf.
+With no identifier, choose among the repository's worktrees, less the one you are
+standing in. That form needs fzf.
 
 The worktree opens on what action.enter names. Nothing comes into being here, so
 no tracker is asked and no action runs.`,
@@ -30,7 +31,7 @@ no tracker is asked and no action runs.`,
 // enter is the worktree an identifier already has, and a refusal where it has
 // none.
 func enter(env work.Env, o options, target string) (worktree.Handoff, error) {
-	c, err := openWorktree(env, target)
+	c, err := openWorktree(env, target, "no worktree to switch to", env.Enterable)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

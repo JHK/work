@@ -10,8 +10,8 @@ import (
 )
 
 // moveCommand is the verb that moves a worktree and takes its branch with it. It
-// carries no flag, and a tab press offers the worktrees at the name and nothing
-// at the destination, which is a name nothing holds yet.
+// carries no flag, and a tab press offers what its picker offers at the name and
+// nothing at the destination, which is a name nothing holds yet.
 func moveCommand(run func(target, dest string) (work.Move, error), list func() ([]work.Candidate, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move [<name>] [<destination>]",
@@ -23,8 +23,8 @@ A destination spelled as a bare name lands the worktree beside where it sits;
 one carrying a path separator is a path, read from where you are standing.
 
 With no destination you are asked for one, the directory's current name already
-in it; with no name either, choose among the repository's worktrees first. Both
-forms need fzf.
+in it; with no name either, choose among the repository's worktrees first, less
+the one you are standing in and the main checkout. Both forms need fzf.
 
 No tracker is asked and nothing opens. The worktree you are standing in cannot
 be moved, and neither can the main checkout.`,
@@ -43,7 +43,7 @@ be moved, and neither can the main checkout.`,
 // move moves a worktree and renames its branch with it. It hands over to
 // nothing: the invocation does its work and exits.
 func move(env work.Env, target, dest string) (work.Move, error) {
-	c, err := openWorktree(env, target)
+	c, err := openWorktree(env, target, "no worktree to move", env.Removable)
 	if err != nil {
 		return work.Move{}, err
 	}

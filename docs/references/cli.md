@@ -22,7 +22,7 @@
 
 `work go <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the checkout the shell is standing in.
 
-With no identifier, [the picker](#the-picker) offers every worktree open.
+With no identifier, [the picker](#the-picker) stands in for one.
 
 A [system](systems.md) can add to either form.
 
@@ -30,7 +30,7 @@ A [system](systems.md) can add to either form.
 
 `work switch <identifier>` enters the worktree the [identifier](#identifiers) already has. One with no worktree open is refused.
 
-With no identifier, [the picker](#the-picker) offers the worktrees alone.
+With no identifier, [the picker](#the-picker) stands in for one.
 
 ### add
 
@@ -38,13 +38,13 @@ With no identifier, [the picker](#the-picker) offers the worktrees alone.
 
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so is a name of your own whose branch is already there.
 
-With no identifier, [the picker](#the-picker) offers the tickets and pull requests that have no worktree yet.
+With no identifier, [the picker](#the-picker) stands in for one.
 
 ### remove
 
 `work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
 
-With no name, [the picker](#the-picker) offers the worktrees alone.
+With no name, [the picker](#the-picker) stands in for one.
 
 Only a clean worktree can be removed, an unclean one with `--force`. The main checkout cannot be removed, and neither can the worktree the shell is standing in.
 
@@ -54,7 +54,7 @@ Only a clean worktree can be removed, an unclean one with `--force`. The main ch
 
 A destination spelled as a bare name lands the worktree beside where it sits; one carrying a path separator is a path, absolute or read from the directory work was invoked in. The last element is held to the [naming rule](#identifiers) either way.
 
-With no destination, [the prompt](#the-prompt) asks for one. With no name either, [the picker](#the-picker) offers the worktrees first.
+With no destination, [the prompt](#the-prompt) asks for one. With no name either, [the picker](#the-picker) stands in for the name first.
 
 No tracker is asked and no action runs. The main checkout cannot be moved, and neither can the worktree the shell is standing in.
 
@@ -110,7 +110,19 @@ Where several worktrees match one ticket, the shortest branch takes it, ties set
 
 An fzf list standing in for the argument a verb was not given. It and [the prompt](#the-prompt) are the only things that need `fzf`: name the arguments instead, and every verb runs without it.
 
-A worktree row is one git reports, read off its branch, and offered under that branch where no [system](systems.md) names it.
+What a verb puts up is what it can act on:
+
+| Verb | Offers | Leaves out |
+|---|---|---|
+| [`go`](#go) | every worktree open, and the tickets and pull requests with none | the one you are standing in |
+| [`switch`](#switch) | the worktrees open | the one you are standing in |
+| [`add`](#add) | the tickets and pull requests with no worktree yet | nothing |
+| [`remove`](#remove) | the worktrees open | the one you are standing in, and the main checkout |
+| [`move`](#move) | the worktrees open | the one you are standing in, and the main checkout |
+
+A listing left with no rows is one line on stderr naming what there is nothing of.
+
+A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [system](systems.md) names it. A bare repository's row for itself has none.
 
 Beside the worktrees, a system can add rows of its own and the titles on them.
 
@@ -126,11 +138,7 @@ What [`init`](#init)'s integration offers at each position:
 |---|---|
 | the first word | the commands |
 | [`config`](#config)'s sub-verb | `dump` and `edit` |
-| [`go`](#go)'s identifier | what [the picker](#the-picker) offers |
-| [`switch`](#switch)'s identifier | the worktrees |
-| [`add`](#add)'s identifier | the tickets and pull requests with no worktree yet |
-| [`remove`](#remove)'s name | the worktrees |
-| [`move`](#move)'s name | the worktrees |
+| [`go`](#go), [`switch`](#switch), [`add`](#add), [`remove`](#remove) and [`move`](#move)'s identifier or name | what [that verb's picker](#the-picker) offers |
 | [`init`](#init)'s shell | the shells it prints |
 
 A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
