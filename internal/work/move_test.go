@@ -92,7 +92,7 @@ func TestMoveReadsTheDestination(t *testing.T) {
 			e, _ := bare(t, repo)
 			c := opened(t, e, "scratch")
 			// A relative destination is read from here, never from the worktree.
-			t.Chdir(filepath.Join(repo, defaultDir))
+			e.Dir = filepath.Join(repo, defaultDir)
 
 			m, err := e.Move(c, tt.dest)
 			if err != nil {
@@ -158,7 +158,7 @@ func TestGitRefusesToMoveTheMainCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	t.Chdir(filepath.Join(repo, defaultDir, "scratch"))
+	e.Dir = filepath.Join(repo, defaultDir, "scratch")
 	if _, err := e.Move(c, filepath.Join(t.TempDir(), "elsewhere")); err == nil ||
 		!strings.Contains(err.Error(), "main working tree") {
 		t.Fatalf("Move = %v; want git's own refusal", err)

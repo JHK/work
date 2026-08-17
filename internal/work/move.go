@@ -28,7 +28,7 @@ func (e Env) Movable(c Candidate) error { return e.actOn(c, "move") }
 // last element. No ticket is touched, no tracker asked and no action run. Both
 // halves land or neither does. The candidate is [Env.Movable]'s to vet.
 func (e Env) Move(c Candidate, dest string) (Move, error) {
-	to, err := destination(c.path, dest)
+	to, err := e.destination(c.path, dest)
 	if err != nil {
 		return Move{}, err
 	}
@@ -59,17 +59,20 @@ func (e Env) Move(c Candidate, dest string) (Move, error) {
 }
 
 // destination is where a worktree lands: a bare name beside where it sits, and
-// one carrying a separator a path of its own, read from the directory work was
-// invoked in where it is relative. Its last element is the name either way.
-func destination(from, dest string) (string, error) {
+// one carrying a separator a path of its own, read from [Env.Dir] where it is
+// relative. Its last element is the name either way.
+func (e Env) destination(from, dest string) (string, error) {
 	if dest == "" {
 		return "", errors.New("no destination given")
 	}
 	if err := checkName(filepath.Base(dest)); err != nil {
 		return "", err
 	}
-	if !strings.ContainsRune(dest, filepath.Separator) {
+	switch {
+	case !strings.ContainsRune(dest, filepath.Separator):
 		return filepath.Join(filepath.Dir(from), dest), nil
+	case filepath.IsAbs(dest):
+		return filepath.Clean(dest), nil
 	}
-	return filepath.Abs(dest)
+	return filepath.Join(e.Dir, dest), nil
 }

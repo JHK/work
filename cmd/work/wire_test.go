@@ -260,7 +260,7 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	)
 
 	cfg := load(t, repo)
-	e := work.Env{Repo: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
+	e := work.Env{Repo: repo, Dir: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
 	// The picker's rows, and switch with a name of its own.
 	if _, _, err := e.Candidates(); err != nil {
 		t.Fatalf("Candidates: %v", err)
@@ -330,7 +330,7 @@ func TestListingTheWorktreesAsksNoToolWhereverEverySystemIsOn(t *testing.T) {
 	)
 
 	cfg := config.Shipped()
-	e := work.Env{Repo: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
+	e := work.Env{Repo: repo, Dir: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
 	got, err := e.Branches()
 	if err != nil {
 		t.Fatalf("Branches: %v", err)

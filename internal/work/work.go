@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -92,10 +91,15 @@ type Systems struct {
 // reaches for nothing until it is asked a question.
 type Wiring func(repo, checkout string, cfg config.Config) Systems
 
-// Env is the repository work operates on, the settings it reads, and the systems
-// behind its seams.
+// Env is the repository work operates on, the directory it was invoked in, the
+// settings it reads, and the systems behind its seams.
 type Env struct {
-	Repo    string
+	Repo string
+
+	// Dir is where work was invoked, which is what standing in a worktree is
+	// judged against. It is absolute, an empty one standing nowhere.
+	Dir string
+
 	Config  config.Config
 	Systems Systems
 }
@@ -111,7 +115,11 @@ func Open(dir string, wire Wiring) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	return Env{Repo: repo, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
+	here, err := filepath.Abs(dir)
+	if err != nil {
+		return Env{}, err
+	}
+	return Env{Repo: repo, Dir: here, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
 }
 
 // The name becomes a directory of its own and an argument to git, so it may not
@@ -155,7 +163,7 @@ func (e Env) actOn(c Candidate, verb string) error {
 		return fmt.Errorf("%s has no worktree to %s", c.Name, verb)
 	}
 	// Never the main checkout: git refuses that outright, standing in it or not.
-	if !e.mainCheckout(c) && holds(cwd(), c) {
+	if !e.mainCheckout(c) && e.holds(c) {
 		return fmt.Errorf("%s is the worktree you are standing in; run work %s from outside it", c.Name, verb)
 	}
 	return nil
@@ -164,25 +172,16 @@ func (e Env) actOn(c Candidate, verb string) error {
 // mainCheckout reports whether a candidate is where the repository itself sits.
 func (e Env) mainCheckout(c Candidate) bool { return git.SameDir(c.path, e.Repo) }
 
-// cwd is where the process stands, empty where it cannot be read.
-func cwd() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return wd
-}
-
-// holds reports whether wd sits within the worktree a candidate has, a worktree
-// nested in that one counting as within it.
-func holds(wd string, c Candidate) bool { return wd != "" && git.Inside(wd, c.path) }
+// holds reports whether [Env.Dir] sits within the worktree a candidate has, a
+// worktree nested in that one counting as within it.
+func (e Env) holds(c Candidate) bool { return e.Dir != "" && git.Inside(e.Dir, c.path) }
 
 // stoodIn is where the worktree the shell is in sits: the innermost of the ones
-// holding the working directory, and empty where it stands outside them all.
-func stoodIn(open []Candidate) string {
-	wd, found := cwd(), ""
+// holding [Env.Dir], and empty where it stands outside them all.
+func (e Env) stoodIn(open []Candidate) string {
+	found := ""
 	for _, c := range open {
-		if holds(wd, c) && (found == "" || git.Inside(c.path, found)) {
+		if e.holds(c) && (found == "" || git.Inside(c.path, found)) {
 			found = c.path
 		}
 	}
@@ -377,7 +376,7 @@ func (e Env) Enterable() ([]Candidate, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lessStoodIn(open, stoodIn(open)), nil
+	return lessStoodIn(open, e.stoodIn(open)), nil
 }
 
 // Removable is what removing and moving offer: every worktree open but the main
@@ -387,8 +386,7 @@ func (e Env) Removable() ([]Candidate, error) {
 	if err != nil {
 		return nil, err
 	}
-	wd := cwd()
-	return slices.DeleteFunc(open, func(c Candidate) bool { return e.mainCheckout(c) || holds(wd, c) }), nil
+	return slices.DeleteFunc(open, func(c Candidate) bool { return e.mainCheckout(c) || e.holds(c) }), nil
 }
 
 // listing is the worktrees git reports, less the row a bare repository lists for
@@ -524,7 +522,7 @@ func (e Env) Candidates() ([]Candidate, []error, error) {
 	}
 	// After the merge, or a resolver offering that place puts it back as a row with
 	// no worktree.
-	out = lessStoodIn(out, stoodIn(open))
+	out = lessStoodIn(out, e.stoodIn(open))
 	return out, slices.DeleteFunc(refused, func(err error) bool { return err == nil }), nil
 }
 

@@ -836,7 +836,7 @@ func TestEachListingOffersWhatItsVerbCanActOn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e, _ := bare(t, repo)
 			e.Systems.Resolvers = append([]Resolver{tracker("one", "spare")}, e.Systems.Resolvers...)
-			standingIn(t, tt.from)
+			e.Dir = standingIn(t, tt.from)
 
 			want := map[string][]string{"go": tt.reach, "switch": tt.enter, "remove": tt.remove, "add": {"spare"}}
 			for verb, got := range listings(t, e) {
@@ -859,7 +859,7 @@ func TestRemovableOffersWhatItsVerbAccepts(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "-b", "nested", filepath.Join(one, "nested"))
 	testenv.Git(t, repo, "worktree", "add", "-b", "two", filepath.Join(repo, defaultDir, "two"))
 	e, _ := bare(t, repo)
-	standingIn(t, filepath.Join(one, "nested"))
+	e.Dir = standingIn(t, filepath.Join(one, "nested"))
 
 	offered, err := e.Removable()
 	if err != nil {
@@ -891,7 +891,7 @@ func TestNoListingOffersTheRowABareRepositoryListsForItself(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "-b", "one", filepath.Join(dir, "one"))
 
 	e, _ := bare(t, repo)
-	standingIn(t, dir)
+	e.Dir = standingIn(t, dir)
 
 	open, err := e.Worktrees()
 	if err != nil {
@@ -952,14 +952,14 @@ func listings(t *testing.T, e Env) map[string][]string {
 	return out
 }
 
-// standingIn puts the process in a directory, making it first where the case
-// names one that is not there yet.
-func standingIn(t *testing.T, dir string) {
+// standingIn is where work was invoked for a case, made first where the case
+// names a directory that is not there yet.
+func standingIn(t *testing.T, dir string) string {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	t.Chdir(dir)
+	return dir
 }
 
 // sorted is what a listing holds, in an order git's own has no say in.

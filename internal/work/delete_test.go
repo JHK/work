@@ -14,7 +14,8 @@ import (
 // bare wires a resolver answering for any worktree and any identifier, which is
 // all deleting needs: whose the worktree is has no bearing on it. An action is
 // wired beside it so the steps it returns record either seam, for the tests that
-// care what ran behind them.
+// care what ran behind them. It stands nowhere; a case that turns on where work
+// was invoked names it itself.
 func bare(t *testing.T, repo string) (Env, *steps) {
 	t.Helper()
 	var s steps
@@ -144,10 +145,7 @@ func TestDeleteRefusesTheWorktreeStoodIn(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "-b", "nested", nested)
 
 	for _, dir := range []string{path, filepath.Join(path, "within"), nested} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		t.Chdir(dir)
+		e.Dir = standingIn(t, dir)
 		// --force is git's override, not a way past this one.
 		for _, force := range []bool{false, true} {
 			_, err := e.Delete(c, force)
@@ -189,7 +187,7 @@ func TestGitRefusesToRemoveTheMainCheckout(t *testing.T) {
 	// From the main checkout and from a worktree under it alike: the refusal is
 	// git's, never work's own rule about the worktree stood in.
 	for _, dir := range []string{repo, path} {
-		t.Chdir(dir)
+		e.Dir = dir
 		for _, force := range []bool{false, true} {
 			if _, err := e.Delete(c, force); err == nil || !strings.Contains(err.Error(), "main working tree") {
 				t.Fatalf("Delete(force=%v) from %q = %v; want git's own refusal", force, dir, err)
