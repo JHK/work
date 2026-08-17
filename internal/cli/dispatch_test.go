@@ -6,21 +6,22 @@ import (
 )
 
 // The first word decides: a verb, a root flag and cobra's completion request
-// answer for themselves, and everything else is the bare form, which is switch.
+// answer for themselves, and everything else is the bare form, which is go.
 func TestDispatch(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
 		want []string
 	}{
-		{"nothing at all", nil, []string{"switch"}},
-		{"an identifier", []string{"bd-1"}, []string{"switch", "bd-1"}},
-		{"a flag in the bare position", []string{"--shell", "bd-1"}, []string{"switch", "--shell", "bd-1"}},
-		// Only the root's own two flags stop here; the rest are switch's, to
-		// act on or to refuse, whichever verb declares them.
-		{"an unknown flag", []string{"--turbo"}, []string{"switch", "--turbo"}},
-		{"another verb's flag", []string{"--force", "scratch"}, []string{"switch", "--force", "scratch"}},
+		{"nothing at all", nil, []string{"go"}},
+		{"an identifier", []string{"bd-1"}, []string{"go", "bd-1"}},
+		{"a flag in the bare position", []string{"--shell", "bd-1"}, []string{"go", "--shell", "bd-1"}},
+		// Only the root's own two flags stop here; the rest are go's, to act on or
+		// to refuse, whichever verb declares them.
+		{"an unknown flag", []string{"--turbo"}, []string{"go", "--turbo"}},
+		{"another verb's flag", []string{"--force", "scratch"}, []string{"go", "--force", "scratch"}},
 
+		{"go", []string{"go", "bd-1"}, []string{"go", "bd-1"}},
 		{"switch", []string{"switch", "bd-1"}, []string{"switch", "bd-1"}},
 		{"add", []string{"add", "scratch"}, []string{"add", "scratch"}},
 		{"remove", []string{"remove", "--force"}, []string{"remove", "--force"}},

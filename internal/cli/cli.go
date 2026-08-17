@@ -30,14 +30,16 @@ type options struct {
 // front is what the command tree calls once cobra has read the flags: a
 // function per verb, and a listing per source for the verbs that complete.
 type front struct {
+	reach      func(o options, target string) (worktree.Handoff, error)
 	enter      func(o options, target string) (worktree.Handoff, error)
-	add        func(o options, name string) (worktree.Handoff, error)
+	add        func(o options, id string) (worktree.Handoff, error)
 	remove     func(force bool, target string) (work.Deletion, error)
 	move       func(target, dest string) (work.Move, error)
 	dump       func(out io.Writer) error
 	edit       func(out io.Writer) error
 	candidates func() ([]work.Candidate, error)
 	worktrees  func() ([]work.Candidate, error)
+	addable    func() ([]work.Candidate, error)
 	branches   func() ([]string, error)
 }
 
@@ -49,24 +51,15 @@ func (v verbs) repository() (work.Env, error) {
 	return work.Open(".", v.wire)
 }
 
-// performEnter brings a worktree into being in the repository the shell stands
-// in and hands back what it opens on.
-func (v verbs) performEnter(o options, target string) (worktree.Handoff, error) {
-	env, err := v.repository()
-	if err != nil {
-		return worktree.Handoff{}, err
+// performs puts one of the opening verbs over the repository the shell stands in.
+func (v verbs) performs(verb func(env work.Env, o options, target string) (worktree.Handoff, error)) func(options, string) (worktree.Handoff, error) {
+	return func(o options, target string) (worktree.Handoff, error) {
+		env, err := v.repository()
+		if err != nil {
+			return worktree.Handoff{}, err
+		}
+		return verb(env, o, target)
 	}
-	return enter(env, o, target)
-}
-
-// performAdd brings a worktree of the user's own name into being in the
-// repository the shell stands in and hands back what it opens on.
-func (v verbs) performAdd(o options, name string) (worktree.Handoff, error) {
-	env, err := v.repository()
-	if err != nil {
-		return worktree.Handoff{}, err
-	}
-	return add(env, o, name)
 }
 
 // performRemove takes a worktree out of the repository the shell stands in.
@@ -91,7 +84,7 @@ func (v verbs) performMove(target, dest string) (work.Move, error) {
 // Execute runs work and returns the process exit status.
 func Execute(version string, wire work.Wiring) int {
 	v := verbs{wire: wire}
-	f := front{enter: v.performEnter, add: v.performAdd, remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, branches: v.branchListing}
+	f := front{reach: v.performs(reach), enter: v.performs(enter), add: v.performs(add), remove: v.performRemove, move: v.performMove, dump: dump, edit: edit, candidates: v.listing, worktrees: v.worktreeListing, addable: v.addableListing, branches: v.branchListing}
 	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
@@ -126,7 +119,7 @@ func naming(wire work.Wiring) work.Systems {
 
 // command builds the command tree, calling the verb front once the flags are
 // valid and answering a tab press from its listings. The root runs nothing
-// itself: [dispatch] has already sent the bare form to switch.
+// itself: [dispatch] has already sent the bare form to go.
 func command(version string, sys work.Systems, f front) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "work",
@@ -135,7 +128,7 @@ func command(version string, sys work.Systems, f front) *cobra.Command {
 has open and which tickets and pull requests are waiting, and hands you the one
 you pick: your shell stands in it, or a command takes the terminal.
 
-An identifier in the first position, or none at all, is work switch.`,
+An identifier in the first position, or none at all, is work go.`,
 		Version: version,
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
@@ -146,13 +139,34 @@ An identifier in the first position, or none at all, is work switch.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), switchCommand(sys, f.enter, f.candidates), addCommand(sys, f.add), removeCommand(f.remove, f.worktrees), moveCommand(f.move, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), goCommand(sys, f.reach, f.candidates), switchCommand(sys, f.enter, f.worktrees), addCommand(sys, f.add, f.addable), removeCommand(f.remove, f.worktrees), moveCommand(f.move, f.worktrees), listCommand(f.branches), configCommand(f.dump, f.edit))
 	// Cobra adds these three as it runs, too late for [dispatch] to read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 	cmd.InitDefaultVersionFlag()
 
 	return cmd
+}
+
+// opening builds a verb that reaches a worktree and hands it to something: the
+// one identifier, the open-on flags and the one handoff. declines are the
+// actions it may be told not to run.
+func opening(help *cobra.Command, sys work.Systems, declines []work.Action, run func(o options, target string) (worktree.Handoff, error), list func() ([]work.Candidate, error)) *cobra.Command {
+	var o options
+
+	help.Args = cobra.MaximumNArgs(1)
+	help.ValidArgsFunction = suggest(list)
+	help.RunE = func(cmd *cobra.Command, args []string) error {
+		h, err := run(o, arg(args, 0))
+		if err != nil {
+			return err
+		}
+		return hand(h, cmd.OutOrStdout())
+	}
+	openOn(help, &o, sys.Openers)
+	decline(help, &o, declines)
+
+	return help
 }
 
 // openOn gives a command the flags that name what a worktree opens on: one per

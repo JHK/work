@@ -12,25 +12,31 @@ import (
 
 // listing is where a tab press on the identifier gets its rows: the same
 // candidates the picker renders.
-func (v verbs) listing() ([]work.Candidate, error) {
-	env, err := v.repository()
-	if err != nil {
-		return nil, err
-	}
-	// The rows alone: a refusal on stderr would land in the middle of the shell
-	// drawing its completions.
-	list, _, err := env.Candidates()
-	return list, err
-}
+func (v verbs) listing() ([]work.Candidate, error) { return v.completes(work.Env.Candidates) }
 
-// worktreeListing is what a tab press after remove gets: the repository's
-// worktrees alone, there being nothing else to remove.
+// worktreeListing is what a tab press after switch, remove or move gets: the
+// repository's worktrees alone.
 func (v verbs) worktreeListing() ([]work.Candidate, error) {
 	env, err := v.repository()
 	if err != nil {
 		return nil, err
 	}
 	return env.Worktrees()
+}
+
+// addableListing is what a tab press after add gets: the places with no worktree
+// yet.
+func (v verbs) addableListing() ([]work.Candidate, error) { return v.completes(work.Env.Addable) }
+
+// completes is a listing put up for the shell: the rows alone, a refusal on
+// stderr landing in the middle of the completions it is drawing.
+func (v verbs) completes(list func(work.Env) ([]work.Candidate, []error, error)) ([]work.Candidate, error) {
+	env, err := v.repository()
+	if err != nil {
+		return nil, err
+	}
+	rows, _, err := list(env)
+	return rows, err
 }
 
 // suggest answers a tab press on a verb's argument. A second word completes

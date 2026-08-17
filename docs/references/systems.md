@@ -6,7 +6,7 @@ A system is what `work` reaches for beyond git: a tracker, a forge, a tool, an a
 
 ## beads
 
-The tracker, over `bd`. It names the bead behind a worktree, [vets and claims it](tickets.md), creates the worktree, and lists the ready beads [the picker](cli.md#the-picker) and [the completion](cli.md#completion) offer. One system on both sides of the worktree: `internal/resolve/beads/` names and creates, `internal/action/beads/` claims, over the one client in `internal/beads/`.
+The tracker, over `bd`. It names the bead behind a worktree, answering only for an id `bd` lists, [vets and claims it](tickets.md), creates the worktree, and lists the ready beads [the picker](cli.md#the-picker) and [the completion](cli.md#completion) offer. One system on both sides of the worktree: `internal/resolve/beads/` names and creates, `internal/action/beads/` claims, over the one client in `internal/beads/`.
 
 ## github
 

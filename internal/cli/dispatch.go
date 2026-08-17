@@ -7,14 +7,14 @@ import (
 )
 
 // dispatch puts the bare form behind the verb it is a shortcut for: a first
-// word naming no verb, and no word at all, are [switchCommand]'s. Cobra reads
-// its own completion request off that same position, so it is left where it is;
+// word naming no verb, and no word at all, are [goCommand]'s. Cobra reads its
+// own completion request off that same position, so it is left where it is;
 // every tab press is one.
 func dispatch(root *cobra.Command, args []string) []string {
 	if rootsOwn(root, args) {
 		return args
 	}
-	return append([]string{"switch"}, args...)
+	return append([]string{"go"}, args...)
 }
 
 // rootsOwn reports whether the first word is the root's to answer: a flag it

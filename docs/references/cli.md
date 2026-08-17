@@ -4,8 +4,9 @@
 
 | Command | Does |
 |---|---|
-| [`work switch [<identifier>]`](#switch) | enters the worktree an [identifier](#identifiers) names, creating it if there is none |
-| [`work add <name>`](#add) | creates a worktree on a new branch of that name and opens it |
+| [`work go [<identifier>]`](#go) | reaches the worktree an [identifier](#identifiers) names, creating it if there is none |
+| [`work switch [<identifier>]`](#switch) | enters the worktree an identifier already has |
+| [`work add [<identifier>]`](#add) | creates the worktree an identifier has none of, and opens it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
@@ -13,21 +14,31 @@
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
 | [`work config edit`](#config) | opens your own [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work help [<command>]` | prints a command's help, the root's with none |
-| `work [<identifier>]` | dispatched to [`switch`](#switch) |
+| `work [<identifier>]` | dispatched to [`go`](#go) |
 
 `--help` and `--version` are the root's own, shorthands included; `--version` prints [the version](mise-tasks.md#version-stamping), in or out of a repository.
 
-### switch
+### go
 
-`work switch <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the checkout the shell is standing in.
+`work go <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the checkout the shell is standing in.
 
 With no identifier, [the picker](#the-picker) offers every worktree open.
 
 A [system](systems.md) can add to either form.
 
+### switch
+
+`work switch <identifier>` enters the worktree the [identifier](#identifiers) already has. One with no worktree open is refused.
+
+With no identifier, [the picker](#the-picker) offers the worktrees alone.
+
 ### add
 
-`work add <name>` creates a worktree on a new branch spelled exactly as the name is, forked from the `HEAD` of the checkout the shell is standing in and asking no tracker, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named. A branch already holding the name is refused.
+`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the checkout the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
+
+The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so is a name of your own whose branch is already there.
+
+With no identifier, [the picker](#the-picker) offers the tickets and pull requests that have no worktree yet.
 
 ### remove
 
@@ -78,7 +89,7 @@ Nothing is created where neither variable is set. The file is the same wherever 
 | Argument | Resolves to |
 |---|---|
 | `feature/x` | the worktree already open under that name, ahead of everything below |
-| `bd-42` | that bead, for any name matching `[A-Za-z0-9][A-Za-z0-9._-]*` |
+| `bd-42` | that bead, for an id [the tracker](systems.md#beads) lists |
 | `7`, `007` | pull request 7 |
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
@@ -115,10 +126,11 @@ What [`init`](#init)'s integration offers at each position:
 |---|---|
 | the first word | the commands |
 | [`config`](#config)'s sub-verb | `dump` and `edit` |
-| [`switch`](#switch)'s identifier | what [the picker](#the-picker) offers |
+| [`go`](#go)'s identifier | what [the picker](#the-picker) offers |
+| [`switch`](#switch)'s identifier | the worktrees |
+| [`add`](#add)'s identifier | the tickets and pull requests with no worktree yet |
 | [`remove`](#remove)'s name | the worktrees |
 | [`move`](#move)'s name | the worktrees |
-| [`add`](#add)'s name | nothing |
 | [`init`](#init)'s shell | the shells it prints |
 
 A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
@@ -127,9 +139,11 @@ A word past the position named completes nothing, and so does every word after [
 
 ### Open-on flags
 
-What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now, and is offered by nothing.
+What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now, and is offered by nothing.
 
-The set is the same in every repository, being settled before there is one to read: `--help` lists all of it, and a flag whose [system](systems.md) is off is refused.
+[`go`](#go) and [`add`](#add) carry a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) carries none of them and refuses them.
+
+Both sets are the same in every repository, being settled before there is one to read: `--help` lists all of them, and a flag whose [system](systems.md) is off is refused.
 
 | Flag | Hands the worktree to |
 |---|---|

@@ -111,18 +111,6 @@ func TestVettingReportsAFailedQuery(t *testing.T) {
 	}
 }
 
-// A bead bd does not know is refused at the preparation, which is the one place
-// the identifier taken at its word is settled against the tracker.
-func TestPrepareRefusesATicketBdDoesNotKnow(t *testing.T) {
-	shim(t, answers{list: rows(workable), show: rows()})
-	r := New(t.TempDir(), t.TempDir(), pattern)
-
-	_, err := r.Prepare(worktree.Place{ID: "nine", Name: "nine"})
-	if err == nil || !strings.Contains(err.Error(), `no bead "nine"`) {
-		t.Errorf("Prepare(nine) = %v; want the bead nothing knows refused", err)
-	}
-}
-
 // The branch takes a slug of the title, which is what makes naming it the
 // preparation's rather than the resolution's.
 func TestPrepareNamesTheBranchFromTheTitle(t *testing.T) {
@@ -156,25 +144,41 @@ func TestSlug(t *testing.T) {
 	}
 }
 
-// An identifier alone is taken at its word and bd is not asked: every name a
-// worktree could carry is a possible id, so this resolver answers last and takes
-// whatever is left.
-func TestIdentifyTakesAnIdentifierAtItsWord(t *testing.T) {
-	ran := shim(t, answers{})
+// An identifier is one bd lists, so a name no bead answers for is left to the
+// resolvers after this one rather than carried to bd as an id to look up.
+func TestIdentifyAnswersOnlyForABeadBdKnows(t *testing.T) {
+	known := beads.Bead{ID: "bd-42", Title: "A ticket"}
+	ran := shim(t, answers{list: rows(known)})
 	r := New(t.TempDir(), t.TempDir(), pattern)
 
-	for _, id := range []string{"one", "bd-42", "1234", "anything-at-all"} {
-		got, err := r.Identify(id, worktree.Open{})
-		if err != nil {
-			t.Fatalf("Identify(%q): %v", id, err)
-		}
-		want := worktree.Place{ID: id, Name: id}
-		if got != want {
-			t.Errorf("Identify(%q) = %+v; want %+v", id, got, want)
+	got, err := r.Identify(known.ID, worktree.Open{})
+	if err != nil {
+		t.Fatalf("Identify(%q): %v", known.ID, err)
+	}
+	want := worktree.Place{ID: known.ID, Name: known.ID, Label: known.Title}
+	if got != want {
+		t.Errorf("Identify(%q) = %+v; want %+v", known.ID, got, want)
+	}
+
+	for _, id := range []string{"one", "1234", "anything-at-all"} {
+		if _, err := r.Identify(id, worktree.Open{}); !errors.Is(err, worktree.ErrUnknown) {
+			t.Errorf("Identify(%q) = %v; want it left to the next resolver", id, err)
 		}
 	}
-	if n := spawns(ran(), "bd"); n != 0 {
-		t.Errorf("naming an identifier asked bd %d times; want it taken at its word", n)
+	if n := spawns(ran(), "bd show"); n != 0 {
+		t.Errorf("naming an identifier asked bd show %d times; want the listing to settle it", n)
+	}
+}
+
+// A bd that will not answer is not a name it does not know: the refusal stops
+// the run rather than leaving a ticket id to become a plain branch.
+func TestIdentifyReportsATrackerThatWillNotList(t *testing.T) {
+	shim(t, answers{})
+	r := New(t.TempDir(), t.TempDir(), pattern)
+
+	_, err := r.Identify("one", worktree.Open{})
+	if err == nil || errors.Is(err, worktree.ErrUnknown) {
+		t.Errorf(`Identify("one") = %v; want the failed listing reported rather than read as a bead bd does not know`, err)
 	}
 }
 
@@ -311,7 +315,7 @@ func TestIdentifyLeavesADetachedWorktreeWithoutAskingBd(t *testing.T) {
 // them is vetted against the very snapshot that called it ready rather than by
 // asking bd again.
 func TestOfferHoldsTheRecordsItOffered(t *testing.T) {
-	ran := shim(t, answers{ready: rows(workable), list: rows(), show: rows()})
+	ran := shim(t, answers{ready: rows(workable), list: rows()})
 	r := New(t.TempDir(), t.TempDir(), pattern)
 
 	offered, err := r.Offer()
@@ -333,12 +337,11 @@ func TestOfferHoldsTheRecordsItOffered(t *testing.T) {
 }
 
 // The full listing serves the vetting too: a bead it named is worked from that
-// record, so preparing a fresh ticket spawns no bd show at all, and only a bead
-// it could not name is asked for by itself.
+// record, so preparing a fresh ticket asks bd for nothing of its own.
 func TestPrepareVetsFromTheListing(t *testing.T) {
 	// in_progress, so the vetting needs no readiness query either.
 	listed := with(workable, func(b *beads.Bead) { b.Status = "in_progress" })
-	ran := shim(t, answers{list: rows(listed), show: rows()})
+	ran := shim(t, answers{list: rows(listed)})
 	r := New(t.TempDir(), t.TempDir(), pattern)
 
 	if _, err := r.Prepare(worktree.Place{ID: listed.ID, Name: listed.ID}); err != nil {
@@ -346,15 +349,6 @@ func TestPrepareVetsFromTheListing(t *testing.T) {
 	}
 	if n := spawns(ran(), "bd show"); n != 0 {
 		t.Errorf("preparing a listed bead asked bd show %d times; want it vetted from the listing", n)
-	}
-
-	// A name the listing does not carry is still asked for, and still refused as the
-	// bead nothing knows.
-	if _, err := r.Prepare(worktree.Place{ID: "two", Name: "two"}); err == nil {
-		t.Fatal("Prepare(two): want the bead nothing knows refused")
-	}
-	if n := spawns(ran(), "bd show"); n != 1 {
-		t.Errorf("preparing an unlisted bead asked bd show %d times; want it asked for once", n)
 	}
 }
 
@@ -478,14 +472,14 @@ func rows(list ...beads.Bead) string {
 
 // answers is what the bd on PATH replies with, per subcommand.
 type answers struct {
-	list, ready, show string
+	list, ready string
 }
 
 // resolver is one answering over a bd that replies with these listings, and what
 // that bd was asked to run.
 func resolver(t *testing.T, all, ready string) (*Resolver, func() []string) {
 	t.Helper()
-	ran := shim(t, answers{list: all, ready: ready, show: all})
+	ran := shim(t, answers{list: all, ready: ready})
 	return New(t.TempDir(), t.TempDir(), pattern), ran
 }
 
@@ -498,7 +492,7 @@ func resolver(t *testing.T, all, ready string) (*Resolver, func() []string) {
 func shim(t *testing.T, a answers) func() []string {
 	t.Helper()
 	dir := t.TempDir()
-	for sub, body := range map[string]string{"list": a.list, "ready": a.ready, "show": a.show} {
+	for sub, body := range map[string]string{"list": a.list, "ready": a.ready} {
 		if body != "" {
 			testenv.Write(t, filepath.Join(dir, "answer-"+sub), body)
 		}

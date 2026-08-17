@@ -539,27 +539,131 @@ func TestResolveRefusesANameNoWorktreeCouldCarry(t *testing.T) {
 	}
 }
 
-// Adding names its resolver rather than putting the name through the chain,
-// which would read it as some tracker's identifier. The name is held to the same
-// rule every identifier is.
-func TestAddNamesItsOwnResolver(t *testing.T) {
+// adding wires a chain that answers for the identifiers it was given and a named
+// resolver behind it, which is the shape add reads.
+func adding(t *testing.T, chain ...Resolver) (Env, string) {
+	t.Helper()
+	var s steps
 	repo := testenv.InitRepo(t)
-	e, _ := bare(t, repo)
-	// A resolver that would take the name first if the chain were asked at all.
-	e.Systems.Resolvers = append([]Resolver{&offering{name: "tracker", places: []string{"7"}}}, e.Systems.Resolvers...)
+	// The tail adopts whatever worktree git reports and answers for no identifier,
+	// which is where a name of the user's own falls through to the named resolver.
+	tail := &resolver{steps: &s, name: "tail", bare: true, unknown: true}
+	return Env{Repo: repo, Config: config.Default(), Systems: Systems{
+		Resolvers: append(chain, tail),
+		Named:     &resolver{steps: &s, name: "named", bare: true},
+	}}, repo
+}
 
-	c, err := e.Add("7")
+// tracker is the chain resolver the add tests are wired with: one answering for
+// the identifiers it was given and for the branches those own.
+func tracker(places ...string) Resolver { return &offering{name: "tracker", places: places} }
+
+// Adding puts the identifier through the chain, so a ticket or a pull request is
+// added as the place its own system makes of it. Only a name nothing answered
+// for reaches the named resolver.
+func TestAddResolvesTheIdentifierBeforeInventingIt(t *testing.T) {
+	e, _ := adding(t, tracker("one"))
+
+	c, err := e.Add("one")
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if c.Open || c.Source != "bare" || c.Name != "7" {
-		t.Errorf("Add(7) = %+v; want a place of the named resolver's own", c.Place)
+	if c.Open || c.Source != "tracker" {
+		t.Errorf("Add(one) = %+v; want the place the chain answered with", c.Place)
+	}
+
+	own, err := e.Add("scratch")
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if own.Open || own.Source != "named" || own.Name != "scratch" {
+		t.Errorf("Add(scratch) = %+v; want a place of the named resolver's own", own.Place)
 	}
 
 	for _, name := range []string{"", "..", "../../etc", "a/b", "-5", "feature/x"} {
 		if _, err := e.Add(name); err == nil || !strings.Contains(err.Error(), "usable worktree name") {
 			t.Errorf("Add(%q) = %v; want the name refused", name, err)
 		}
+	}
+}
+
+// The worktree-name rule is invention's and not the identifier's: a pull request
+// URL is no directory name, but the forge reads it into one.
+func TestAddHoldsTheNameRuleWhereTheNameIsInvented(t *testing.T) {
+	const url = "https://host/owner/repo/pull/7"
+	var s steps
+	e, _ := adding(t, &resolver{steps: &s, name: "forge", names: "pr-7"})
+
+	c, err := e.Add(url)
+	if err != nil {
+		t.Fatalf("Add(%q): %v", url, err)
+	}
+	if c.Open || c.Source != "forge" || c.Name != "pr-7" {
+		t.Errorf("Add(%q) = %+v; want the place the forge read it into", url, c.Place)
+	}
+}
+
+// A place that already has a worktree is nothing to add: the refusal names the
+// verb that enters one, whether the name is the worktree's or the resolver's.
+func TestAddRefusesAnIdentifierThatAlreadyHasAWorktree(t *testing.T) {
+	e, repo := adding(t, tracker("one"))
+	testenv.Git(t, repo, "worktree", "add", "-b", "one-a-slug", filepath.Join(repo, defaultDir, "one"))
+	testenv.Git(t, repo, "worktree", "add", "-b", "scratch", filepath.Join(repo, defaultDir, "scratch"))
+
+	for _, id := range []string{"one", "scratch"} {
+		_, err := e.Add(id)
+		if err == nil || !strings.Contains(err.Error(), "work switch "+id) {
+			t.Errorf("Add(%q) = %v; want it refused, naming the verb that enters one", id, err)
+		}
+	}
+}
+
+// Entering reaches a worktree already open, so a place with none is refused,
+// and the refusal names the verb that makes one.
+func TestSwitchableRefusesAPlaceWithNoWorktree(t *testing.T) {
+	var e Env
+	if err := e.Switchable(Candidate{Place: worktree.Place{Name: "scratch"}, Open: true}); err != nil {
+		t.Errorf("Switchable(scratch) = %v; want the worktree entered", err)
+	}
+	err := e.Switchable(Candidate{Place: worktree.Place{Name: "one"}})
+	if err == nil || !strings.Contains(err.Error(), "work add one") {
+		t.Errorf("Switchable(one) = %v; want it refused, naming the verb that makes one", err)
+	}
+}
+
+// A name nothing answers for is refused before any system is asked to make
+// something of it, and the refusal names the identifier and no verb.
+func TestAnIdentifierNothingAnswersForIsRefusedAsUnanswered(t *testing.T) {
+	e, _ := adding(t, tracker("one"))
+
+	_, err := e.Resolve("typo")
+	if err == nil || !strings.Contains(err.Error(), `nothing answers for "typo"`) {
+		t.Errorf(`Resolve("typo") = %v; want it refused as a name nothing answers for`, err)
+	}
+	if !Unanswered(err) {
+		t.Errorf(`Resolve("typo") = %v; want a refusal a verb that creates can tell`, err)
+	}
+	// One that a system did answer for is not that refusal, whatever else it is.
+	if _, err := e.Resolve("one"); Unanswered(err) {
+		t.Errorf(`Resolve("one") = %v; want the place the tracker answered with`, err)
+	}
+}
+
+// What a worktree can still be made for is what the resolvers offer that has
+// none, the ones already open being nothing to add.
+func TestAddableLeavesOutTheWorktreesAlreadyOpen(t *testing.T) {
+	e, repo := adding(t, tracker("one", "two"))
+	testenv.Git(t, repo, "worktree", "add", "-b", "one-a-slug", filepath.Join(repo, defaultDir, "one"))
+
+	got, refused, err := e.Addable()
+	if err != nil {
+		t.Fatalf("Addable: %v", err)
+	}
+	if len(refused) != 0 {
+		t.Errorf("Addable refused %v; want nothing refused", refused)
+	}
+	if want := []string{"two"}; !slices.Equal(names(got), want) {
+		t.Errorf("Addable() = %q; want %q, the worktrees open being nothing to add", names(got), want)
 	}
 }
 

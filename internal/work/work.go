@@ -75,9 +75,8 @@ type Systems struct {
 	Actions   []Action
 	Openers   []Opener
 
-	// Named is the one resolver a verb reaches by name rather than through the
-	// chain: add's, which is handed a name of the user's own rather than an
-	// identifier to recognise.
+	// Named is the chain's tail for an identifier nothing answered for: the resolver
+	// add hands a name of the user's own.
 	Named Resolver
 
 	// Disabled are the systems the settings left out, in the order they would have
@@ -172,33 +171,53 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 	if err != nil {
 		return Candidate{}, err
 	}
-	// A worktree listed under the name is that worktree, whatever a resolver would
-	// make of the name, so what the picker shows is entered by retyping it.
-	var named []Candidate
-	for _, c := range open {
-		if c.Name == arg {
-			named = append(named, c)
-		}
+	c, err := e.place(arg, open)
+	if errors.Is(err, errUnanswered) {
+		return Candidate{}, fmt.Errorf("%w %q", errUnanswered, arg)
 	}
-	if len(named) > 0 {
+	return c, err
+}
+
+// Unanswered reports whether a refusal is an identifier no system answered for.
+func Unanswered(err error) bool { return errors.Is(err, errUnanswered) }
+
+// place is the candidate an identifier names against the worktrees open. A name
+// nothing answered for comes back wrapping [errUnanswered].
+func (e Env) place(id string, open []Candidate) (Candidate, error) {
+	// A worktree listed under the name is that worktree, whatever a resolver would
+	// make of it.
+	if named := byName(open, id); len(named) > 0 {
 		return shortest(named), nil
 	}
-
-	r, p, err := e.identify(arg, worktree.Open{})
+	r, p, err := e.identify(id, worktree.Open{})
+	if errors.Is(err, errUnanswered) {
+		return Candidate{}, cmp.Or(e.switchedOff(id), err)
+	}
 	if err != nil {
 		return Candidate{}, err
 	}
 	// A place no worktree could be made for is one nothing really answered for.
 	if err := checkName(p.Name); err != nil {
-		return Candidate{}, e.switchedOff(arg, err)
+		return Candidate{}, cmp.Or(e.switchedOff(id), err)
 	}
 	return e.locate(r, p, open)
 }
 
+// byName is the worktrees listed under an identifier.
+func byName(open []Candidate, name string) []Candidate {
+	var found []Candidate
+	for _, c := range open {
+		if c.Name == name {
+			found = append(found, c)
+		}
+	}
+	return found
+}
+
 // switchedOff is the refusal an identifier gets where a system the settings left
-// out would have answered for it. The question is [worktree.Claimant] and never
-// [Resolver.Identify], whose last resolver takes whatever is left.
-func (e Env) switchedOff(id string, err error) error {
+// out would have answered for it, and nothing where none of them would. The
+// question is [worktree.Claimant] and never [Resolver.Identify].
+func (e Env) switchedOff(id string) error {
 	for _, s := range e.Systems.Disabled {
 		c, ok := s.(worktree.Claimant)
 		if !ok {
@@ -210,7 +229,7 @@ func (e Env) switchedOff(id string, err error) error {
 		}
 		return fmt.Errorf("nothing answers for %q; %s", id, off(s.Name()))
 	}
-	return err
+	return nil
 }
 
 // off is how a system the settings left out reads: the name it goes by and the
@@ -229,6 +248,10 @@ func answered(r Resolver, c Candidate) Candidate {
 	return c
 }
 
+// errUnanswered means the chain ran out with the identifier unrecognised, which
+// is a name to add rather than a place to reach.
+var errUnanswered = errors.New("nothing answers for")
+
 // identify is the chain: the first resolver to answer for what the core is
 // holding owns it, and one that does not recognise it passes it on.
 func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, error) {
@@ -245,15 +268,35 @@ func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, err
 	// The last resolver answers for whatever is left, so a worktree never runs the
 	// chain out: nothing recognising one is the listing failing.
 	if o.None() {
-		return nil, worktree.Place{}, e.switchedOff(id, fmt.Errorf("nothing answers for %q", id))
+		return nil, worktree.Place{}, errUnanswered
 	}
 	return nil, worktree.Place{}, fmt.Errorf("nothing answers for the worktree at %s", o.Path)
 }
 
-// Add is the place a name of the user's own makes: a worktree with no ticket and
-// no pull request behind it, on a branch spelled exactly as the name is. The
-// chain would read the name as a ticket id, so it is never asked.
-func (e Env) Add(name string) (Candidate, error) {
+// Add is the place a worktree is about to be made for: what a system answers for
+// the identifier with, else a name of the user's own. A place that already has a
+// worktree is refused.
+func (e Env) Add(id string) (Candidate, error) {
+	open, err := e.Worktrees()
+	if err != nil {
+		return Candidate{}, err
+	}
+	c, err := e.place(id, open)
+	if errors.Is(err, errUnanswered) {
+		return e.invent(id)
+	}
+	if err != nil {
+		return Candidate{}, err
+	}
+	if c.Open {
+		return Candidate{}, fmt.Errorf("%s already has a worktree; enter it with work switch %s", c.Name, c.Name)
+	}
+	return c, nil
+}
+
+// invent is the place a name of the user's own makes: no ticket and no pull
+// request behind it, on a branch spelled exactly as the name is.
+func (e Env) invent(name string) (Candidate, error) {
 	if err := checkName(name); err != nil {
 		return Candidate{}, err
 	}
@@ -262,6 +305,14 @@ func (e Env) Add(name string) (Candidate, error) {
 		return Candidate{}, err
 	}
 	return answered(e.Systems.Named, Candidate{Place: p}), nil
+}
+
+// Switchable is why a candidate cannot be entered: it has no worktree open.
+func (e Env) Switchable(c Candidate) error {
+	if c.Open {
+		return nil
+	}
+	return fmt.Errorf("%s has no worktree open; work add %s makes one", c.Name, c.Name)
 }
 
 // Worktrees is every worktree the repository has, in git's order, each under the
@@ -410,6 +461,16 @@ func (e Env) Candidates() ([]Candidate, []error, error) {
 		}
 	}
 	return out, slices.DeleteFunc(refused, func(err error) bool { return err == nil }), nil
+}
+
+// Addable is what a worktree can be made for: the places the resolvers offer
+// that have none yet.
+func (e Env) Addable() ([]Candidate, []error, error) {
+	list, refused, err := e.Candidates()
+	if err != nil {
+		return nil, nil, err
+	}
+	return slices.DeleteFunc(list, func(c Candidate) bool { return c.Open }), refused, nil
 }
 
 // path is where a worktree for a place would be created.

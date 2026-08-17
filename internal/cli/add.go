@@ -7,38 +7,29 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// addCommand is the verb that brings a worktree of the user's own name into
-// being. It carries the open-on flags, opening something, and a tab press after
-// it offers nothing, the name being new.
-func addCommand(sys work.Systems, run func(o options, name string) (worktree.Handoff, error)) *cobra.Command {
-	var o options
+// addCommand is the verb that brings a worktree into being. A tab press after it
+// offers the places with no worktree yet.
+func addCommand(sys work.Systems, run func(o options, id string) (worktree.Handoff, error), list func() ([]work.Candidate, error)) *cobra.Command {
+	return opening(&cobra.Command{
+		Use:   "add [<name>|<id>|<pr>|<url>]",
+		Short: "Create the worktree an identifier names and open it",
+		Long: `Create the worktree an identifier names, forked from the checkout you are
+standing in. A ticket is vetted and claimed, a pull request is checked out, and
+a name no system answers for becomes a branch spelled exactly as it is.
 
-	cmd := &cobra.Command{
-		Use:   "add <name>",
-		Short: "Create a worktree on a new branch of that name and open it",
-		Long: `Create a worktree on a new branch spelled exactly as the name is, forked from
-the checkout the shell is standing in. No tracker is asked, and a branch already
-holding the name is refused.
+An identifier that already has a worktree is refused, work switch being what
+enters one.
 
-The worktree opens on what action.create names. Re-enter it later with the name
-alone.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			h, err := run(o, args[0])
-			if err != nil {
-				return err
-			}
-			return hand(h, cmd.OutOrStdout())
-		},
-	}
-	openOn(cmd, &o, sys.Openers)
+With no identifier, choose among the repository's ready tickets and open pull
+requests that have no worktree yet. That form needs fzf.
 
-	return cmd
+The worktree opens on what action.create names.`,
+	}, sys, sys.Actions, run, list)
 }
 
-// add makes the worktree the name asks for and says what it opens on.
-func add(env work.Env, o options, name string) (worktree.Handoff, error) {
-	c, err := env.Add(name)
+// add makes the worktree the identifier asks for and says what it opens on.
+func add(env work.Env, o options, id string) (worktree.Handoff, error) {
+	c, err := offered(id, env.Addable, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

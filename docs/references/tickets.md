@@ -10,4 +10,4 @@ Nothing reaches past it. A worktree that already exists is entered without vetti
 
 ## Claiming
 
-Creating a ticket's worktree claims it, an epic's included, whatever that worktree opens on. [`--no-claim`](cli.md#switch) declines the claim and nothing else.
+Creating a ticket's worktree claims it, an epic's included, whatever that worktree opens on. [`--no-claim`](cli.md#opening) declines the claim and nothing else.

@@ -93,11 +93,8 @@ func TestEveryResolverWiredDrawsItsOwnRows(t *testing.T) {
 // open worktree the last to answer takes whatever is left, so a resolver answering for
 // any worktree has to be last or the ones behind it are never asked.
 //
-// Two resolvers answer for anything: beads takes any identifier, every worktree name
-// being a possible ticket id, and plain takes any worktree, one nothing recognises
-// still being one to reach. The order between them is the whole guard. Put plain
-// first and every name typed at the verb silently becomes a bare worktree instead of a
-// ticket, with nothing to fail.
+// plain answers for any worktree, so it is wired last. Nothing answers for any
+// identifier: a name no system knows is work add's to invent.
 func TestTheResolverOrderHoldsBothWays(t *testing.T) {
 	repo := t.TempDir()
 	// An order between systems can only be read off a wiring that has them all.
@@ -123,8 +120,9 @@ func TestTheResolverOrderHoldsBothWays(t *testing.T) {
 			trees = append(trees, r.Name())
 		}
 	}
-	if len(ids) == 0 {
-		t.Fatal("no resolver answers for an identifier nothing discriminates on; the chain would refuse a name it should take")
+	if len(ids) > 0 {
+		t.Errorf("%s answers for an identifier nothing discriminates on; a name no system knows is work add's, and every resolver after %s would never be asked",
+			ids[0], ids[0])
 	}
 	if len(trees) == 0 {
 		t.Fatal("no resolver answers for a worktree nothing recognises; the listing would refuse a worktree that is there")
@@ -134,10 +132,6 @@ func TestTheResolverOrderHoldsBothWays(t *testing.T) {
 	if trees[0] != last {
 		t.Errorf("%s answers for any worktree but %s is wired last; every resolver after %s is never asked about one",
 			trees[0], last, trees[0])
-	}
-	if ids[0] == trees[0] {
-		t.Errorf("an identifier falls to %s, which also answers for any worktree; a name typed at the verb reads as a bare worktree rather than as a ticket",
-			ids[0])
 	}
 }
 

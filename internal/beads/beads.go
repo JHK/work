@@ -1,11 +1,7 @@
 // Package beads is the adapter over the bd issue tracker.
 package beads
 
-import (
-	"fmt"
-
-	"github.com/JHK/work-cli/internal/run"
-)
+import "github.com/JHK/work-cli/internal/run"
 
 // Command is the tracker itself.
 const Command = "bd"
@@ -18,19 +14,6 @@ type Bead struct {
 	Status             string `json:"status"`
 	Type               string `json:"issue_type"`
 	AcceptanceCriteria string `json:"acceptance_criteria"`
-}
-
-// Show looks up one bead. A missing bead and an unreachable database are both
-// errors here; callers decide which paths may proceed without one.
-func Show(repo, id string) (Bead, error) {
-	beads, err := run.JSON[[]Bead](repo, Command, "show", id, "--json")
-	if err != nil {
-		return Bead{}, err
-	}
-	if len(beads) == 0 {
-		return Bead{}, fmt.Errorf("no bead %q", id)
-	}
-	return beads[0], nil
 }
 
 // All lists every bead the tracker knows, closed ones included: a worktree

@@ -22,7 +22,6 @@ const Name = "beads"
 // one run asks bd for each of them at most once and the vetting reads the very
 // snapshot that called a bead ready.
 type Resolver struct {
-	repo    string
 	from    string // the checkout work was invoked in, whose HEAD a new branch forks from
 	pattern config.Branch
 
@@ -36,7 +35,6 @@ type Resolver struct {
 // New answers for the repository at repo, naming branches by the ticket pattern.
 func New(repo, from string, branch config.Branch) *Resolver {
 	return &Resolver{
-		repo:       repo,
 		from:       from,
 		pattern:    branch,
 		allBeads:   sync.OnceValues(func() ([]beads.Bead, error) { return beads.All(repo) }),
@@ -51,15 +49,22 @@ func (r *Resolver) Icon() string { return "◆" }
 
 // Identify names the bead behind what the core is holding.
 //
-// An identifier alone is taken at its word and bd is not asked, so this resolver
-// answers last and takes whatever is left; whether bd knows the id is
-// [Resolver.Prepare]'s question.
+// An identifier is one bd lists; a bd that will not answer refuses rather than
+// naming no bead.
 //
-// A worktree is named by the longest id bd knows that owns its branch. A bd that
-// will not list names none of them, and the worktree is a plain one until it does.
+// A worktree is named by the longest id bd knows that owns its branch, and a bd
+// that will not list leaves it a plain one.
 func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
-		return worktree.Place{ID: id, Name: id}, nil
+		list, err := r.allBeads()
+		if err != nil {
+			return worktree.Place{}, err
+		}
+		b, ok := find(list, id)
+		if !ok {
+			return worktree.Place{}, fmt.Errorf("%w: bd names no bead %q", worktree.ErrUnknown, id)
+		}
+		return worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title}, nil
 	}
 	// Ahead of the listing: confirming an identifier against a branch must not need bd.
 	if id != "" && !r.pattern.Owns(id, o.Branch) {
@@ -168,8 +173,7 @@ func (r *Resolver) workable(id string) (bool, error) {
 	return ok, nil
 }
 
-// bead is the record for an id: one already in hand, else the full listing's own,
-// else bd asked for it outright, which is where a name bd does not know is refused.
+// bead is the record for an id: one already in hand, else the full listing's own.
 func (r *Resolver) bead(id string) (beads.Bead, error) {
 	if b, ok := r.held.Load(id); ok {
 		return b.(beads.Bead), nil
@@ -177,16 +181,11 @@ func (r *Resolver) bead(id string) (beads.Bead, error) {
 	if b, ok := r.record(id); ok {
 		return b, nil
 	}
-	b, err := beads.Show(r.repo, id)
-	if err != nil {
-		return beads.Bead{}, err
-	}
-	r.held.Store(id, b)
-	return b, nil
+	return beads.Bead{}, fmt.Errorf("bd names no bead %q", id)
 }
 
-// record is the bead the full listing named, if it named one. A miss falls
-// through to a query: a bd that will not list may still answer for one id.
+// record is the bead the full listing named, if it named one. A bd that will not
+// list names none.
 func (r *Resolver) record(id string) (beads.Bead, bool) {
 	list, err := r.allBeads()
 	if err != nil {

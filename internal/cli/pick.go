@@ -25,6 +25,17 @@ const (
 	prompt = "work> "
 )
 
+// offered is the place a verb was given, or the one its picker hands over where
+// it was given none.
+func offered(id string, list func() ([]work.Candidate, []error, error), resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
+	if id != "" {
+		return resolve(id)
+	}
+	rows, refused, err := list()
+	report(os.Stderr, refused)
+	return pickFrom(rows, err)
+}
+
 // openWorktree is the worktree a verb that acts on one was named: an identifier
 // resolves to it, and without one the picker offers the open worktrees alone,
 // those verbs reaching nothing else.

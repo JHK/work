@@ -71,9 +71,16 @@ func same(a, b options) bool {
 	return a.open == b.open && slices.Equal(a.skip, b.skip)
 }
 
-// The bare form arrives at switch as it was typed, whatever stands in the first
+// openingVerbs hand a worktree to something; creatingVerbs are the ones among
+// them that can bring one into being.
+var (
+	openingVerbs  = []string{"go", "switch", "add"}
+	creatingVerbs = []string{"go", "add"}
+)
+
+// The bare form arrives at go as it was typed, whatever stands in the first
 // position: a name, a flag, or nothing. Which flag names which action is
-// TestSwitchFlags' to say, the two forms reaching the one command.
+// TestGoFlags' to say, the two forms reaching the one command.
 func TestCommandFlags(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -93,7 +100,7 @@ func TestCommandFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
 			var target string
-			err := execute(t, tt.args, io.Discard, front{enter: func(o options, id string) (worktree.Handoff, error) {
+			err := execute(t, tt.args, io.Discard, front{reach: func(o options, id string) (worktree.Handoff, error) {
 				got, target = o, id
 				return worktree.Handoff{}, nil
 			}})
@@ -116,20 +123,27 @@ func TestTheWiredSystemsNameTheFlags(t *testing.T) {
 		Actions: []work.Action{action{"quiet"}, declined{action{"noisy"}, "no-noise", "leave it alone"}},
 	}
 
-	sw, _, err := command(stubVersion, sys, front{}).Find([]string{"switch"})
-	if err != nil {
-		t.Fatalf("finding switch: %v", err)
-	}
-	for _, name := range []string{"novel", "spelt-out", "no-noise"} {
-		if sw.Flags().Lookup(name) == nil {
-			t.Errorf("switch does not declare --%s", name)
+	root := command(stubVersion, sys, front{})
+	for _, verb := range openingVerbs {
+		cmd, _, err := root.Find([]string{verb})
+		if err != nil {
+			t.Fatalf("finding %s: %v", verb, err)
 		}
-	}
-	// The name an opener spelling its own flag goes by, and the two systems that
-	// spelled no flag at all: an action with none runs whenever a worktree does.
-	for _, name := range []string{"terse", "quiet", "noisy"} {
-		if sw.Flags().Lookup(name) != nil {
-			t.Errorf("switch declares --%s, which nothing spelled", name)
+		for _, name := range []string{"novel", "spelt-out"} {
+			if cmd.Flags().Lookup(name) == nil {
+				t.Errorf("%s does not declare --%s", verb, name)
+			}
+		}
+		// The flag that calls an action off is declared by the verbs that can run one.
+		if declares, creates := cmd.Flags().Lookup("no-noise") != nil, slices.Contains(creatingVerbs, verb); declares != creates {
+			t.Errorf("%s declares --no-noise: %v; want %v", verb, declares, creates)
+		}
+		// The name an opener spelling its own flag goes by, and the two systems that
+		// spelled no flag at all: an action with none runs whenever a worktree does.
+		for _, name := range []string{"terse", "quiet", "noisy"} {
+			if cmd.Flags().Lookup(name) != nil {
+				t.Errorf("%s declares --%s, which nothing spelled", verb, name)
+			}
 		}
 	}
 
@@ -137,14 +151,14 @@ func TestTheWiredSystemsNameTheFlags(t *testing.T) {
 		args []string
 		want options
 	}{
-		{[]string{"switch", "--novel", "bd-1"}, options{open: "novel"}},
-		{[]string{"switch", "--spelt-out", "bd-1"}, options{open: "terse"}},
-		{[]string{"switch", "--no-noise", "bd-1"}, options{skip: []string{"noisy"}}},
+		{[]string{"go", "--novel", "bd-1"}, options{open: "novel"}},
+		{[]string{"go", "--spelt-out", "bd-1"}, options{open: "terse"}},
+		{[]string{"go", "--no-noise", "bd-1"}, options{skip: []string{"noisy"}}},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
 			var got options
-			err := executeOn(t, sys, tt.args, io.Discard, front{enter: func(o options, _ string) (worktree.Handoff, error) {
+			err := executeOn(t, sys, tt.args, io.Discard, front{reach: func(o options, _ string) (worktree.Handoff, error) {
 				got = o
 				return worktree.Handoff{}, nil
 			}})
@@ -158,8 +172,55 @@ func TestTheWiredSystemsNameTheFlags(t *testing.T) {
 	}
 }
 
-// switch is the bare form spelled out, so it takes the same argument and
-// carries the same flags, and the verb reaches the names the bare form cannot.
+// go is the bare form spelled out, so it takes the same argument and carries the
+// same flags, and the verb reaches the names the bare form cannot.
+func TestGoFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		want   options
+		target string
+	}{
+		{"an identifier of its own", []string{"go", "bd-1"}, options{}, "bd-1"},
+		{"no identifier", []string{"go"}, options{}, ""},
+		{"named before the identifier", []string{"go", "--shell", "bd-1"}, options{open: "shell"}, "bd-1"},
+		{"named after the identifier", []string{"go", "bd-1", "--shell"}, options{open: "shell"}, "bd-1"},
+		{"handed to claude", []string{"go", "--claude", "bd-1"}, options{open: "claude"}, "bd-1"},
+		{"declining the claim", []string{"go", "--no-claim", "bd-1"}, options{skip: []string{"beads"}}, "bd-1"},
+		// Every flag stands without an identifier too, the picker naming one.
+		{"an action for the picker's target", []string{"go", "--claude"}, options{open: "claude"}, ""},
+		{"declining the picker's claim", []string{"go", "--no-claim"}, options{skip: []string{"beads"}}, ""},
+		// The verbs shadow these names in the bare position; go reaches them.
+		{"a worktree named init", []string{"go", "init"}, options{}, "init"},
+		{"a worktree named add", []string{"go", "add"}, options{}, "add"},
+		{"a worktree named switch", []string{"go", "switch"}, options{}, "switch"},
+		{"a worktree named remove", []string{"go", "remove"}, options{}, "remove"},
+		{"a worktree named move", []string{"go", "move"}, options{}, "move"},
+		{"a worktree named list", []string{"go", "list"}, options{}, "list"},
+		{"a worktree named go", []string{"go", "go"}, options{}, "go"},
+		{"a worktree named config", []string{"go", "config"}, options{}, "config"},
+		{"a worktree named help", []string{"go", "help"}, options{}, "help"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got options
+			var target string
+			err := execute(t, tt.args, io.Discard, front{reach: func(o options, id string) (worktree.Handoff, error) {
+				got, target = o, id
+				return worktree.Handoff{}, nil
+			}})
+			if err != nil {
+				t.Fatalf("Execute(%q): %v", tt.args, err)
+			}
+			if !same(got, tt.want) || target != tt.target {
+				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
+			}
+		})
+	}
+}
+
+// switch takes the identifier in the argument position and carries the open-on
+// flags wherever those sit. Its argument is optional, the picker standing in.
 func TestSwitchFlags(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -172,19 +233,7 @@ func TestSwitchFlags(t *testing.T) {
 		{"named before the identifier", []string{"switch", "--shell", "bd-1"}, options{open: "shell"}, "bd-1"},
 		{"named after the identifier", []string{"switch", "bd-1", "--shell"}, options{open: "shell"}, "bd-1"},
 		{"handed to claude", []string{"switch", "--claude", "bd-1"}, options{open: "claude"}, "bd-1"},
-		{"declining the claim", []string{"switch", "--no-claim", "bd-1"}, options{skip: []string{"beads"}}, "bd-1"},
-		// Every flag stands without an identifier too, the picker naming one.
 		{"an action for the picker's target", []string{"switch", "--claude"}, options{open: "claude"}, ""},
-		{"declining the picker's claim", []string{"switch", "--no-claim"}, options{skip: []string{"beads"}}, ""},
-		// The verbs shadow these names in the bare position; switch reaches them.
-		{"a worktree named init", []string{"switch", "init"}, options{}, "init"},
-		{"a worktree named add", []string{"switch", "add"}, options{}, "add"},
-		{"a worktree named remove", []string{"switch", "remove"}, options{}, "remove"},
-		{"a worktree named move", []string{"switch", "move"}, options{}, "move"},
-		{"a worktree named list", []string{"switch", "list"}, options{}, "list"},
-		{"a worktree named switch", []string{"switch", "switch"}, options{}, "switch"},
-		{"a worktree named config", []string{"switch", "config"}, options{}, "config"},
-		{"a worktree named help", []string{"switch", "help"}, options{}, "help"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -204,20 +253,28 @@ func TestSwitchFlags(t *testing.T) {
 	}
 }
 
-// The bare form is a dispatch, not a second registration: every flag it takes
-// is declared once, on the verb it reaches.
-func TestOpenOnFlagsAreSwitchs(t *testing.T) {
+// Every flag the bare form takes is declared once, on the verb it reaches: the
+// open-on set on each opening verb, the flags that call an action off on the
+// verbs that can run one.
+func TestTheOpenOnFlagsAreEachVerbs(t *testing.T) {
 	root := command(stubVersion, wired(), front{})
-	sw, _, err := root.Find([]string{"switch"})
-	if err != nil {
-		t.Fatalf("finding switch: %v", err)
-	}
-	for _, name := range []string{"claude", "shell", "no-claim"} {
-		if root.Flags().Lookup(name) != nil {
-			t.Errorf("--%s is still declared on the root", name)
+	for _, verb := range openingVerbs {
+		cmd, _, err := root.Find([]string{verb})
+		if err != nil {
+			t.Fatalf("finding %s: %v", verb, err)
 		}
-		if sw.Flags().Lookup(name) == nil {
-			t.Errorf("switch does not declare --%s", name)
+		for _, name := range []string{"claude", "shell", "no-claim"} {
+			if root.Flags().Lookup(name) != nil {
+				t.Errorf("--%s is still declared on the root", name)
+			}
+		}
+		for _, name := range []string{"claude", "shell"} {
+			if cmd.Flags().Lookup(name) == nil {
+				t.Errorf("%s does not declare --%s", verb, name)
+			}
+		}
+		if declares, creates := cmd.Flags().Lookup("no-claim") != nil, slices.Contains(creatingVerbs, verb); declares != creates {
+			t.Errorf("%s declares --no-claim: %v; want %v", verb, declares, creates)
 		}
 	}
 }
@@ -225,47 +282,55 @@ func TestOpenOnFlagsAreSwitchs(t *testing.T) {
 // A flag an action used to answer to is refused with the one it answers to now,
 // wherever the set is carried, and is offered by nothing.
 func TestTheRenamedFlagIsRefusedByItsNewName(t *testing.T) {
-	for _, args := range [][]string{{"bd-1", "--agent"}, {"switch", "--agent", "bd-1"}, {"add", "--agent", "scratch"}} {
+	for _, args := range [][]string{{"bd-1", "--agent"}, {"go", "--agent", "bd-1"}, {"switch", "--agent", "bd-1"}, {"add", "--agent", "scratch"}} {
 		err := execute(t, args, io.Discard, front{})
 		if err == nil || !strings.Contains(err.Error(), "--claude") {
 			t.Errorf("Execute(%q) = %v; want a refusal naming --claude", args, err)
 		}
 	}
-	sw, _, err := command(stubVersion, wired(), front{}).Find([]string{"switch"})
-	if err != nil {
-		t.Fatalf("finding switch: %v", err)
-	}
-	if flag := sw.Flags().Lookup("agent"); flag == nil || !flag.Hidden {
-		t.Errorf("--agent is %+v; want a hidden flag", flag)
+	root := command(stubVersion, wired(), front{})
+	for _, verb := range openingVerbs {
+		cmd, _, err := root.Find([]string{verb})
+		if err != nil {
+			t.Fatalf("finding %s: %v", verb, err)
+		}
+		if flag := cmd.Flags().Lookup("agent"); flag == nil || !flag.Hidden {
+			t.Errorf("%s's --agent is %+v; want a hidden flag", verb, flag)
+		}
 	}
 }
 
-// add is a verb of its own, so it takes the name in the argument position and
-// carries the open-on flags wherever those sit.
+// add takes the identifier in the argument position and carries the open-on
+// flags wherever those sit. Its argument is optional, the picker standing in.
 func TestAddFlags(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
-		want options
+		name   string
+		args   []string
+		want   options
+		target string
 	}{
-		{"a name of its own", []string{"add", "scratch"}, options{}},
-		{"named before the name", []string{"add", "--shell", "scratch"}, options{open: "shell"}},
-		{"named after the name", []string{"add", "scratch", "--shell"}, options{open: "shell"}},
-		{"handed to claude", []string{"add", "--claude", "scratch"}, options{open: "claude"}},
+		{"a name of its own", []string{"add", "scratch"}, options{}, "scratch"},
+		{"no identifier", []string{"add"}, options{}, ""},
+		{"named before the name", []string{"add", "--shell", "scratch"}, options{open: "shell"}, "scratch"},
+		{"named after the name", []string{"add", "scratch", "--shell"}, options{open: "shell"}, "scratch"},
+		{"handed to claude", []string{"add", "--claude", "scratch"}, options{open: "claude"}, "scratch"},
+		// A ticket add creates is claimed, so the flag that calls the claim off stands
+		// here too.
+		{"declining the claim", []string{"add", "--no-claim", "bd-1"}, options{skip: []string{"beads"}}, "bd-1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got options
-			var name string
-			err := execute(t, tt.args, io.Discard, front{add: func(o options, n string) (worktree.Handoff, error) {
-				got, name = o, n
+			var target string
+			err := execute(t, tt.args, io.Discard, front{add: func(o options, id string) (worktree.Handoff, error) {
+				got, target = o, id
 				return worktree.Handoff{}, nil
 			}})
 			if err != nil {
 				t.Fatalf("Execute(%q): %v", tt.args, err)
 			}
-			if !same(got, tt.want) || name != "scratch" {
-				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, name, tt.want, "scratch")
+			if !same(got, tt.want) || target != tt.target {
+				t.Errorf("Execute(%q) = %+v, %q; want %+v, %q", tt.args, got, target, tt.want, tt.target)
 			}
 		})
 	}
@@ -333,6 +398,36 @@ func TestMoveFlags(t *testing.T) {
 				t.Errorf("Execute(%q) = %q, %q; want %q, %q", tt.args, target, dest, tt.target, tt.dest)
 			}
 		})
+	}
+}
+
+// go names add for a name nothing answered for; the verbs that only act on a
+// worktree already open do not.
+func TestOnlyGoNamesAddForAnIdentifierNothingAnswersFor(t *testing.T) {
+	repo := testenv.InitRepo(t)
+	t.Chdir(repo)
+	env, err := work.Open(".", func(string, string, config.Config) work.Systems {
+		return work.Systems{Resolvers: []work.Resolver{last{}}}
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	if _, err := reach(env, options{}, "typo"); err == nil || !strings.Contains(err.Error(), "work add typo") {
+		t.Errorf("reach(typo) = %v; want it refused, naming the verb that makes a worktree of it", err)
+	}
+
+	acting := map[string]error{}
+	_, acting["remove"] = remove(env, false, "typo")
+	_, acting["move"] = move(env, "typo", "other")
+	_, acting["switch"] = enter(env, options{}, "typo")
+	for verb, err := range acting {
+		if err == nil || !strings.Contains(err.Error(), `nothing answers for "typo"`) {
+			t.Errorf("%s(typo) = %v; want it refused as a name nothing answers for", verb, err)
+		}
+		if strings.Contains(err.Error(), "work add") {
+			t.Errorf("%s(typo) = %v; want no invitation to create what it cannot act on", verb, err)
+		}
 	}
 }
 
@@ -632,15 +727,17 @@ func TestCommandRejects(t *testing.T) {
 		{"--ask is gone", []string{"bd-1", "--ask"}},
 		{"claude and a shell at once", []string{"bd-1", "--claude", "--shell"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
+		{"two identifiers on go", []string{"go", "bd-1", "bd-2"}},
+		{"two actions on go at once", []string{"go", "bd-1", "--shell", "--claude"}},
+		{"a verb's flag on go", []string{"go", "bd-1", "--force"}},
 		{"two identifiers on switch", []string{"switch", "bd-1", "bd-2"}},
 		{"two actions on switch at once", []string{"switch", "bd-1", "--shell", "--claude"}},
 		{"a verb's flag on switch", []string{"switch", "bd-1", "--force"}},
-		// Creating is a verb now, and the name it takes is not optional.
+		// switch only enters, so no action of its own ever runs to be called off.
+		{"declining a claim on switch", []string{"switch", "bd-1", "--no-claim"}},
+		// Creating is a verb now.
 		{"--create is gone", []string{"scratch", "--create"}},
-		{"add with no name", []string{"add"}},
 		{"adding two worktrees at once", []string{"add", "scratch", "other"}},
-		// add opens something but has no ticket, so it declines no claim.
-		{"declining a claim on add", []string{"add", "scratch", "--no-claim"}},
 		{"two actions on add at once", []string{"add", "scratch", "--shell", "--claude"}},
 		// Removing is a verb now, and --force went with it.
 		{"--delete is gone", []string{"scratch", "--delete"}},
@@ -652,7 +749,7 @@ func TestCommandRejects(t *testing.T) {
 		{"a name, a destination and a third word", []string{"move", "scratch", "settled", "over"}},
 		{"a root flag on move", []string{"move", "scratch", "--shell"}},
 		{"another verb's flag on move", []string{"move", "scratch", "--force"}},
-		// Listing takes no argument: a name to filter on is switch's.
+		// Listing takes no argument: a name to filter on is go's.
 		{"list with a name", []string{"list", "scratch"}},
 		{"a root flag on list", []string{"list", "--shell"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
@@ -736,6 +833,12 @@ func execute(t *testing.T, args []string, out io.Writer, f front) error {
 // rather than passing silently.
 func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f front) error {
 	t.Helper()
+	if f.reach == nil {
+		f.reach = func(options, string) (worktree.Handoff, error) {
+			t.Error("reached a place")
+			return worktree.Handoff{}, nil
+		}
+	}
 	if f.enter == nil {
 		f.enter = func(options, string) (worktree.Handoff, error) {
 			t.Error("entered a worktree")
@@ -771,6 +874,9 @@ func executeOn(t *testing.T, sys work.Systems, args []string, out io.Writer, f f
 	}
 	if f.worktrees == nil {
 		f.worktrees = stub(nil, nil)
+	}
+	if f.addable == nil {
+		f.addable = stub(nil, nil)
 	}
 	if f.branches == nil {
 		f.branches = func() ([]string, error) { t.Error("listed the branches"); return nil, nil }
@@ -850,10 +956,13 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	if _, err := (verbs{wire: wire("second")}).worktreeListing(); err != nil {
 		t.Fatalf("worktreeListing: %v", err)
 	}
-	if _, err := (verbs{wire: wire("third")}).branchListing(); err != nil {
+	if _, err := (verbs{wire: wire("third")}).addableListing(); err != nil {
+		t.Fatalf("addableListing: %v", err)
+	}
+	if _, err := (verbs{wire: wire("fourth")}).branchListing(); err != nil {
 		t.Fatalf("branchListing: %v", err)
 	}
-	if want := []string{"first", "second", "third"}; !slices.Equal(asked, want) {
+	if want := []string{"first", "second", "third", "fourth"}; !slices.Equal(asked, want) {
 		t.Errorf("the wirings asked were %q; want %q", asked, want)
 	}
 }
