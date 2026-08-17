@@ -60,7 +60,7 @@ No tracker is asked and no action runs. The main checkout cannot be moved, and n
 
 ### list
 
-`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached.
+`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached. A bare repository's row for itself is left out.
 
 ### init
 

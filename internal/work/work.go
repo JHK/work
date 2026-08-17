@@ -136,7 +136,6 @@ type Candidate struct {
 	by     Resolver
 	path   string // where that worktree sits
 	branch string // what it has checked out, empty when it is detached
-	bare   bool   // the row a bare repository lists for itself, which has no working tree
 }
 
 // Dir is what the worktree's directory is called, empty where the candidate has
@@ -204,7 +203,7 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 	if arg == "" {
 		return Candidate{}, errors.New("no target given")
 	}
-	open, err := e.reachable()
+	open, err := e.Worktrees()
 	if err != nil {
 		return Candidate{}, err
 	}
@@ -314,7 +313,7 @@ func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, err
 // the identifier with, else a name of the user's own. A place that already has a
 // worktree is refused.
 func (e Env) Add(id string) (Candidate, error) {
-	open, err := e.reachable()
+	open, err := e.Worktrees()
 	if err != nil {
 		return Candidate{}, err
 	}
@@ -352,8 +351,9 @@ func (e Env) Switchable(c Candidate) error {
 	return fmt.Errorf("%s has no worktree open; work add %s makes one", c.Name, c.Name)
 }
 
-// Worktrees is every worktree the repository has, in git's order, each under the
-// place the first resolver to answer for it says it stands for.
+// Worktrees is every worktree the repository has with a working tree to reach,
+// in git's order, each under the place the first resolver to answer for it says
+// it stands for.
 func (e Env) Worktrees() ([]Candidate, error) {
 	list, err := e.listing()
 	if err != nil {
@@ -365,36 +365,25 @@ func (e Env) Worktrees() ([]Candidate, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.bare = w.Bare
 		out = append(out, c)
 	}
 	return out, nil
 }
 
-// reachable is every worktree with a working tree to reach, which leaves out the
-// row a bare repository lists for itself.
-func (e Env) reachable() ([]Candidate, error) {
-	open, err := e.Worktrees()
-	if err != nil {
-		return nil, err
-	}
-	return slices.DeleteFunc(open, func(c Candidate) bool { return c.bare }), nil
-}
-
-// Enterable is what entering offers: every worktree reachable but the one the
-// shell already stands in.
+// Enterable is what entering offers: every worktree open but the one the shell
+// already stands in.
 func (e Env) Enterable() ([]Candidate, error) {
-	open, err := e.reachable()
+	open, err := e.Worktrees()
 	if err != nil {
 		return nil, err
 	}
 	return lessStoodIn(open, stoodIn(open)), nil
 }
 
-// Removable is what removing and moving offer: every worktree reachable but the
-// main checkout and the ones [Env.actOn] refuses.
+// Removable is what removing and moving offer: every worktree open but the main
+// checkout and the ones [Env.actOn] refuses.
 func (e Env) Removable() ([]Candidate, error) {
-	open, err := e.reachable()
+	open, err := e.Worktrees()
 	if err != nil {
 		return nil, err
 	}
@@ -402,13 +391,17 @@ func (e Env) Removable() ([]Candidate, error) {
 	return slices.DeleteFunc(open, func(c Candidate) bool { return e.mainCheckout(c) || holds(wd, c) }), nil
 }
 
-// listing is the worktrees git reports, and none at all where there is no
-// repository for git to report on.
+// listing is the worktrees git reports, less the row a bare repository lists for
+// itself, and none at all where there is no repository for git to report on.
 func (e Env) listing() ([]git.Worktree, error) {
 	if e.Repo == "" {
 		return nil, nil
 	}
-	return git.Worktrees(e.Repo)
+	list, err := git.Worktrees(e.Repo)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(list, func(w git.Worktree) bool { return w.Bare }), nil
 }
 
 // Branches is what the repository's worktrees have checked out, in git's order:
@@ -494,7 +487,7 @@ func (e Env) Candidates() ([]Candidate, []error, error) {
 	)
 	// No resolver reads another's answer.
 	var wg sync.WaitGroup
-	wg.Go(func() { open, err = e.reachable() })
+	wg.Go(func() { open, err = e.Worktrees() })
 	for i, r := range e.Systems.Resolvers {
 		wg.Go(func() { offers[i], refused[i] = r.Offer() })
 	}

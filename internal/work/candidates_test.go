@@ -881,8 +881,8 @@ func TestRemovableOffersWhatItsVerbAccepts(t *testing.T) {
 }
 
 // A bare repository lists a row for itself with no working tree behind it, which
-// is nothing for any verb to act on. Every listing a screen puts up leaves it
-// out, whatever git still reports.
+// is nothing for any verb to act on. The core drops it where it reads git, so
+// every listing is short of it without leaving it out again.
 func TestNoListingOffersTheRowABareRepositoryListsForItself(t *testing.T) {
 	src := testenv.InitRepo(t)
 	dir := t.TempDir()
@@ -893,14 +893,21 @@ func TestNoListingOffersTheRowABareRepositoryListsForItself(t *testing.T) {
 	e, _ := bare(t, repo)
 	standingIn(t, dir)
 
-	// git reports it, so the screens are what leave it out rather than the listing
-	// the core reads.
 	open, err := e.Worktrees()
 	if err != nil {
 		t.Fatalf("Worktrees: %v", err)
 	}
-	if want := []string{"one", "repo.git"}; !slices.Equal(sorted(open), want) {
-		t.Fatalf("Worktrees() = %q; want %q, git's own answer", sorted(open), want)
+	if want := []string{"one"}; !slices.Equal(sorted(open), want) {
+		t.Fatalf("Worktrees() = %q; want %q, a bare repository being no worktree to reach", sorted(open), want)
+	}
+
+	// work list reads the same listing, so it prints the worktrees there are alone.
+	branches, err := e.Branches()
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	if want := []string{"one"}; !slices.Equal(branches, want) {
+		t.Errorf("Branches() = %q; want %q", branches, want)
 	}
 
 	got := listings(t, e)
