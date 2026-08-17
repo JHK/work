@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
@@ -43,6 +44,9 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 			return worktree.Handoff{}, err
 		}
 		t.Path, t.Created = e.path(t.Name), true
+		if err := git.Vacant(t.Path); err != nil {
+			return worktree.Handoff{}, err
+		}
 		if err := c.by.Create(t.Place, t.Path); err != nil {
 			return worktree.Handoff{}, err
 		}

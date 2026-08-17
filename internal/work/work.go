@@ -156,14 +156,17 @@ func (c Candidate) Dir() string {
 }
 
 // actOn is why a verb may not act on the worktree a candidate has: there is
-// none, or the process stands inside the one git is about to move or take away,
-// which would leave the shell in a directory that is gone.
+// none, it is the repository itself, or the process stands inside the one git is
+// about to move or take away, which would leave the shell in a directory that is
+// gone.
 func (e Env) actOn(c Candidate, verb string) error {
 	if !c.Open {
 		return fmt.Errorf("%s has no worktree to %s", c.Name, verb)
 	}
-	// Never the main checkout: git refuses that outright, standing in it or not.
-	if !e.mainCheckout(c) && e.holds(c) {
+	if e.mainCheckout(c) {
+		return fmt.Errorf("%s is the main checkout; work %s acts on a worktree under it", c.Name, verb)
+	}
+	if e.holds(c) {
 		return fmt.Errorf("%s is the worktree you are standing in; run work %s from outside it", c.Name, verb)
 	}
 	return nil
@@ -379,14 +382,14 @@ func (e Env) Enterable() ([]Candidate, error) {
 	return lessStoodIn(open, e.stoodIn(open)), nil
 }
 
-// Removable is what removing and moving offer: every worktree open but the main
-// checkout and the ones [Env.actOn] refuses.
+// Removable is what removing and moving offer: every worktree open that
+// [Env.actOn] does not refuse, so the listing and the refusal are one rule.
 func (e Env) Removable() ([]Candidate, error) {
 	open, err := e.Worktrees()
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(open, func(c Candidate) bool { return e.mainCheckout(c) || e.holds(c) }), nil
+	return slices.DeleteFunc(open, func(c Candidate) bool { return e.actOn(c, "remove") != nil }), nil
 }
 
 // listing is the worktrees git reports, less the row a bare repository lists for

@@ -27,12 +27,26 @@ var (
 // A tool the machine does not have is out for the rest of the run: the first
 // question to it fails and every later one fails with it, unasked.
 func Output(dir, bin string, args ...string) (string, error) {
+	return output(dir, false, bin, args...)
+}
+
+// InEnglish runs bin the way [Output] does, with the tool's own messages left
+// untranslated, for a caller that reads what came back rather than only handing
+// it on.
+func InEnglish(dir, bin string, args ...string) (string, error) {
+	return output(dir, true, bin, args...)
+}
+
+func output(dir string, english bool, bin string, args ...string) (string, error) {
 	if _, missing := gone.Load(bin); missing {
 		return "", absent(asked(bin, args...), bin)
 	}
 
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = dir
+	if english {
+		cmd.Env = append(os.Environ(), "LC_ALL=C")
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

@@ -780,6 +780,31 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 	}
 }
 
+// Outside a repository nothing is wired and the refusal is work's own: git names
+// the question it was put and every directory it walked, which is the first
+// thing a new user would meet.
+func TestOpenOutsideARepository(t *testing.T) {
+	wired := false
+	_, err := Open(t.TempDir(), func(string, string, config.Config) Systems {
+		wired = true
+		return Systems{}
+	})
+	if err == nil || !strings.Contains(err.Error(), "no git repository") || namesGit(err) {
+		t.Errorf("Open = %v; want work's own refusal, naming no git command", err)
+	}
+	if wired {
+		t.Error("the systems were wired outside a repository")
+	}
+
+	// git translates that answer, and the refusal is read apart from it. A machine
+	// without the locale installed answers in English anyway, which still passes.
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+	if _, err := Open(t.TempDir(), func(string, string, config.Config) Systems { return Systems{} }); err == nil ||
+		!strings.Contains(err.Error(), "no git repository") || namesGit(err) {
+		t.Errorf("Open under a translated git = %v; want the same refusal", err)
+	}
+}
+
 // A reader's listing is git's own answer: the branch each worktree has checked
 // out, the main checkout first among them, and a detached one under its
 // directory, which is the name it goes by wherever it has no branch to go by.
@@ -850,8 +875,7 @@ func TestEachListingOffersWhatItsVerbCanActOn(t *testing.T) {
 
 // The rows removing and moving offer are the rows those verbs accept, the
 // listing and the refusal being one rule. A worktree nested in another goes
-// with the tree above it, which standing in the nested one leaves out too, and
-// only the main checkout is left out without being refused.
+// with the tree above it, which standing in the nested one leaves out too.
 func TestRemovableOffersWhatItsVerbAccepts(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	one := filepath.Join(repo, defaultDir, "one")
@@ -874,7 +898,7 @@ func TestRemovableOffersWhatItsVerbAccepts(t *testing.T) {
 	}
 	for _, c := range open {
 		left, refused := !slices.Contains(names(offered), c.Name), e.Movable(c) != nil
-		if left != refused && !e.mainCheckout(c) {
+		if left != refused {
 			t.Errorf("Removable left %q out: %v; the verb refuses it: %v", c.Name, left, refused)
 		}
 	}

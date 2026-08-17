@@ -125,16 +125,17 @@ func TestMoveRefusesAnOccupiedDestination(t *testing.T) {
 	tests := []struct {
 		name, dest, want string
 	}{
-		{"a directory already there", "occupied", "occupied already exists"},
+		{"a directory already there", "occupied", "occupied is already there"},
 		{"a branch already there", "spoken-for", "branch spoken-for already exists"},
-		{"where it already sits", "scratch", "already exists"},
+		{"where it already sits", "scratch", "is where scratch already sits"},
 		{"a name no worktree could be made for", "..", "not a usable worktree name"},
 		{"nothing at all", "", "no destination given"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := e.Move(c, tt.dest); err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("Move(%q) = %v; want a refusal naming %q", tt.dest, err, tt.want)
+			_, err := e.Move(c, tt.dest)
+			if err == nil || !strings.Contains(err.Error(), tt.want) || namesGit(err) {
+				t.Fatalf("Move(%q) = %v; want a refusal naming %q and no git command", tt.dest, err, tt.want)
 			}
 			if _, err := os.Stat(c.path); err != nil {
 				t.Errorf("the worktree moved despite the refusal: %v", err)
@@ -146,9 +147,10 @@ func TestMoveRefusesAnOccupiedDestination(t *testing.T) {
 	}
 }
 
-// Moving the main checkout is git's to refuse, and the refusal has to survive
-// being asked for from inside a worktree that sits under it.
-func TestGitRefusesToMoveTheMainCheckout(t *testing.T) {
+// Moving the main checkout is work's own to refuse, in one line naming no git
+// command, and the refusal has to survive being asked for from inside a worktree
+// that sits under it.
+func TestMoveRefusesTheMainCheckout(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	testenv.Git(t, repo, "branch", "--move", "trunk")
 	e, _ := bare(t, repo)
@@ -159,9 +161,12 @@ func TestGitRefusesToMoveTheMainCheckout(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 	e.Dir = filepath.Join(repo, defaultDir, "scratch")
-	if _, err := e.Move(c, filepath.Join(t.TempDir(), "elsewhere")); err == nil ||
-		!strings.Contains(err.Error(), "main working tree") {
-		t.Fatalf("Move = %v; want git's own refusal", err)
+	// Asked ahead of the destination, and asked again by the move itself.
+	_, moving := e.Move(c, filepath.Join(t.TempDir(), "elsewhere"))
+	for _, refusal := range []error{e.Movable(c), moving} {
+		if refusal == nil || !strings.Contains(refusal.Error(), "main checkout") || namesGit(refusal) {
+			t.Fatalf("Move refused with %v; want the main checkout named and no git command", refusal)
+		}
 	}
 	if head := testenv.Git(t, repo, "rev-parse", "--abbrev-ref", "HEAD"); head != "trunk" {
 		t.Errorf("the main checkout is on %q; want it left standing on trunk", head)

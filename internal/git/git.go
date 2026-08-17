@@ -3,6 +3,7 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,12 @@ import (
 func Root(dir string) (string, error) {
 	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel")
 	if err != nil {
-		return "", err
+		// Only a directory with no repository is work's own; a git that cannot read
+		// the one that is there keeps its own words, which name the way out.
+		if !strings.Contains(err.Error(), "not a git repository") {
+			return "", err
+		}
+		return "", errors.New("no git repository here")
 	}
 	gitDir, rest, _ := strings.Cut(out, "\n")
 	commonDir, toplevel, _ := strings.Cut(rest, "\n")
@@ -123,12 +129,21 @@ func NewWorktree(from, path, branch string) error {
 	return add(from, path, "-b", branch)
 }
 
+// Vacant refuses a path something already sits at, a worktree needing the whole
+// directory to itself.
+func Vacant(path string) error {
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("%s is already there; take that directory away first", path)
+	}
+	return nil
+}
+
 // MoveWorktree moves a worktree's directory and registers it where it landed.
 // git nests the worktree inside a destination already there rather than refusing
-// it, so that refusal is this adapter's. The main checkout is git's to refuse.
+// it, so that refusal is this adapter's.
 func MoveWorktree(repo, from, to string) error {
-	if _, err := os.Lstat(to); err == nil {
-		return fmt.Errorf("%s already exists", to)
+	if err := Vacant(to); err != nil {
+		return err
 	}
 	if err := mkParent(to); err != nil {
 		return err
@@ -142,6 +157,13 @@ func MoveWorktree(repo, from, to string) error {
 func RenameBranch(repo, from, to string) error {
 	_, err := git(repo, "branch", "--move", from, to)
 	return err
+}
+
+// Dirty reports whether a worktree carries modified or untracked files, asked as
+// git's own removal asks it. One it cannot read counts as clean.
+func Dirty(path string) bool {
+	out, err := git(path, "status", "--porcelain", "--ignore-submodules=none")
+	return err == nil && out != ""
 }
 
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
@@ -178,6 +200,8 @@ func mkParent(path string) error {
 	return os.MkdirAll(filepath.Dir(path), 0o755)
 }
 
+// git asks in English, git translating its refusals and this adapter reading
+// them apart.
 func git(dir string, args ...string) (string, error) {
-	return run.Output(dir, "git", args...)
+	return run.InEnglish(dir, "git", args...)
 }

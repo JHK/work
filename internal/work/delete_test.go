@@ -89,9 +89,10 @@ func TestDeleteADetachedWorktreeTakesNoBranch(t *testing.T) {
 	}
 }
 
-// A dirty worktree is git's to refuse, and it refuses it before touching
-// anything, so nothing is half deleted. --force takes it and its branch.
-func TestGitRefusesADirtyWorktree(t *testing.T) {
+// A worktree carrying changes is work's own to refuse, ahead of git and in one
+// line naming --force rather than the command git was handed. Nothing is half
+// deleted, and --force takes it and its branch.
+func TestDeleteRefusesAWorktreeCarryingChanges(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	path := filepath.Join(repo, defaultDir, "scratch")
 	testenv.Git(t, repo, "worktree", "add", "-b", "scratch", path)
@@ -104,9 +105,8 @@ func TestGitRefusesADirtyWorktree(t *testing.T) {
 	}
 
 	_, err = e.Delete(c, false)
-	if err == nil || !strings.Contains(err.Error(), "modified or untracked files") ||
-		!strings.Contains(err.Error(), "--force") {
-		t.Fatalf("Delete = %v; want git's refusal, naming --force", err)
+	if err == nil || !strings.Contains(err.Error(), "--force") || namesGit(err) {
+		t.Fatalf("Delete = %v; want work's own refusal, naming --force and no git command", err)
 	}
 	// Refused before anything went, so neither half of it happened.
 	if _, err := os.Stat(path); err != nil {
@@ -146,10 +146,10 @@ func TestDeleteRefusesTheWorktreeStoodIn(t *testing.T) {
 
 	for _, dir := range []string{path, filepath.Join(path, "within"), nested} {
 		e.Dir = standingIn(t, dir)
-		// --force is git's override, not a way past this one.
+		// --force takes an unclean worktree; it is no way past this one.
 		for _, force := range []bool{false, true} {
 			_, err := e.Delete(c, force)
-			if err == nil || !strings.Contains(err.Error(), "standing in") {
+			if err == nil || !strings.Contains(err.Error(), "standing in") || namesGit(err) {
 				t.Errorf("Delete(force %v) from %q = %v; want it refused", force, dir, err)
 			}
 		}
@@ -170,10 +170,10 @@ func TestDeleteWithoutAWorktree(t *testing.T) {
 	}
 }
 
-// Removing the main checkout is git's to refuse, and it refuses it with or
-// without --force. Every worktree sits under the main checkout, so the refusal
-// has to survive being asked for from inside one.
-func TestGitRefusesToRemoveTheMainCheckout(t *testing.T) {
+// Removing the main checkout is work's own to refuse, with or without --force
+// and in one line naming no git command. Every worktree sits under the main
+// checkout, so the refusal has to survive being asked for from inside one.
+func TestDeleteRefusesTheMainCheckout(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	testenv.Git(t, repo, "branch", "--move", "trunk")
 	path := filepath.Join(repo, defaultDir, "scratch")
@@ -184,13 +184,14 @@ func TestGitRefusesToRemoveTheMainCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	// From the main checkout and from a worktree under it alike: the refusal is
-	// git's, never work's own rule about the worktree stood in.
+	// From the main checkout and from a worktree under it alike: the refusal names
+	// the main checkout, never work's own rule about the worktree stood in.
 	for _, dir := range []string{repo, path} {
 		e.Dir = dir
 		for _, force := range []bool{false, true} {
-			if _, err := e.Delete(c, force); err == nil || !strings.Contains(err.Error(), "main working tree") {
-				t.Fatalf("Delete(force=%v) from %q = %v; want git's own refusal", force, dir, err)
+			_, err := e.Delete(c, force)
+			if err == nil || !strings.Contains(err.Error(), "main checkout") || namesGit(err) {
+				t.Fatalf("Delete(force=%v) from %q = %v; want the main checkout named and no git command", force, dir, err)
 			}
 		}
 	}

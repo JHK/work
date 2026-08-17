@@ -14,11 +14,15 @@ type Deletion struct {
 }
 
 // Delete removes a worktree and the branch it had checked out. No ticket is
-// touched, no tracker asked and no action run. The worktree is git's to refuse,
-// and where it is not refused the branch goes with it.
+// touched, no tracker asked and no action run. A worktree carrying changes is
+// refused without force, and where the removal is not refused the branch goes
+// with it.
 func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
 	if err := e.actOn(c, "remove"); err != nil {
 		return Deletion{}, err
+	}
+	if !force && git.Dirty(c.path) {
+		return Deletion{}, fmt.Errorf("%s carries changes; take it and them with work remove --force %s", c.Name, c.Name)
 	}
 	if err := git.RemoveWorktree(e.Repo, c.path, force); err != nil {
 		return Deletion{}, err

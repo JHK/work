@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -238,6 +239,30 @@ func TestANameThePreparationChangedIsHeldToTheSameRule(t *testing.T) {
 	}
 	if !slices.Equal(s.seen, []string{"prepare"}) {
 		t.Errorf("a name no worktree could carry left %q behind; want the preparation alone", s.seen)
+	}
+}
+
+// A directory already sitting where the worktree would go is the core's to
+// refuse: it names that directory in one line, and no resolver is asked to
+// create anything over it.
+func TestADirectoryAlreadyWhereTheWorktreeGoesIsRefused(t *testing.T) {
+	var s steps
+	e, _ := env(t, &s, &opener{steps: &s, name: "far"})
+	path := filepath.Join(e.Repo, defaultDir, "x")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	c, err := e.Resolve("x")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	_, err = e.Enter(c, Options{})
+	if err == nil || !strings.Contains(err.Error(), path) || namesGit(err) {
+		t.Fatalf("Enter = %v; want %q named and no git command", err, path)
+	}
+	if !slices.Equal(s.seen, []string{"prepare"}) {
+		t.Errorf("the sequence ran %q; want the preparation alone", s.seen)
 	}
 }
 

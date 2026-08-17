@@ -38,7 +38,7 @@ func TestDumpFromALinkedWorktree(t *testing.T) {
 }
 
 // A repository is what the layers are read against, so where git names none
-// there is nothing to dump and the refusal is git's own.
+// there is nothing to dump.
 func TestDumpWithNoRepository(t *testing.T) {
 	got, err := Dump(t.TempDir())
 	if err == nil {

@@ -26,11 +26,19 @@ func (e Env) Movable(c Candidate) error { return e.actOn(c, "move") }
 
 // Move moves a worktree's directory and renames its branch to the destination's
 // last element. No ticket is touched, no tracker asked and no action run. Both
-// halves land or neither does. The candidate is [Env.Movable]'s to vet.
+// halves land or neither does. A candidate [Env.Movable] refuses is refused here
+// too, a front end asking ahead of the destination being what that is for.
 func (e Env) Move(c Candidate, dest string) (Move, error) {
+	if err := e.Movable(c); err != nil {
+		return Move{}, err
+	}
 	to, err := e.destination(c.path, dest)
 	if err != nil {
 		return Move{}, err
+	}
+	// Ahead of the vacancy check, whose way out is to take the directory away.
+	if git.SameDir(to, c.path) {
+		return Move{}, fmt.Errorf("%s is where %s already sits", to, c.Name)
 	}
 	m := Move{From: c.path, To: to, Was: c.branch}
 	if c.branch != "" {

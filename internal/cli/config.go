@@ -42,7 +42,7 @@ repository's .work.toml.
 Templates print as they are written; rendering one needs a target.
 
 A repository is what the layers are read against, so outside one there is nothing
-to print and the refusal is git's.`,
+to print.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return run(cmd.OutOrStdout())
