@@ -172,6 +172,32 @@ func Dirty(path string) bool {
 	return err == nil && out != ""
 }
 
+// Stash saves the working state of the checkout at dir, untracked files in and
+// ignored files left where they are, and says whether there was any to save.
+func Stash(dir string) (bool, error) {
+	before := stashed(dir)
+	if _, err := git(dir, "stash", "push", "--include-untracked"); err != nil {
+		return false, err
+	}
+	return stashed(dir) != before, nil
+}
+
+// Unstash pops the repository's topmost stash entry into the checkout at dir,
+// staged staying staged. One that will not apply keeps it, dir part-written.
+func Unstash(dir string) error {
+	_, err := git(dir, "stash", "pop", "--index")
+	return err
+}
+
+// stashed is what refs/stash points at, empty where there is no entry.
+func stashed(dir string) string {
+	out, err := git(dir, "rev-parse", "--verify", "--quiet", "refs/stash")
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
 // one with modified or untracked files unless force, and the main checkout
 // either way.

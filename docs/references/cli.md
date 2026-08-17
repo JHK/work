@@ -36,6 +36,8 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 `work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
 
+The working state moves with it: the invoking checkout is left clean and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put. Changes that do not apply cleanly stay in the stash.
+
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 
 With no identifier, [the picker](#the-picker) stands in for one.

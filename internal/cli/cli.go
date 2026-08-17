@@ -20,11 +20,12 @@ import (
 // without a message: nothing happened, and nothing went wrong.
 var errCancelled = errors.New("cancelled")
 
-// options are what the flags settled, in the names the systems go by: which
-// action the worktree opens on, and which of the others were declined.
+// options are what the flags settled and the verb added, in the names the
+// systems go by: which action the worktree opens on, and which were declined.
 type options struct {
 	open string
 	skip []string
+	park bool // the checkout's working state moves into the worktree add makes
 }
 
 // The shape each verb takes once the flags are read: an opening verb hands a

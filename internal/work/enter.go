@@ -14,6 +14,7 @@ import (
 type Options struct {
 	Open string   // the action the worktree opens on, empty for the moment's own key
 	Skip []string // actions not to run, under the names they go by
+	Park bool     // the invoking checkout's working state moves into a worktree just made
 }
 
 // Enter takes a place to work through to the handoff, preparing, creating and
@@ -50,6 +51,12 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		if err := c.by.Create(t.Place, t.Path); err != nil {
 			return worktree.Handoff{}, err
 		}
+		// After the creation, so nothing is stashed for a worktree that never came to be.
+		if o.Park {
+			if err := e.park(t.Path); err != nil {
+				return worktree.Handoff{}, err
+			}
+		}
 	}
 
 	// A worktree that was already there runs none of them.
@@ -67,6 +74,25 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	// Past the creation and the actions, so the resolver is asked of a worktree that
 	// exists.
 	return opener.Open(t, e.values(t))
+}
+
+// park moves the working state of the checkout work was invoked in into the
+// worktree at to. One git reports nothing of has nothing to move.
+func (e Env) park(to string) error {
+	if e.Dir == "" || !git.Dirty(e.Dir) {
+		return nil
+	}
+	saved, err := git.Stash(e.Dir)
+	if err != nil {
+		return fmt.Errorf("%w; the worktree at %s is made, and the changes are where they were", err, to)
+	}
+	if !saved {
+		return nil
+	}
+	if err := git.Unstash(to); err != nil {
+		return fmt.Errorf("%w; the changes are stashed and %s carries part of them already: put that right, then git stash drop", err, to)
+	}
+	return nil
 }
 
 // named is the action a flag or the moment's own key named: action.create for a

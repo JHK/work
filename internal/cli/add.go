@@ -20,6 +20,10 @@ a name no system answers for becomes a branch spelled exactly as it is.
 An identifier that already has a worktree is refused, work switch being what
 enters one.
 
+A checkout carrying changes hands them over: it is left clean on the branch it
+was already on, and the new worktree carries them, what was staged still staged.
+Untracked files travel; ignored files stay put.
+
 With no identifier, choose among the repository's ready tickets and open pull
 requests that have no worktree yet. That form needs fzf.
 
@@ -27,11 +31,13 @@ The worktree opens on what action.create names.`,
 	}, sys, sys.Actions, verb)
 }
 
-// add makes the worktree the identifier asks for and says what it opens on.
+// add makes the worktree the identifier asks for and says what it opens on,
+// carrying what the checkout was working on into it.
 func add(env work.Env, l listing, o options, id string) (worktree.Handoff, error) {
 	c, err := offered(env, l, id, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
+	o.park = true
 	return open(env, o, c)
 }

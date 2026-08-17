@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -976,5 +977,58 @@ func TestEachCallCarriesItsOwnWiring(t *testing.T) {
 	}
 	if !slices.Equal(asked, want) {
 		t.Errorf("the wirings asked were %q; want %q", asked, want)
+	}
+}
+
+// making is a resolver whose creation is git's own: what a verb leaves the
+// checkout carrying is read against a worktree that really exists.
+type making struct {
+	anything
+	repo string
+}
+
+func (m making) Create(p worktree.Place, path string) error {
+	return git.NewWorktree(m.repo, path, p.Branch)
+}
+
+// carrying is a repository the shell stands in with work in hand, and the front
+// over it: git makes the worktrees, and the shell is what one opens on.
+func carrying(t *testing.T) (string, front) {
+	t.Helper()
+	repo := testenv.InitRepo(t)
+	testenv.Write(t, filepath.Join(repo, ".gitignore"), config.Default().Worktree.Dir()+"/\n")
+	testenv.Git(t, repo, "add", ".gitignore")
+	testenv.Git(t, repo, "commit", "-m", "ignore the worktrees")
+	testenv.Write(t, filepath.Join(repo, "wip"), "in hand")
+	t.Chdir(repo)
+
+	sys := work.Systems{
+		Resolvers: []work.Resolver{making{repo: repo}},
+		Openers:   []work.Opener{opener{string(config.ActionShell)}},
+	}
+	return repo, fronting(verbs{wire: func(string, string, config.Config) work.Systems { return sys }})
+}
+
+// Parking is the verb's and not the creation's: work add carries the checkout's
+// work into the worktree it makes, and work go creating one leaves it in hand.
+func TestOnlyAddParksWhatTheCheckoutWasCarrying(t *testing.T) {
+	repo, f := carrying(t)
+	if _, err := f.add.run(options{}, "parked"); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if left := testenv.Git(t, repo, "status", "--porcelain"); left != "" {
+		t.Errorf("add left the checkout carrying %q; want it clean", left)
+	}
+	made := filepath.Join(repo, config.Default().Worktree.Dir(), "parked")
+	if got := testenv.Git(t, made, "status", "--porcelain"); got != "?? wip" {
+		t.Errorf("the worktree add made carries %q; want the work that was in hand", got)
+	}
+
+	repo, f = carrying(t)
+	if _, err := f.reach.run(options{}, "reached"); err != nil {
+		t.Fatalf("go: %v", err)
+	}
+	if got := testenv.Git(t, repo, "status", "--porcelain"); got != "?? wip" {
+		t.Errorf("go left the checkout carrying %q; want the work still in hand", got)
 	}
 }
