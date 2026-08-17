@@ -15,7 +15,7 @@ import (
 // changes into it, and a shell without one reads it off stdout.
 func TestHandAnswersWithTheWorktree(t *testing.T) {
 	var out strings.Builder
-	if err := hand(worktree.Handoff{Dir: "/repo/.worktrees/bd-1"}, &out); err != nil {
+	if err := hand(worktree.Handoff{Dir: "/repo/.worktrees/bd-1"}, &out, io.Discard); err != nil {
 		t.Fatalf("hand: %v", err)
 	}
 	if !strings.Contains(out.String(), "/repo/.worktrees/bd-1") {
@@ -31,7 +31,7 @@ func TestHandForgetsTheFileBeforeTheCommandRuns(t *testing.T) {
 	// A command nothing can find refuses before the exec, leaving the test its own
 	// process to look at.
 	h := worktree.Handoff{Dir: t.TempDir(), Run: []string{"work-cli-nothing-goes-by-this"}}
-	if err := hand(h, io.Discard); err == nil {
+	if err := hand(h, io.Discard, io.Discard); err == nil {
 		t.Fatal("hand ran a command that is not there; want the refusal")
 	}
 	if file := os.Getenv(shim.CDFile); file != "" {

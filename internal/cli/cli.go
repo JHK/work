@@ -161,7 +161,7 @@ func opening(help *cobra.Command, sys work.Systems, declines []work.Action, run 
 		if err != nil {
 			return err
 		}
-		return hand(h, cmd.OutOrStdout())
+		return hand(h, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	}
 	openOn(help, &o, sys.Openers)
 	decline(help, &o, declines)

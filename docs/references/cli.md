@@ -154,7 +154,7 @@ Both sets are the same in every repository, being settled before there is one to
 
 `work` changes into the worktree and execs the command it opens on, so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
 
-The `shell` action hands the worktree back instead: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one.
+The `shell` action hands the worktree back instead: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that the integration is not sourced; the invocation still exits 0.
 
 A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
 

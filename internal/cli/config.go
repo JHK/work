@@ -90,5 +90,6 @@ func edit(out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return hand(h, out)
+	// The editor always takes the terminal, so nothing is ever handed back to advise on.
+	return hand(h, out, io.Discard)
 }

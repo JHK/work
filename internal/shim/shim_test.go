@@ -1,6 +1,7 @@
 package shim
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,7 +23,7 @@ func TestAnswerWritesTheFileTheShimNamed(t *testing.T) {
 	t.Setenv(CDFile, file)
 
 	var out strings.Builder
-	if err := Answer("/repo/.worktrees/bd-1", &out); err != nil {
+	if err := Answer("/repo/.worktrees/bd-1", &out, io.Discard); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	got, err := os.ReadFile(file)
@@ -42,12 +43,102 @@ func TestAnswerWritesTheFileTheShimNamed(t *testing.T) {
 func TestAnswerPrintsWhereNothingNamedAFile(t *testing.T) {
 	t.Setenv(CDFile, "")
 
-	var out strings.Builder
-	if err := Answer("/repo/.worktrees/bd-1", &out); err != nil {
+	var out, note strings.Builder
+	if err := Answer("/repo/.worktrees/bd-1", &out, &note); err != nil {
 		t.Fatalf("Answer: %v", err)
 	}
 	if want := "/repo/.worktrees/bd-1\n"; out.String() != want {
 		t.Errorf("Answer printed %q; want %q", out.String(), want)
+	}
+	if note.String() != "" {
+		t.Errorf("Answer said %q of the integration; want nothing off a terminal", note.String())
+	}
+}
+
+// device hands back a terminal to read the path off, the case skipped where the
+// machine opens none.
+func device(t *testing.T) *os.File {
+	t.Helper()
+	f, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	if err != nil {
+		t.Skipf("no pseudo-terminal to open: %v", err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	return f
+}
+
+// A terminal reading the path is a shell that never sourced the function, which
+// is the one install step nothing else says was skipped.
+func TestAnswerTellsATerminalTheIntegrationIsMissing(t *testing.T) {
+	t.Setenv(CDFile, "")
+
+	var note strings.Builder
+	if err := Answer("/repo/.worktrees/bd-1", device(t), &note); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if !strings.Contains(note.String(), "work init") {
+		t.Errorf("Answer said %q of the integration; want work init named", note.String())
+	}
+	if lines := strings.Count(note.String(), "\n"); lines != 1 {
+		t.Errorf("Answer said %d line(s); want the one", lines)
+	}
+}
+
+// The shell that sourced the function is the one this is installed for, so it
+// hears nothing of installing it.
+func TestAnswerSaysNothingWhereTheShimNamedAFile(t *testing.T) {
+	t.Setenv(CDFile, filepath.Join(t.TempDir(), "answer"))
+
+	var note strings.Builder
+	if err := Answer("/repo/.worktrees/bd-1", device(t), &note); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if note.String() != "" {
+		t.Errorf("Answer said %q of the integration; want nothing", note.String())
+	}
+}
+
+// A pipe reading the path is a program, not a person to advise.
+func TestAnswerSaysNothingIntoAPipe(t *testing.T) {
+	t.Setenv(CDFile, "")
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	defer func() { _, _ = r.Close(), w.Close() }()
+
+	var note strings.Builder
+	if err := Answer("/repo/.worktrees/bd-1", w, &note); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if note.String() != "" {
+		t.Errorf("Answer said %q of the integration; want nothing down a pipe", note.String())
+	}
+	got := make([]byte, len("/repo/.worktrees/bd-1\n"))
+	if _, err := io.ReadFull(r, got); err != nil {
+		t.Fatalf("read the pipe: %v", err)
+	}
+	if want := "/repo/.worktrees/bd-1\n"; string(got) != want {
+		t.Errorf("the pipe carried %q; want %q", got, want)
+	}
+}
+
+// A discarded path is a script's redirect, not a person's: a device is no more a
+// terminal here than the pipe is.
+func TestAnswerSaysNothingIntoADiscardedPath(t *testing.T) {
+	t.Setenv(CDFile, "")
+	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("open %s: %v", os.DevNull, err)
+	}
+	defer func() { _ = null.Close() }()
+
+	var note strings.Builder
+	if err := Answer("/repo/.worktrees/bd-1", null, &note); err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+	if note.String() != "" {
+		t.Errorf("Answer said %q of the integration; want nothing into %s", note.String(), os.DevNull)
 	}
 }
 
@@ -57,7 +148,7 @@ func TestAnswerRefusesAFileItCannotWrite(t *testing.T) {
 	t.Setenv(CDFile, filepath.Join(t.TempDir(), "nowhere", "answer"))
 
 	var out strings.Builder
-	if err := Answer("/repo/.worktrees/bd-1", &out); err == nil {
+	if err := Answer("/repo/.worktrees/bd-1", &out, io.Discard); err == nil {
 		t.Error("Answer into a file that cannot be written: want a refusal")
 	}
 }
