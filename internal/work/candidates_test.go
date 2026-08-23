@@ -719,11 +719,12 @@ func TestWorktreeDiscovery(t *testing.T) {
 // under an earlier value is still found and entered where it sits.
 func TestConfiguredWorktreeDirectory(t *testing.T) {
 	repo := testenv.InitRepo(t)
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), "[worktree]\ndirectory = \"trees\"\n")
 
 	var s steps
 	r := &resolver{steps: &s, name: "bare", bare: true, branch: "one-abc"}
-	e, err := Open(repo, func(string, string, config.Config) Systems {
+	cfg := config.Default()
+	cfg.Worktree.Directory = "trees"
+	e, err := Open(repo, cfg, func(string, string, config.Config) Systems {
 		return Systems{Resolvers: []Resolver{r}, Named: r, Openers: []Opener{&opener{steps: &s, name: "far"}}}
 	})
 	if err != nil {
@@ -756,6 +757,69 @@ func TestConfiguredWorktreeDirectory(t *testing.T) {
 	}
 }
 
+// The setting is a path, and a symlink standing where it names is not: a
+// worktree directory leading out of the repository is refused before anything is
+// created, the compiled-in default included.
+func TestAWorktreeDirectoryLeadingOutOfTheRepositoryIsRefused(t *testing.T) {
+	repo, outside := testenv.InitRepo(t), t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(repo, config.Default().Worktree.Dir())); err != nil {
+		t.Fatal(err)
+	}
+
+	var s steps
+	r := &resolver{steps: &s, name: "bare", bare: true, branch: "one-abc"}
+	e, err := Open(repo, config.Default(), func(string, string, config.Config) Systems {
+		return Systems{Resolvers: []Resolver{r}, Named: r, Openers: []Opener{&opener{steps: &s, name: "far"}}}
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	e.Config.Action = config.Action{CreateName: "far", EnterName: "far"}
+
+	c, err := e.Resolve("one-abc")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if _, err := e.Enter(c, Options{}); err == nil || !strings.Contains(err.Error(), "resolves outside the repository") {
+		t.Fatalf("Enter = %v; want the directory refused for leading out of the repository", err)
+	}
+	if r.created != "" {
+		t.Errorf("a worktree was created at %q; want nothing outside the repository", r.created)
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) > 0 {
+		t.Errorf("%q holds %d entries; want work to have written outside the repository at all", outside, len(entries))
+	}
+}
+
+// A repository reached through a symlink is still its own containing directory.
+func TestASymlinkedRepositoryContainsItsOwnWorktrees(t *testing.T) {
+	real, link := testenv.InitRepo(t), filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(real, config.Default().Worktree.Dir()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var s steps
+	r := &resolver{steps: &s, name: "bare", bare: true, branch: "one-abc"}
+	e, err := Open(link, config.Default(), func(string, string, config.Config) Systems {
+		return Systems{Resolvers: []Resolver{r}, Named: r, Openers: []Opener{&opener{steps: &s, name: "far"}}}
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	e.Config.Action = config.Action{CreateName: "far", EnterName: "far"}
+
+	c, err := e.Resolve("one-abc")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if _, err := e.Enter(c, Options{}); err != nil {
+		t.Errorf("Enter = %v; want a repository behind a symlink to hold its own worktrees", err)
+	}
+}
+
 // Run from inside a linked worktree, work still finds the main checkout and
 // nests new worktrees under it. The wiring is handed both, the checkout work was
 // invoked in being what a resolver forks a new branch from.
@@ -765,7 +829,7 @@ func TestOpenFromLinkedWorktree(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "-b", "one-abc", wt)
 
 	var wired, invoked string
-	e, err := Open(wt, func(repo, checkout string, _ config.Config) Systems {
+	e, err := Open(wt, config.Default(), func(repo, checkout string, _ config.Config) Systems {
 		wired, invoked = repo, checkout
 		return Systems{}
 	})
@@ -792,11 +856,11 @@ func TestOpenTheDirectoryOfABareRepository(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "-b", "one", one)
 
 	wiring := func(string, string, config.Config) Systems { return Systems{} }
-	e, err := Open(repo, wiring)
+	e, err := Open(repo, config.Default(), wiring)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	inside, err := Open(one, wiring)
+	inside, err := Open(one, config.Default(), wiring)
 	if err != nil {
 		t.Fatalf("Open from the worktree at %q: %v", one, err)
 	}
@@ -831,7 +895,7 @@ func TestOpenTheDirectoryOfABareRepository(t *testing.T) {
 // thing a new user would meet.
 func TestOpenOutsideARepository(t *testing.T) {
 	wired := false
-	_, err := Open(t.TempDir(), func(string, string, config.Config) Systems {
+	_, err := Open(t.TempDir(), config.Default(), func(string, string, config.Config) Systems {
 		wired = true
 		return Systems{}
 	})
@@ -845,7 +909,7 @@ func TestOpenOutsideARepository(t *testing.T) {
 	// git translates that answer, and the refusal is read apart from it. A machine
 	// without the locale installed answers in English anyway, which still passes.
 	t.Setenv("LC_ALL", "de_DE.UTF-8")
-	if _, err := Open(t.TempDir(), func(string, string, config.Config) Systems { return Systems{} }); err == nil ||
+	if _, err := Open(t.TempDir(), config.Default(), func(string, string, config.Config) Systems { return Systems{} }); err == nil ||
 		!strings.Contains(err.Error(), "no git repository") || namesGit(err) {
 		t.Errorf("Open under a translated git = %v; want the same refusal", err)
 	}
@@ -861,7 +925,7 @@ func TestBranchesAreWhatTheWorktreesHaveCheckedOut(t *testing.T) {
 	testenv.Git(t, repo, "worktree", "add", "--detach", filepath.Join(repo, defaultDir, "adrift"))
 
 	// Listing asks git alone, so the systems it was opened with are beside the point.
-	e, err := Open(repo, func(string, string, config.Config) Systems { return Systems{} })
+	e, err := Open(repo, config.Default(), func(string, string, config.Config) Systems { return Systems{} })
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

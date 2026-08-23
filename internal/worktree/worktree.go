@@ -72,18 +72,6 @@ type Flagged interface {
 	Flag() (name, usage string)
 }
 
-// Claimant is a system that knows its own identifiers by the way they are
-// spelled, without reaching anything: it is the one question a system the
-// settings left out is asked. A system that could only answer by asking claims
-// nothing and does not implement this.
-type Claimant interface {
-	System
-
-	// Claims is the place this system would make of an identifier spelled as one of
-	// its own, and false where it is not spelled as one.
-	Claims(id string) (Place, bool)
-}
-
 // Values are what a command renders with, keyed by the name a template places
 // rather than by a field. A name nothing supplied is a command that cannot run;
 // one supplied empty is a command element that drops out.

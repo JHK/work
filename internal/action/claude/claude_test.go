@@ -3,7 +3,6 @@ package claude
 import (
 	"errors"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -36,9 +35,8 @@ func stub(has []string, err error) Opener {
 // to name one.
 func configured(t *testing.T, body string) config.Claude {
 	t.Helper()
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), body)
-	cfg, err := config.Load(repo)
+	testenv.Settings(t, body)
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

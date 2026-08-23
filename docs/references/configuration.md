@@ -1,21 +1,16 @@
 # Configuration
 
-Two optional TOML files override the compiled-in defaults.
+One optional TOML file overrides the compiled-in defaults: `~/.config/work/config.toml`, or `$XDG_CONFIG_HOME/work/config.toml` where that variable names an absolute path. It follows you to every repository on that machine, and no repository carries settings of its own.
 
-| Layer | Location | Scope |
-|---|---|---|
-| the repository | `.work.toml` at the root of the main checkout, checked in | every clone of that one repository |
-| the user | `~/.config/work/config.toml`, `$XDG_CONFIG_HOME/work/config.toml` where that variable names an absolute path | every repository on that one machine |
+A key it does not name falls to `Default` in [internal/config/](../../internal/config/), which also declares the keys and their types. What that resolved to on a given machine is [`work config dump`](cli.md#config); the file itself is what [`work config edit`](cli.md#config) opens, creating it where it is not there yet.
 
-They merge key by key, the repository's winning where both set one. Unset keys fall to `Default` in [internal/config/](../../internal/config/), which also declares them and their types. What the merge produced on a given machine, in a given repository, is [`work config dump`](cli.md#config); the user's file is what [`work config edit`](cli.md#config) opens, creating it where it is not there yet.
-
-Refused at load, each naming the file it came from:
+Refused at load, naming the file:
 
 - an unknown key
 - a key whose case does not match
 - a table or an [action](#actions) under a name a rename replaced, refused with the name it goes by now
 
-Values are validated after the merge and before anything is created.
+Values are validated once the file is read, before anything is created.
 
 ## Keys
 
@@ -34,9 +29,11 @@ Values are validated after the merge and before anything is created.
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
+The value is read as a path at load, and where it leads at creation. A directory resolving out of the repository is refused before the worktree is made, whether the value or a symlink standing where it names takes it there.
+
 ## Systems
 
-What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell` is there to open on. Everything reached beyond git is a [system](systems.md), and a repository turns on the ones it works with:
+What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell` is there to open on. Everything reached beyond git is a [system](systems.md), and you turn on the ones you work with:
 
 ```toml
 [beads]
@@ -47,7 +44,9 @@ enabled = true
 # claude.* is read whether or not this is
 ```
 
-One name carries a system wherever it appears: the table its own keys sit in, its rows, its flags, and the key a refusal names. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
+One name carries a system wherever it appears: the table its own keys sit in, its rows, and its flags. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
+
+A system left out is wired nowhere: it spells no [flag](cli.md#open-on-flags) and offers no rows, and a file naming its [action](#actions) is refused at load.
 
 ## Branch patterns
 
@@ -65,12 +64,14 @@ Refused at load:
 
 ## Actions
 
-An `[action]` value is one of the actions [a flag](cli.md#open-on-flags) names, anything else being refused at load, and a flag naming one wins over both keys for that invocation:
+An `[action]` value is one of the actions that are on here, which is what an [open-on flag](cli.md#open-on-flags) names. Both keys fall to `shell` where nothing names one, and a flag naming an action wins over both for that invocation.
 
-| Value | Hands the worktree to |
-|---|---|
-| `claude` | what [`--claude`](cli.md#open-on-flags) hands it to |
-| `shell` | nothing: the worktree is [handed back](cli.md#handoff) |
+| Value | On where | Hands the worktree to |
+|---|---|---|
+| `claude` | `claude.enabled = true` | what [`--claude`](cli.md#open-on-flags) hands it to |
+| `shell` | always | nothing: the worktree is [handed back](cli.md#handoff) |
+
+Refused at load: a name no action goes by, an action of a [system](#systems) that is off among them. An action that only runs when a worktree comes into being, such as `beads` or `mise`, is not an `[action]` value at all: it is [declined by a flag](cli.md#open-on-flags), never named here.
 
 ## Commands
 

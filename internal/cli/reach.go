@@ -38,7 +38,8 @@ worktree add.`,
 // is the one verb whose refusal names add.
 func reach(env work.Env, l listing, o options, target string) (worktree.Handoff, error) {
 	c, err := offered(env, l, target, env.Resolve)
-	if work.Unanswered(err) {
+	// A spelling add would refuse too is advice that goes nowhere.
+	if work.Unanswered(err) && work.Nameable(target) {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes a worktree of it", err, target)
 	}
 	if err != nil {

@@ -1,4 +1,4 @@
-package settings
+package config
 
 import (
 	"os"
@@ -7,47 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/testenv"
 )
-
-func TestMain(m *testing.M) { testenv.Main(m) }
-
-// Where the user's settings sit under $XDG_CONFIG_HOME, spelled out rather than
-// derived, so the path the editor is opened on is the documented one.
-const userRelPath = "work/config.toml"
-
-// defaultDir is where worktrees go with nothing configured.
-var defaultDir = config.Default().Worktree.Directory
-
-// The dump is of the repository the directory sits in, so a linked worktree
-// reads the main checkout's file rather than looking for one of its own.
-func TestDumpFromALinkedWorktree(t *testing.T) {
-	repo := testenv.InitRepo(t)
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), "[action]\nenter = \"claude\"\n")
-	wt := filepath.Join(repo, defaultDir, "a")
-	testenv.Git(t, repo, "worktree", "add", "-b", "one-a", wt)
-
-	got, err := Dump(wt)
-	if err != nil {
-		t.Fatalf("Dump: %v", err)
-	}
-	if !strings.Contains(got, `enter = "claude"`) {
-		t.Errorf("Dump() = %q; want the main checkout's action.enter", got)
-	}
-}
-
-// A repository is what the layers are read against, so where git names none
-// there is nothing to dump.
-func TestDumpWithNoRepository(t *testing.T) {
-	got, err := Dump(t.TempDir())
-	if err == nil {
-		t.Fatalf("Dump() = %q; want a refusal", got)
-	}
-	if got != "" {
-		t.Errorf("Dump() printed %q; want nothing", got)
-	}
-}
 
 // The editor is handed the settings file itself, and the file and its directory
 // are brought into being for it. $VISUAL wins over $EDITOR.
@@ -120,10 +81,8 @@ func TestEditSplitsTheVariable(t *testing.T) {
 // A file already there is the one being edited, so bringing it into being
 // leaves what it holds alone.
 func TestEditKeepsAFileThatIsThere(t *testing.T) {
-	home := testenv.Home(t)
-	path := filepath.Join(home, userRelPath)
 	body := "[action]\nenter = \"shell\"\n"
-	testenv.Write(t, path, body)
+	path := testenv.Settings(t, body)
 	t.Setenv("VISUAL", "gvim")
 
 	if _, err := Edit(); err != nil {

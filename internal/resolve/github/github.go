@@ -82,13 +82,6 @@ func (r Resolver) read(arg string) (worktree.Place, error) {
 	return r.place(strconv.FormatUint(i, 10), ""), nil
 }
 
-// Claims says which identifiers are this forge's by their spelling alone, gh
-// being asked nothing.
-func (r Resolver) Claims(id string) (worktree.Place, bool) {
-	p, err := r.read(id)
-	return p, err == nil
-}
-
 // Offer lists the open pull requests, drafts included. gh being absent,
 // unauthenticated or offline costs these rows and nothing else.
 func (r Resolver) Offer() ([]worktree.Place, error) {

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -14,10 +13,9 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// What a user spells out, which no other test may derive from the code: the two
-// file names, and the branches the defaults name.
+// What a user spells out, which no other test may derive from the code: the file
+// name, and the branches the defaults name.
 const (
-	repoFile    = ".work.toml"
 	defaultDir  = ".worktrees"
 	userRelPath = "work/config.toml"
 
@@ -26,29 +24,21 @@ const (
 	pullRequestBranch = "pr-7"
 )
 
-// Both files are layered over the defaults, the repository's on top.
+// The one file is layered over the defaults, and a key it does not set is the
+// default's.
 func TestLoadLayers(t *testing.T) {
-	tests := []struct {
-		name       string
-		user, repo string
-		want       string
-	}{
-		{"neither", "", "", defaultDir},
-		{"the user alone", "mine", "", "mine"},
-		{"the repository alone", "", "ours", "ours"},
-		{"the repository over the user", "mine", "ours", "ours"},
+	tests := []struct{ name, user, want string }{
+		{"no file at all", "", defaultDir},
+		{"the file", "mine", "mine"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, home := t.TempDir(), testenv.Home(t)
+			home := testenv.Home(t)
 			if tt.user != "" {
 				testenv.Write(t, filepath.Join(home, userRelPath), directory(tt.user))
 			}
-			if tt.repo != "" {
-				testenv.Write(t, filepath.Join(repo, repoFile), directory(tt.repo))
-			}
 
-			got, err := Load(repo)
+			got, err := Load()
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
@@ -62,10 +52,9 @@ func TestLoadLayers(t *testing.T) {
 // A file that sets one key leaves the rest to the layer below it, so a table
 // present but empty changes nothing.
 func TestLoadLeavesUnnamedKeys(t *testing.T) {
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), "[worktree]\n[branch]\n")
+	testenv.Settings(t, "[worktree]\n[branch]\n")
 
-	got, err := Load(repo)
+	got, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -115,10 +104,9 @@ func TestDefaultBranches(t *testing.T) {
 // value stands for anything, so a prefix costs nothing and a ticket retitled
 // after its worktree was made still finds it.
 func TestConfiguredBranchesMatch(t *testing.T) {
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), branch(`feature/{{.ID}}-{{.Slug}}`, `review/{{.Number}}`))
+	testenv.Settings(t, branch(`feature/{{.ID}}-{{.Slug}}`, `review/{{.Number}}`))
 
-	c, err := Load(repo)
+	c, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -185,8 +173,8 @@ func TestDefaultClaudeCommands(t *testing.T) {
 
 // An unset [action] key names an action even on a Config that never reached
 // Load, and names one no system has to be on for: what these keys fall to is
-// what a repository that configured nothing opens on, which the systems it never
-// asked for cannot refuse.
+// what a machine that configured nothing opens on, and the actions it never
+// switched on are what loading refuses.
 func TestDefaultActions(t *testing.T) {
 	var a Action
 	if got := a.Create(); got != ActionShell {
@@ -195,10 +183,10 @@ func TestDefaultActions(t *testing.T) {
 	if got := a.Enter(); got != ActionShell {
 		t.Errorf("Enter() = %q, want %q", got, ActionShell)
 	}
-	d := Default().Action
-	for _, name := range SystemNames() {
-		if d.Create() == ActionName(name) || d.Enter() == ActionName(name) {
-			t.Errorf("an unset [action] key opens on %q, which %s = true is what puts there", name, SystemKey(name))
+	d := Default()
+	for _, name := range []ActionName{d.Action.Create(), d.Action.Enter()} {
+		if err := name.validate(d.actionNames()); err != nil {
+			t.Errorf("an unset [action] key opens on %q, which a settings file has to switch on: %v", name, err)
 		}
 	}
 }
@@ -206,10 +194,9 @@ func TestDefaultActions(t *testing.T) {
 // Each key is read on its own, so a file may name one action and leave the
 // other to the default.
 func TestConfiguredActions(t *testing.T) {
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, repoFile), "[action]\nenter = \"claude\"\n")
+	testenv.Settings(t, "[claude]\nenabled = true\n[action]\nenter = \"claude\"\n")
 
-	c, err := Load(repo)
+	c, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -224,14 +211,13 @@ func TestConfiguredActions(t *testing.T) {
 // A command is the user's, whatever it launches, and nothing requires it to be
 // an agent: one naming no session value at all is a plain command line.
 func TestConfiguredClaudeCommands(t *testing.T) {
-	home := testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), `[claude]
+	testenv.Settings(t, `[claude]
 start-ticket = ["agent", "--session={{.Name}} in {{.Dir}}", "work {{.ID}}"]
 start-pull-request = ["make", "review"]
 resume-session = ["agent", "--continue"]
 `)
 
-	c, err := Load(t.TempDir())
+	c, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -257,10 +243,9 @@ resume-session = ["agent", "--continue"]
 // A first element rendering to nothing leaves no command, which only a render
 // can find out: the value it needed is one the invocation carries.
 func TestClaudeCommandRendersNothing(t *testing.T) {
-	home := testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nresume-session = [\"{{.Session}}\", \"--continue\"]\n")
+	testenv.Settings(t, "[claude]\nresume-session = [\"{{.Session}}\", \"--continue\"]\n")
 
-	c, err := Load(t.TempDir())
+	c, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -276,16 +261,12 @@ func TestClaudeCommandRendersNothing(t *testing.T) {
 	}
 }
 
-// Every table layers the same way, commands included: the repository's file sets
-// one the user's also set, and wins.
-func TestLoadLayersCommands(t *testing.T) {
-	repo, home := t.TempDir(), testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nstart-ticket = [\"mine\", \"--flag\", \"{{.ID}}\"]\n")
-	// Shorter than the user's, so a command layered element by element rather than
-	// replaced whole would leave the user's tail behind.
-	testenv.Write(t, filepath.Join(repo, repoFile), "[claude]\nstart-ticket = [\"ours\", \"{{.ID}}\"]\n")
+// A command replaces the default whole rather than element by element, so one
+// shorter than the default leaves no tail of it behind.
+func TestLoadReplacesACommandWhole(t *testing.T) {
+	testenv.Settings(t, "[claude]\nstart-ticket = [\"ours\", \"{{.ID}}\"]\n")
 
-	c, err := Load(repo)
+	c, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -325,10 +306,9 @@ func TestSystemsRunOnlyWhereSwitchedOn(t *testing.T) {
 	}
 	for _, tt := range systems {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			testenv.Write(t, filepath.Join(repo, repoFile), "["+tt.name+"]\nenabled = true\n")
+			testenv.Settings(t, "["+tt.name+"]\nenabled = true\n")
 
-			c, err := Load(repo)
+			c, err := Load()
 			if err != nil {
 				t.Fatalf("Load: %v", err)
 			}
@@ -341,8 +321,6 @@ func TestSystemsRunOnlyWhereSwitchedOn(t *testing.T) {
 	}
 }
 
-// A value is refused for what it carries, not for the file it came from, so the
-// repository's file is judged by the same rules as the user's.
 func TestLoadRefusals(t *testing.T) {
 	tests := []struct{ name, body, want string }{
 		{"an unknown key", "[worktree]\ndirectry = \"trees\"\n", "unknown setting"},
@@ -394,13 +372,14 @@ func TestLoadRefusals(t *testing.T) {
 		{"the editor action", "[action]\ncreate = \"editor\"\n", "action.create"},
 		{"the diff action", "[action]\nenter = \"diff\"\n", "action.enter"},
 		{"the screen, which was never a command", "[action]\ncreate = \"ask\"\n", "action.create"},
+		// An action work has, of a system this machine did not switch on.
+		{"an action nothing here is on for", "[action]\ncreate = \"claude\"\n", "is not an action"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			testenv.Write(t, filepath.Join(repo, repoFile), tt.body)
+			testenv.Settings(t, tt.body)
 
-			_, err := Load(repo)
+			_, err := Load()
 			if err == nil {
 				t.Fatalf("Load(%q) = no error, want one", tt.body)
 			}
@@ -411,72 +390,12 @@ func TestLoadRefusals(t *testing.T) {
 	}
 }
 
-// Each file is decoded on its own, so the refusals above are the user's too.
-func TestLoadRefusesTheUsersFile(t *testing.T) {
-	home := testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), "[claude]\nstart = [\"claude\"]\n")
-
-	_, err := Load(t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), "unknown setting") {
-		t.Errorf("Load() = %v, want the user's unknown key refused", err)
-	}
-}
-
-// The containment check is not lexical: a repository is cloned with its file
-// and its symlinks, and a checkout may not land outside the repository.
-func TestLoadRefusesADirectorySymlinkedOut(t *testing.T) {
-	repo, outside := t.TempDir(), t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(repo, "trees")); err != nil {
-		t.Fatal(err)
-	}
-	testenv.Write(t, filepath.Join(repo, repoFile), directory("trees"))
-
-	_, err := Load(repo)
-	if err == nil || !strings.Contains(err.Error(), "resolves outside") {
-		t.Errorf("Load() = %v, want the escaping symlink refused", err)
-	}
-}
-
-// A repository reached through a symlink is still its own containing directory.
-func TestLoadAllowsASymlinkedRepository(t *testing.T) {
-	real, link := t.TempDir(), filepath.Join(t.TempDir(), "link")
-	if err := os.Symlink(real, link); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(real, "trees"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	testenv.Write(t, filepath.Join(real, repoFile), directory("trees"))
-
-	if _, err := Load(link); err != nil {
-		t.Errorf("Load() = %v, want a repository behind a symlink to load", err)
-	}
-}
-
-// A value the repository replaces is never the one work uses, so it is not the
-// one judged: only what the merge arrives at has to be usable.
-func TestLoadValidatesTheMergedValue(t *testing.T) {
-	repo, home := t.TempDir(), testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), directory("/tmp/trees"))
-	testenv.Write(t, filepath.Join(repo, repoFile), directory("trees"))
-
-	got, err := Load(repo)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if got.Worktree.Directory != "trees" {
-		t.Errorf("worktree.directory = %q, want %q", got.Worktree.Directory, "trees")
-	}
-}
-
-// Two files can carry the same unusable value, so the message names the one that
-// did rather than leaving the reader to guess.
+// A refusal names the file it was read from, which is where the reader goes to
+// put it right.
 func TestLoadNamesTheFileAtFault(t *testing.T) {
-	repo, home := t.TempDir(), testenv.Home(t)
-	user := filepath.Join(home, userRelPath)
-	testenv.Write(t, user, directory("/tmp/trees"))
+	user := testenv.Settings(t, directory("/tmp/trees"))
 
-	_, err := Load(repo)
+	_, err := Load()
 	if err == nil || !strings.Contains(err.Error(), user) {
 		t.Errorf("Load() = %v, want it to name %q", err, user)
 	}

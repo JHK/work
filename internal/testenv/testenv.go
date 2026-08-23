@@ -61,6 +61,15 @@ func Home(t *testing.T) string {
 	return dir
 }
 
+// Settings puts a configuration in a settings home the test owns, and hands
+// back the file it was written to. Each call takes a home of its own.
+func Settings(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(Home(t), "work", "config.toml")
+	Write(t, path, body)
+	return path
+}
+
 // InitRepo hands back a repository holding one empty commit on main.
 func InitRepo(t *testing.T) string {
 	t.Helper()

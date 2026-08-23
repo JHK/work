@@ -107,16 +107,6 @@ func (r *resolver) Create(p worktree.Place, path string) error {
 	return nil
 }
 
-// forge is a resolver that knows its own identifiers by the way they are spelled,
-// as a forge knows a pull request URL. A resolver on its own knows no such thing,
-// which is what a tracker is: any name at all is a possible ticket id.
-type forge struct{ *resolver }
-
-func (f forge) Claims(id string) (worktree.Place, bool) {
-	p, err := f.Identify(id, worktree.Open{})
-	return p, err == nil
-}
-
 // action is one system on the far seam's on-create half.
 type action struct {
 	steps *steps
@@ -396,105 +386,19 @@ func TestAWorktreeAlreadyThereIsOnlyOpened(t *testing.T) {
 	}
 }
 
-// A system the settings left out is wired to nothing and asked one question, once
-// the wired resolvers have already refused: whether the identifier is spelled as
-// one of its own. What it claims is refused as a system switched off, naming the
-// key that puts it back, rather than as an identifier work cannot read.
-//
-// A resolver that answers for whatever is left masks one that is off, so the
-// answer the chain did give is judged the same way: a place no worktree could be
-// made for is one nothing really answered for.
-func TestAnIdentifierASwitchedOffSystemAnswersForNamesItsKey(t *testing.T) {
-	tests := []struct {
-		name    string
-		id      string
-		refused string // what the refusal reads without the system to name
-	}{
-		{"nothing answered for it", "x", "nothing answers for"},
-		{"what answered made no place a worktree could be", "a/b", "usable worktree name"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var s steps
-			e, r := env(t, &s, &opener{steps: &s, name: "far"})
-			r.unknown = tt.id == "x"
-
-			if _, err := e.Resolve(tt.id); err == nil || !strings.Contains(err.Error(), tt.refused) {
-				t.Fatalf("Resolve(%q) = %v; want %q where nothing is switched off", tt.id, err, tt.refused)
-			}
-
-			// It reads the identifier into a name of its own, which is what makes turning
-			// it back on an answer: one that would land where the wired chain just did has
-			// nothing to offer and is not named.
-			e.Systems.Disabled = []worktree.System{forge{&resolver{steps: &s, name: "forge", names: "a-place"}}}
-			_, err := e.Resolve(tt.id)
-			if err == nil || !strings.Contains(err.Error(), "forge is off, put it back with forge.enabled = true") {
-				t.Errorf("Resolve(%q) = %v; want the key that would have answered for it", tt.id, err)
-			}
-		})
-	}
-}
-
-// A system that is off is named only where putting it back would have answered.
-// One that would land exactly where the wired chain landed, on a name no worktree
-// could carry, is not an answer, and a wired resolver that recognised the
-// identifier and then failed has already said what the run stops on.
-func TestASwitchedOffSystemIsNotNamedWhereItWouldNotHaveHelped(t *testing.T) {
+// A place the chain answered for that no worktree could be made for is refused
+// as the name rule, and a resolver that recognised the identifier and then could
+// not answer stops the run on what it said.
+func TestWhatTheChainAnsweredWithIsWhatTheRefusalReads(t *testing.T) {
 	var s steps
 	e, r := env(t, &s, &opener{steps: &s, name: "far"})
-	e.Systems.Disabled = []worktree.System{forge{&resolver{steps: &s, name: "forge"}}}
 
-	// The off system makes the same unusable name of it that the wired one did.
 	if _, err := e.Resolve("a/b"); err == nil || !strings.Contains(err.Error(), "usable worktree name") {
-		t.Errorf(`Resolve("a/b") = %v; want the name rule, which turning the forge back on would not have got past`, err)
+		t.Errorf(`Resolve("a/b") = %v; want the name rule`, err)
 	}
 
-	// A resolver that recognised the identifier and could not answer for it.
 	r.fails = errors.New("the forge is not answering")
 	if _, err := e.Resolve("x"); err == nil || err.Error() != r.fails.Error() {
-		t.Errorf(`Resolve("x") = %v; want the failure the wired resolver stopped on`, err)
-	}
-}
-
-// A name no switched-off system claims as its own is refused as a name nothing
-// answers for, and attributed to none of them. A tracker cannot tell a ticket id
-// from a typo without asking, and not asking is what switching it off was for, so
-// what being off costs it is its rows and never someone else's typo.
-func TestANameNoSwitchedOffSystemClaimsIsAttributedToNone(t *testing.T) {
-	var s steps
-	e, r := env(t, &s, &opener{steps: &s, name: "far"})
-	r.unknown = true
-	e.Systems.Disabled = []worktree.System{
-		// One that could only answer by asking, and so answers no such question at all.
-		&resolver{steps: &s, name: "tracker"},
-		// One that answers it, and for whom this is not one of its own.
-		forge{&resolver{steps: &s, name: "forge", unknown: true}},
-	}
-
-	_, err := e.Resolve("typo")
-	if err == nil || !strings.Contains(err.Error(), `nothing answers for "typo"`) {
-		t.Fatalf(`Resolve("typo") = %v; want it refused as a name nothing answers for`, err)
-	}
-	for _, name := range []string{"tracker", "forge"} {
-		if strings.Contains(err.Error(), name) {
-			t.Errorf(`Resolve("typo") = %v; want no key named for a spelling %s never claimed`, err, name)
-		}
-	}
-}
-
-// An action of a system the settings left out is refused as that, and where a
-// key naming it is read: before anything is created.
-func TestAnActionOfASwitchedOffSystemNamesItsKey(t *testing.T) {
-	var s steps
-	e, _ := env(t, &s, &opener{steps: &s, name: "far"})
-	e.Systems.Disabled = []worktree.System{&opener{steps: &s, name: "agent"}}
-
-	c, _ := e.Resolve("x")
-	_, err := e.Enter(c, Options{Open: "agent"})
-	if err == nil || !strings.Contains(err.Error(), "agent is off, put it back with agent.enabled = true") {
-		t.Fatalf("Enter = %v; want the key that puts the action back", err)
-	}
-	if len(s.seen) != 0 {
-		t.Errorf("naming a switched-off action left %q behind; want nothing run at all", s.seen)
+		t.Errorf(`Resolve("x") = %v; want the failure the resolver stopped on`, err)
 	}
 }

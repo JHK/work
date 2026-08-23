@@ -382,8 +382,8 @@ func TestOneRunAsksEachListingOnce(t *testing.T) {
 func TestConfiguredBranchPattern(t *testing.T) {
 	bead := with(workable, func(b *beads.Bead) { b.ID, b.Title = "one-abc", "A new title" })
 	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), "[branch]\nticket = \"feature/{{.ID}}-{{.Slug}}\"\n")
-	cfg, err := config.Load(repo)
+	testenv.Settings(t, "[branch]\nticket = \"feature/{{.ID}}-{{.Slug}}\"\n")
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

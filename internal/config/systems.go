@@ -32,15 +32,5 @@ func SystemNames() []string {
 	return []string{githubSystem, beadsSystem, miseSystem, claudeSystem}
 }
 
-// SystemKey is the key that puts a system back: the system's own table, and the
-// one key in it that every system has.
+// SystemKey is what switches a system on: its table, and the one key in it.
 func SystemKey(name string) string { return name + ".enabled" }
-
-// Shipped is [Default] with every system work has an implementation for on,
-// which is not what any repository runs. The command line spells its flags from
-// this, so one flag set serves every repository.
-func Shipped() Config {
-	c := Default()
-	c.Github.Enabled, c.Beads.Enabled, c.Mise.Enabled, c.Claude.Enabled = true, true, true, true
-	return c
-}

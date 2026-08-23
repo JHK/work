@@ -1,7 +1,4 @@
-// Package settings answers for work config: the settings work resolved in a
-// repository, and the user's own file. A front end asks for the dump or the
-// handoff and reaches neither git nor the file itself.
-package settings
+package config
 
 import (
 	"errors"
@@ -9,25 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/JHK/work-cli/internal/config"
-	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Dump is the configuration work reads in the repository dir sits in, rendered
-// as TOML with the layer behind each key.
-func Dump(dir string) (string, error) {
-	repo, err := git.Root(dir)
-	if err != nil {
-		return "", err
-	}
-	return config.Dump(repo)
-}
-
-// Edit hands the user's settings file to an editor, bringing the file and the
-// directory it sits in into being where neither is there yet. The editor is
-// $VISUAL else $EDITOR, never a setting: this is the file such a setting would
-// be written in. Everything that can refuse does so before anything is created.
+// Edit hands the settings file to an editor, bringing the file and the directory
+// it sits in into being where neither is there yet. The editor is $VISUAL else
+// $EDITOR, never a setting: this is the file such a setting would be written in.
+// Everything that can refuse does so before anything is created.
 func Edit() (worktree.Handoff, error) {
 	editor := strings.Fields(os.Getenv("VISUAL"))
 	if len(editor) == 0 {
@@ -36,7 +21,7 @@ func Edit() (worktree.Handoff, error) {
 	if len(editor) == 0 {
 		return worktree.Handoff{}, errors.New("neither $VISUAL nor $EDITOR names an editor to open your settings in")
 	}
-	path := config.UserFile()
+	path := UserFile()
 	if path == "" {
 		return worktree.Handoff{}, errors.New("this machine names neither $XDG_CONFIG_HOME nor a home directory, so there is nowhere to keep your settings")
 	}

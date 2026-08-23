@@ -24,7 +24,7 @@ func TestTheWiringSpellsTheFlagsTheCommandLineRecords(t *testing.T) {
 	// Asked the way the front end asks it to name the flags, before there is a
 	// repository: a constructor reaching for one here would be reaching on every
 	// invocation, work init and work --help included.
-	systems := wire("", "", config.Shipped())
+	systems := wire("", "", with(t, config.SystemNames()...))
 
 	// An opener is named by its flag, so every one of them spells one and says what
 	// it does; an action is declined by its flag, and one that spells none runs
@@ -65,7 +65,7 @@ func TestTheWiringSpellsTheFlagsTheCommandLineRecords(t *testing.T) {
 // naming the same one are two kinds of place a reader cannot tell apart.
 func TestEveryResolverWiredDrawsItsOwnRows(t *testing.T) {
 	repo := t.TempDir()
-	systems := wire(repo, repo, config.Shipped())
+	systems := wire(repo, repo, with(t, config.SystemNames()...))
 
 	marks := map[string]string{}
 	for _, r := range systems.Resolvers {
@@ -98,7 +98,7 @@ func TestEveryResolverWiredDrawsItsOwnRows(t *testing.T) {
 func TestTheResolverOrderHoldsBothWays(t *testing.T) {
 	repo := t.TempDir()
 	// An order between systems can only be read off a wiring that has them all.
-	systems := wire(repo, repo, config.Shipped())
+	systems := wire(repo, repo, with(t, config.SystemNames()...))
 	if len(systems.Resolvers) == 0 {
 		t.Fatal("nothing is wired")
 	}
@@ -135,28 +135,12 @@ func TestTheResolverOrderHoldsBothWays(t *testing.T) {
 	}
 }
 
-// The settings the command line spells its flags from leave no system out. A
-// system this wiring knows and those settings do not is one whose flag no
-// repository can reach, wherever it is enabled, and the flag set is settled
-// before any repository is read.
-func TestTheShippedSettingsLeaveNoSystemOut(t *testing.T) {
+// What a machine that says nothing gets is the core: a worktree to adopt, a name
+// to make a place of, and the shell to open on. None of the three has a key, and
+// nothing else is wired.
+func TestTheWorktreesAreWhatAMachineGetsWithNoSettings(t *testing.T) {
 	repo := t.TempDir()
-
-	var off []string
-	for _, s := range wire(repo, repo, config.Shipped()).Disabled {
-		off = append(off, s.Name())
-	}
-	if len(off) > 0 {
-		t.Errorf("config.Shipped leaves %q switched off; the command line spells no flag of theirs", off)
-	}
-}
-
-// What a repository that says nothing gets is the core: a worktree to adopt, a
-// name to make a place of, and something to open on. None of the three has a
-// key, so no settings file can take them away either.
-func TestTheWorktreesAreWhatARepositoryGetsWithNoSettings(t *testing.T) {
-	repo := t.TempDir()
-	systems := wire(repo, repo, load(t, repo))
+	systems := wire(repo, repo, load(t))
 
 	if _, err := systems.Resolvers[len(systems.Resolvers)-1].Identify("", worktree.Open{
 		Path: filepath.Join(repo, "trees", "loose"), Branch: "loose",
@@ -166,8 +150,16 @@ func TestTheWorktreesAreWhatARepositoryGetsWithNoSettings(t *testing.T) {
 	if systems.Named == nil {
 		t.Error("no resolver makes a place of a name; work add would have nothing to ask")
 	}
-	if len(systems.Openers) == 0 {
-		t.Error("nothing is wired for a worktree to open on")
+
+	var opens []string
+	for _, op := range systems.Openers {
+		opens = append(opens, op.Name())
+	}
+	if want := []string{string(config.ActionShell)}; !slices.Equal(opens, want) {
+		t.Errorf("a machine that configured nothing opens on %q; want %q", opens, want)
+	}
+	for _, a := range systems.Actions {
+		t.Errorf("a machine that configured nothing runs %s when a worktree comes into being; want nothing", a.Name())
 	}
 }
 
@@ -184,7 +176,7 @@ func TestSwitchingASystemOnWiresIt(t *testing.T) {
 	for _, name := range config.SystemNames() {
 		t.Run(name, func(t *testing.T) {
 			repo := t.TempDir()
-			systems := wire(repo, repo, with(t, repo, name))
+			systems := wire(repo, repo, with(t, name))
 
 			if on := wired(systems); !slices.Contains(on, name) {
 				t.Errorf("[%s] enabled = true wired %q; want the system its table names among them", name, on)
@@ -203,50 +195,33 @@ func TestBothHalvesGoByOneName(t *testing.T) {
 	}
 }
 
-// A repository that asks for none of them leaves every one among the switched
-// off, which is where a refusal reads the key that puts a system back. One
-// missing from that set is a system whose identifier is refused as a name work
-// has never heard of.
-func TestAnUnconfiguredRepositoryCountsEverySystemAmongTheSwitchedOff(t *testing.T) {
-	repo := t.TempDir()
-
-	var off []string
-	for _, s := range wire(repo, repo, load(t, repo)).Disabled {
-		off = append(off, s.Name())
+// with is the settings that switch those systems on, read back from a file it
+// wrote: the surface a user has, where a table config does not know is refused
+// rather than quietly doing nothing.
+func with(t *testing.T, names ...string) config.Config {
+	t.Helper()
+	body := ""
+	for _, name := range names {
+		body += "[" + name + "]\nenabled = true\n"
 	}
-	slices.Sort(off)
-	if want := slices.Sorted(slices.Values(config.SystemNames())); !slices.Equal(off, want) {
-		t.Errorf("a repository that configured nothing counts %q among the switched off; want %q", off, want)
-	}
+	testenv.Settings(t, body)
+	return load(t)
 }
 
-// with is the settings a repository that asks for that system loads, read back
-// from a file it wrote: the surface a user has, where a table config does not
-// know is refused rather than quietly doing nothing.
-func with(t *testing.T, repo, name string) config.Config {
+// load is the settings on this machine, read through Load rather than taken from
+// config.Default so that what writing nothing gets is judged.
+func load(t *testing.T) config.Config {
 	t.Helper()
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), "["+name+"]\nenabled = true\n")
-	return load(t, repo)
-}
-
-// load is the settings that repository loads. A directory no file was written to
-// is a repository that configured nothing, read through Load rather than taken
-// from config.Default so that what a user gets by writing nothing is judged.
-func load(t *testing.T, repo string) config.Config {
-	t.Helper()
-	cfg, err := config.Load(repo)
+	cfg, err := config.Load()
 	if err != nil {
-		t.Fatalf("the settings in %s: %v", repo, err)
+		t.Fatalf("the settings: %v", err)
 	}
 	return cfg
 }
 
-// A repository that configured nothing runs on its worktrees: every verb goes
-// through, creating one included, and a machine with bd, gh, mise and claude on
-// it hears from none of them. Refusing an identifier is the one moment work does
-// put a question to a system that is off, to say which key would have answered
-// for it, and that question reaches no tool either: a system asked anything would
-// be running on a machine that never asked for it.
+// A machine that configured nothing runs on its worktrees: every verb goes
+// through, creating one included, and one with bd, gh, mise and claude on it
+// hears from none of them.
 func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	repo := testenv.InitRepo(t)
 	// A stand-in for each tool, failing where it is reached at all, so that a
@@ -259,7 +234,7 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 		testenv.Stub{Name: "claude", Exits: 1},
 	)
 
-	cfg := load(t, repo)
+	cfg := load(t)
 	e := work.Env{Repo: repo, Dir: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
 	// The picker's rows, and switch with a name of its own.
 	if _, _, err := e.Candidates(); err != nil {
@@ -293,22 +268,18 @@ func TestNoToolIsAskedAnythingWhereNoSystemWasAskedFor(t *testing.T) {
 	if _, err := e.Delete(again, false); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	// An identifier a switched-off system claims as its own, which is one the forge
-	// reads off the spelling: the refusal names the key that puts the forge back.
-	if _, err := e.Resolve("https://github.com/o/r/pull/7"); err == nil || !strings.Contains(err.Error(), config.SystemKey("github")) {
-		t.Errorf(`Resolve(a pull request URL) = %v; want the key that would have answered for it`, err)
-	}
-	// A name no system claims. The tracker would have taken it, having taken
-	// whatever the chain left, but a name is a ticket id only if bd says so, and
-	// asking bd is what the repository switched off.
-	for _, id := range []string{"bd-42", "nothing-of-anyones"} {
+	// With the forge and the tracker wired nowhere, each is a name nothing answers for.
+	for _, id := range []string{"https://github.com/o/r/pull/7", "bd-42", "nothing-of-anyones"} {
 		_, err := e.Resolve(id)
 		if err == nil {
 			t.Errorf("Resolve(%q) = a place; want a name nothing here answers for refused", id)
 			continue
 		}
-		if strings.Contains(err.Error(), "is off") {
-			t.Errorf("Resolve(%q) = %v; want no system named for a spelling none of them claims", id, err)
+		// The identifier itself can carry a system's name; the key may not appear.
+		for _, name := range config.SystemNames() {
+			if strings.Contains(err.Error(), config.SystemKey(name)) {
+				t.Errorf("Resolve(%q) = %v; want no key offered by a refusal on a machine that wired none", id, err)
+			}
 		}
 	}
 
@@ -329,7 +300,7 @@ func TestListingTheWorktreesAsksNoToolWhereverEverySystemIsOn(t *testing.T) {
 		testenv.Stub{Name: "gh", Exits: 1},
 	)
 
-	cfg := config.Shipped()
+	cfg := with(t, config.SystemNames()...)
 	e := work.Env{Repo: repo, Dir: repo, Config: cfg, Systems: wire(repo, repo, cfg)}
 	got, err := e.Branches()
 	if err != nil {

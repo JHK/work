@@ -69,8 +69,8 @@ func zshCompletion(root *cobra.Command, out io.Writer, _ bool) error {
 	return root.GenZshCompletion(out)
 }
 
-// initCommand prints the shell integration. It runs at every shell start, so it
-// reaches for nothing.
+// initCommand prints the shell integration. It opens no repository and asks no
+// tool anything.
 func initCommand() *cobra.Command {
 	valid := make([]cobra.Completion, len(integrations))
 	for i, in := range integrations {

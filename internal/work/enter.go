@@ -44,6 +44,9 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		if err := checkName(t.Name); err != nil {
 			return worktree.Handoff{}, err
 		}
+		if err := e.inside(); err != nil {
+			return worktree.Handoff{}, err
+		}
 		t.Path, t.Created = e.path(t.Name), true
 		if err := git.Vacant(t.Path); err != nil {
 			return worktree.Handoff{}, err
@@ -109,17 +112,11 @@ func (e Env) named(c Candidate, o Options) (Opener, error) {
 	return e.opener(name)
 }
 
-// opener is the action that goes by a name. One a switched-off system goes by is
-// refused as that rather than as a name work has never heard of.
+// opener is the action that goes by a name.
 func (e Env) opener(name string) (Opener, error) {
 	for _, op := range e.Systems.Openers {
 		if op.Name() == name {
 			return op, nil
-		}
-	}
-	for _, s := range e.Systems.Disabled {
-		if s.Name() == name {
-			return nil, errors.New(off(name))
 		}
 	}
 	return nil, fmt.Errorf("nothing here goes by the action %q", name)

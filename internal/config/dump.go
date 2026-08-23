@@ -1,19 +1,20 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
-// compiledIn is the layer a key no file set came from.
+// compiledIn is where a key no file set came from.
 const compiledIn = "the compiled-in default"
 
-// Dump renders the merged configuration as TOML, each key under a comment naming
-// the layer that set it. What it prints is what work would load back.
-func Dump(repo string) (string, error) {
-	c, from, err := merge(repo)
+// Dump renders the configuration as TOML, each key under a comment naming where
+// it came from. What it prints is what work would load back.
+func Dump() (string, error) {
+	c, from, err := read()
 	if err != nil {
 		return "", err
 	}
@@ -29,20 +30,20 @@ func Dump(repo string) (string, error) {
 			fmt.Fprintf(&b, "[%s]\n", name)
 			table = name
 		}
-		fmt.Fprintf(&b, "# %s\n%s = %s\n", layer(from[k.name], repo), leaf, k.value)
+		fmt.Fprintf(&b, "# %s\n%s = %s\n", cmp.Or(from[k.name], compiledIn), leaf, k.value)
 	}
 	return b.String(), nil
 }
 
 // key is one setting of a dump: the whole dotted name, which is both how a
-// settings file spells it and how the layers are keyed, and its value as TOML.
+// settings file spells it and how its source is keyed, and its value as TOML.
 type key struct {
 	name  string
 	value string
 }
 
 // keys is every setting work reads, in the order the reference documents them,
-// each holding the value the merge settled on rather than what a file wrote.
+// each holding the value work resolved rather than what a file wrote.
 func (c Config) keys() []key {
 	return []key{
 		{dirKey, value(c.Worktree.Dir())},
@@ -59,18 +60,6 @@ func (c Config) keys() []key {
 		{startSessionKey, value(argv(c.Claude.StartSession()))},
 		{resumeSessionKey, value(argv(c.Claude.ResumeSession()))},
 	}
-}
-
-// layer names where a value came from, the repository's file as it is written
-// rather than by its path.
-func layer(path, repo string) string {
-	switch path {
-	case "":
-		return compiledIn
-	case repoSettings(repo):
-		return RepoFile
-	}
-	return path
 }
 
 // argv is a command as it was written, element by element, rather than as it

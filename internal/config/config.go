@@ -1,6 +1,5 @@
 // Package config reads the settings behind the choices work makes on a user's
-// behalf: the repository's file and the user's, merged over the compiled-in
-// defaults.
+// behalf: the user's file, over the compiled-in defaults.
 package config
 
 import (
@@ -48,10 +47,6 @@ func (w Worktree) Dir() string {
 	return w.Directory
 }
 
-// RepoFile is the repository's settings, at its root and checked in, so every
-// clone gets them. The user's are [UserFile].
-const RepoFile = ".work.toml"
-
 // defaults are the compiled-in patterns, bound once.
 var defaults = Branch{
 	TicketPattern:      mustPattern(defaultTicket, ticketValues),
@@ -59,7 +54,7 @@ var defaults = Branch{
 }
 
 // Default is what an unset key falls back to. Every system's table is left at
-// the zero value, which is off; [Shipped] is the same set with all of them on.
+// the zero value, which is off.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
@@ -81,20 +76,20 @@ func mustPattern(text string, v values) Pattern {
 	return p
 }
 
-// Load merges the user's file and then the repository's over the defaults, key
-// by key. A file that is not there is no error; one that cannot be read, names a
-// key work does not know, or carries an unusable value, is.
-func Load(repo string) (Config, error) {
-	c, _, err := merge(repo)
+// Load reads the file over the defaults, key by key. A file that is not there is
+// no error; one that cannot be read, names a key work does not know, or carries
+// an unusable value, is.
+func Load() (Config, error) {
+	c, _, err := read()
 	return c, err
 }
 
-// merge is Load, keeping which file last set each key, which a dump names and a
+// read is Load, keeping which keys the file set, which a dump names and a
 // refusal points at.
-func merge(repo string) (Config, map[string]string, error) {
+func read() (Config, map[string]string, error) {
 	c := Default()
 	from := map[string]string{}
-	for _, path := range files(repo) {
+	if path := UserFile(); path != "" {
 		md, err := decode(path, &c)
 		if err != nil {
 			return Config{}, nil, err
@@ -103,31 +98,14 @@ func merge(repo string) (Config, map[string]string, error) {
 			from[key.String()] = path
 		}
 	}
-	// Once merged, not per layer: a value the layer above replaces is not the one
-	// work uses.
-	if key, err := c.validate(repo); err != nil {
+	if key, err := c.validate(); err != nil {
 		return Config{}, nil, fmt.Errorf("%s: %s: %w", from[key], key, err)
 	}
 	return c, from, nil
 }
 
-// files are the layers above the defaults, lowest first.
-func files(repo string) []string {
-	var paths []string
-	if user := UserFile(); user != "" {
-		paths = append(paths, user)
-	}
-	return append(paths, repoSettings(repo))
-}
-
-// repoSettings is where a repository keeps its own file.
-func repoSettings(repo string) string {
-	return filepath.Join(repo, RepoFile)
-}
-
-// UserFile is settings that follow one user from repository to repository,
-// named whether or not the file is there. A machine with nowhere to keep them
-// has none, and answers with the empty path.
+// UserFile is the settings file, named whether or not it is there. A machine
+// with nowhere to keep it has none, and answers with the empty path.
 func UserFile() string {
 	// Not os.UserConfigDir, which reads XDG_CONFIG_HOME on Unix alone.
 	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
@@ -140,8 +118,8 @@ func UserFile() string {
 	return filepath.Join(home, ".config", "work", "config.toml")
 }
 
-// decode reads one layer over what the layers below it left, leaving every key
-// the file does not name alone.
+// decode reads the file over what the defaults left, leaving every key the file
+// does not name alone.
 func decode(path string, c *Config) (toml.MetaData, error) {
 	md, err := toml.DecodeFile(path, c)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -170,7 +148,7 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 
 // validate names the key work cannot use the value of, and why. It also ties
 // each pattern and command to the values its key has.
-func (c *Config) validate(repo string) (string, error) {
+func (c *Config) validate() (string, error) {
 	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
 		return ticketKey, err
 	}
@@ -178,7 +156,7 @@ func (c *Config) validate(repo string) (string, error) {
 		return pullRequestKey, err
 	}
 
-	if key, err := c.Action.validate(); err != nil {
+	if key, err := c.Action.validate(c.actionNames()); err != nil {
 		return key, err
 	}
 	if key, err := c.Claude.validate(); err != nil {
@@ -194,23 +172,5 @@ func (c *Config) validate(repo string) (string, error) {
 	if top, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(dir)), "/"); top == ".git" {
 		return dirKey, fmt.Errorf("%q is inside git's own directory", dir)
 	}
-	// IsLocal is lexical, and .work.toml arrives from whoever is cloned.
-	if !contains(repo, filepath.Join(repo, dir)) {
-		return dirKey, fmt.Errorf("%q resolves outside the repository", dir)
-	}
 	return "", nil
-}
-
-// contains reports whether path sits below root once symlinks are resolved. A
-// path not on disk yet cannot lead anywhere, and passes.
-func contains(root, path string) bool {
-	target, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return true
-	}
-	if root, err = filepath.EvalSymlinks(root); err != nil {
-		return true
-	}
-	rel, err := filepath.Rel(root, target)
-	return err == nil && rel != "." && filepath.IsLocal(rel)
 }

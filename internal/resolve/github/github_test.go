@@ -72,27 +72,6 @@ func TestIdentifyPassesOnWhatIsNotAPullRequest(t *testing.T) {
 	}
 }
 
-// Which identifiers are this forge's is answerable from the spelling alone, which
-// is what a forge switched off is asked and all it is asked: a pull request URL is
-// ours wherever the host is, and a name another resolver would take is not, gh
-// hearing nothing either way.
-func TestClaimsReadsTheSpellingAlone(t *testing.T) {
-	r := New(t.TempDir(), pattern)
-	for _, arg := range []string{"7", "pr-7", "https://github.com/o/r/pull/7", "o/r/pull/7"} {
-		p, its := r.Claims(arg)
-		if !its || p.Name != "pr-7" {
-			t.Errorf("Claims(%q) = %+v, %v; want the pull request it is spelled as", arg, p, its)
-		}
-	}
-	// A name for another resolver, and a number this one recognises and can make no
-	// pull request of: neither is a spelling turning the forge back on would answer.
-	for _, arg := range []string{"", "bd-42", "one-two", "0", "pr-0"} {
-		if p, its := r.Claims(arg); its {
-			t.Errorf("Claims(%q) = %+v, true; want it claimed by nobody", arg, p)
-		}
-	}
-}
-
 // A worktree's branch is the name a pull request already carries, so nothing
 // about it can have moved on and the spelling settles it. A branch the pattern
 // would have spelled otherwise is no pull request's of ours.
@@ -283,9 +262,8 @@ func TestSupplyIsTheNumber(t *testing.T) {
 // pattern is bound as loading binds it.
 func configured(t *testing.T, text string) config.Branch {
 	t.Helper()
-	repo := t.TempDir()
-	testenv.Write(t, filepath.Join(repo, config.RepoFile), "[branch]\npull-request = \""+text+"\"\n")
-	cfg, err := config.Load(repo)
+	testenv.Settings(t, "[branch]\npull-request = \""+text+"\"\n")
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

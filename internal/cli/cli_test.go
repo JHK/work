@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/git"
+	"github.com/JHK/work-cli/internal/shim"
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -424,6 +426,12 @@ func TestOnlyGoNamesAddForAnIdentifierNothingAnswersFor(t *testing.T) {
 		if strings.Contains(err.Error(), "work add") {
 			t.Errorf("%s(typo) = %v; want no invitation to create what it cannot act on", verb, err)
 		}
+	}
+
+	// A spelling add would refuse too, such as a pull request URL: it is not offered.
+	_, err := f.reach.run(options{}, "https://github.com/o/r/pull/7")
+	if err == nil || strings.Contains(err.Error(), "work add") {
+		t.Errorf("reach(a pull request URL) = %v; want no invitation to a verb that would refuse it", err)
 	}
 }
 
@@ -1030,5 +1038,72 @@ func TestOnlyAddParksWhatTheCheckoutWasCarrying(t *testing.T) {
 	}
 	if got := testenv.Git(t, repo, "status", "--porcelain"); got != "?? wip" {
 		t.Errorf("go left the checkout carrying %q; want the work still in hand", got)
+	}
+}
+
+// A settings file that will not load is refused by every verb that reads the
+// settings, the completion included, and the refusal is the one the file earned.
+func TestASettingsFileThatWillNotLoadRefusesTheVerbsThatReadIt(t *testing.T) {
+	broken := errors.New("config.toml: unknown setting worktree.directry")
+	f := fronting(verbs{read: broken, wire: wiring()})
+
+	for verb, put := range pickers(f) {
+		if err := put(); !errors.Is(err, broken) {
+			t.Errorf("work %s = %v; want the settings refused", verb, err)
+		}
+	}
+	if _, err := f.branches(); !errors.Is(err, broken) {
+		t.Errorf("work list = %v; want the settings refused", err)
+	}
+	// A tab press reaches the same listing, and no error reaches the shell.
+	for verb, list := range lists(&f) {
+		if _, err := (*list)(); !errors.Is(err, broken) {
+			t.Errorf("completing work %s = %v; want the settings refused", verb, err)
+		}
+	}
+}
+
+// The settings are read before the tree is built, and a file that will not load
+// takes init with it least of all: it runs at every shell start.
+func TestABrokenSettingsFileLeavesInitAlone(t *testing.T) {
+	testenv.Settings(t, "[worktree]\ndirectry = \"oops\"\n")
+	printed := stdout(t)
+	args(t, "init", "fish")
+
+	if code := Execute(stubVersion, wiring()); code != 0 {
+		t.Fatalf("work init fish = %d; want the integration printed whatever the settings hold", code)
+	}
+	if got := printed(); !strings.Contains(got, shim.CDFile) {
+		t.Errorf("work init fish printed %q; want the integration", got)
+	}
+}
+
+// args puts the words a case invokes work with in os.Args, which [Execute] reads
+// them from, and puts back what was there.
+func args(t *testing.T, words ...string) {
+	t.Helper()
+	was := os.Args
+	t.Cleanup(func() { os.Args = was })
+	os.Args = append([]string{"work"}, words...)
+}
+
+// stdout redirects the process's own stdout into a file, which [Execute] writes
+// to rather than to a buffer a case could hand it, and hands back what landed.
+func stdout(t *testing.T) func() string {
+	t.Helper()
+	f, err := os.Create(filepath.Join(t.TempDir(), "stdout"))
+	if err != nil {
+		t.Fatalf("stdout: %v", err)
+	}
+	was := os.Stdout
+	os.Stdout = f
+	t.Cleanup(func() { os.Stdout = was; _ = f.Close() })
+
+	return func() string {
+		out, err := os.ReadFile(f.Name())
+		if err != nil {
+			t.Fatalf("read what work printed: %v", err)
+		}
+		return string(out)
 	}
 }

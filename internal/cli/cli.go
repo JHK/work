@@ -55,12 +55,20 @@ type front struct {
 	branches func() ([]string, error)
 }
 
-// verbs answers the front's calls against the wiring Execute was handed.
-type verbs struct{ wire work.Wiring }
+// verbs answers the front's calls against the settings and the wiring Execute
+// was handed.
+type verbs struct {
+	cfg  config.Config
+	read error // the settings would not load, which every verb that reads them refuses with
+	wire work.Wiring
+}
 
 // repository is the one the shell stands in, with its systems wired.
 func (v verbs) repository() (work.Env, error) {
-	return work.Open(".", v.wire)
+	if v.read != nil {
+		return work.Env{}, v.read
+	}
+	return work.Open(".", v.cfg, v.wire)
 }
 
 // performs puts a verb over the repository the shell stands in, and puts the
@@ -94,10 +102,15 @@ func fronting(v verbs) front {
 	}
 }
 
-// Execute runs work and returns the process exit status.
+// Execute runs work and returns the process exit status. A settings file that
+// will not load is carried to the verbs that read it, not refused here.
 func Execute(version string, wire work.Wiring) int {
-	f := fronting(verbs{wire: wire})
-	if err := run(command(version, naming(wire), f), os.Args[1:]); err != nil {
+	cfg, read := config.Load()
+	// Without a repository: only the names and the flags are read off what comes back.
+	sys := wire("", "", cfg)
+
+	f := fronting(verbs{cfg: cfg, read: read, wire: wire})
+	if err := run(command(version, sys, f), os.Args[1:]); err != nil {
 		if !errors.Is(err, errCancelled) {
 			fmt.Fprintln(os.Stderr, "work:", err)
 		}
@@ -119,14 +132,6 @@ func report(w io.Writer, refused []error) {
 func run(cmd *cobra.Command, args []string) error {
 	cmd.SetArgs(dispatch(cmd, args))
 	return cmd.Execute()
-}
-
-// naming is the systems as the command line spells them, asked of the wiring
-// without a repository: only the names and the flags are read off what comes
-// back, and every system work ships is named rather than the ones one repository
-// enabled.
-func naming(wire work.Wiring) work.Systems {
-	return wire("", "", config.Shipped())
 }
 
 // command builds the command tree, calling the verb front once the flags are

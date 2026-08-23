@@ -1,8 +1,8 @@
 package config
 
 import (
-	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +29,22 @@ func TestDumpNamesEverySetting(t *testing.T) {
 	}
 }
 
+// A table carrying an enabled key is a system, and SystemNames is what spells
+// them: one that list leaves out has no flag to reach it and no row in a dump.
+func TestSystemNamesSpellsEveryTableThatCanBeSwitchedOn(t *testing.T) {
+	var want []string
+	for table := range reflect.TypeFor[Config]().Fields() {
+		if _, ok := table.Type.FieldByName("Enabled"); ok {
+			want = append(want, strings.ToLower(table.Name))
+		}
+	}
+
+	slices.Sort(want)
+	if got := slices.Sorted(slices.Values(SystemNames())); !slices.Equal(got, want) {
+		t.Errorf("SystemNames spells %q; the tables that can be switched on are %q", got, want)
+	}
+}
+
 // spelling is the key a field is written as: its toml tag, or its name
 // lowercased where it has none, which is what the decoder matches.
 func spelling(f reflect.StructField) string {
@@ -38,16 +54,13 @@ func spelling(f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-// Every key names the layer that set it: the file, or the compiled-in default
-// where no file did. The repository's file wins where both set one, and is named
-// as it is written rather than by its path.
+// Every key names where it came from: the file, or the compiled-in default where
+// the file did not name it.
 func TestDumpNamesTheLayerBehindEachKey(t *testing.T) {
-	repo, home := t.TempDir(), testenv.Home(t)
-	user := filepath.Join(home, userRelPath)
-	testenv.Write(t, user, directory("trees")+"[claude]\nstart-session = [\"claude\"]\n[mise]\nenabled = true\n")
-	testenv.Write(t, filepath.Join(repo, repoFile), "[claude]\nstart-session = [\"claude\", \"--continue\"]\n[action]\nenter = \"shell\"\n[beads]\nenabled = true\n")
+	user := testenv.Settings(t, directory("trees")+
+		"[claude]\nstart-session = [\"claude\"]\n[mise]\nenabled = true\n[action]\nenter = \"shell\"\n[beads]\nenabled = true\n")
 
-	got, err := Dump(repo)
+	got, err := Dump()
 	if err != nil {
 		t.Fatalf("Dump: %v", err)
 	}
@@ -56,11 +69,11 @@ func TestDumpNamesTheLayerBehindEachKey(t *testing.T) {
 	// off and where that comes from, so what a dump shows is every system's state.
 	want := map[string]string{
 		"worktree.directory":   user,
-		"claude.start-session": repoFile,
-		"action.enter":         repoFile,
+		"claude.start-session": user,
+		"action.enter":         user,
 		"action.create":        compiledIn,
 		"branch.ticket":        compiledIn,
-		"beads.enabled":        repoFile,
+		"beads.enabled":        user,
 		"mise.enabled":         user,
 		"claude.enabled":       compiledIn,
 	}
@@ -72,56 +85,44 @@ func TestDumpNamesTheLayerBehindEachKey(t *testing.T) {
 }
 
 // What the dump prints is a settings file: loading it back names the same
-// configuration, whatever layer each key came from.
+// configuration, whether a key came from the file or from the defaults.
 func TestDumpLoadsBack(t *testing.T) {
-	repo, home := t.TempDir(), testenv.Home(t)
-	testenv.Write(t, filepath.Join(home, userRelPath), directory("trees")+branch("{{.ID}}", "review/{{.Number}}"))
 	// A quote and a tab survive the printing, being written as TOML escapes.
-	testenv.Write(t, filepath.Join(repo, repoFile),
-		"[action]\nenter = \"claude\"\n[claude]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
+	testenv.Settings(t, directory("trees")+branch("{{.ID}}", "review/{{.Number}}")+
+		"[action]\nenter = \"claude\"\n[claude]\nenabled = true\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
 
-	text, err := Dump(repo)
+	text, err := Dump()
 	if err != nil {
 		t.Fatalf("Dump: %v", err)
 	}
-
-	// A second repository whose whole configuration is that text.
-	back := t.TempDir()
-	testenv.Write(t, filepath.Join(back, repoFile), text)
-	printed, _, err := merge(repo)
+	printed, _, err := read()
 	if err != nil {
-		t.Fatalf("merge: %v", err)
+		t.Fatalf("read: %v", err)
 	}
-	loaded, _, err := merge(back)
+
+	// A machine whose whole configuration is that text.
+	testenv.Settings(t, text)
+	loaded, _, err := read()
 	if err != nil {
-		t.Fatalf("merge of the dump: %v", err)
+		t.Fatalf("read the dump back: %v", err)
 	}
 	if !reflect.DeepEqual(printed.keys(), loaded.keys()) {
 		t.Errorf("the dump loads back as %+v; want %+v", loaded.keys(), printed.keys())
 	}
 }
 
-// A configuration work would refuse to load is refused here too, whichever
-// layer carries the value, and nothing is printed of it.
+// A configuration work would refuse to load is refused here too, and nothing is
+// printed of it.
 func TestDumpRefusesWhatLoadRefuses(t *testing.T) {
-	tests := []struct {
-		name       string
-		user, repo string
-	}{
-		{"the repository's file", "", "[action]\nenter = \"vim\"\n"},
-		{"the user's file", "[claude]\nstart-session = []\n", ""},
+	tests := []struct{ name, body string }{
+		{"an action nothing goes by", "[action]\nenter = \"vim\"\n"},
+		{"a command that names nothing to run", "[claude]\nstart-session = []\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, home := t.TempDir(), testenv.Home(t)
-			if tt.user != "" {
-				testenv.Write(t, filepath.Join(home, userRelPath), tt.user)
-			}
-			if tt.repo != "" {
-				testenv.Write(t, filepath.Join(repo, repoFile), tt.repo)
-			}
+			testenv.Settings(t, tt.body)
 
-			got, err := Dump(repo)
+			got, err := Dump()
 			if err == nil {
 				t.Fatalf("Dump() = %q; want a refusal", got)
 			}

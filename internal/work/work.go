@@ -77,11 +77,6 @@ type Systems struct {
 	// Named is the chain's tail for an identifier nothing answered for: the resolver
 	// add hands a name of the user's own.
 	Named Resolver
-
-	// Disabled are the systems the settings left out, in the order they would have
-	// been asked in. They are asked one question and no more: whether an identifier
-	// nothing here answered for is spelled as one of theirs.
-	Disabled []worktree.System
 }
 
 // Wiring names the systems for a repository once its settings are read.
@@ -104,14 +99,9 @@ type Env struct {
 	Systems Systems
 }
 
-// Open finds the repository containing dir, reads its settings and wires the
-// systems that answer for it.
-func Open(dir string, wire Wiring) (Env, error) {
+// Open finds the repository containing dir and wires the systems cfg asks for.
+func Open(dir string, cfg config.Config, wire Wiring) (Env, error) {
 	repo, err := git.Root(dir)
-	if err != nil {
-		return Env{}, err
-	}
-	cfg, err := config.Load(repo)
 	if err != nil {
 		return Env{}, err
 	}
@@ -219,6 +209,9 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 // Unanswered reports whether a refusal is an identifier no system answered for.
 func Unanswered(err error) bool { return errors.Is(err, errUnanswered) }
 
+// Nameable reports whether a name is one a worktree could be made for.
+func Nameable(name string) bool { return checkName(name) == nil }
+
 // place is the candidate an identifier names against the worktrees open. A name
 // nothing answered for comes back wrapping [errUnanswered].
 func (e Env) place(id string, open []Candidate) (Candidate, error) {
@@ -228,15 +221,12 @@ func (e Env) place(id string, open []Candidate) (Candidate, error) {
 		return shortest(named), nil
 	}
 	r, p, err := e.identify(id, worktree.Open{})
-	if errors.Is(err, errUnanswered) {
-		return Candidate{}, cmp.Or(e.switchedOff(id), err)
-	}
 	if err != nil {
 		return Candidate{}, err
 	}
 	// A place no worktree could be made for is one nothing really answered for.
 	if err := checkName(p.Name); err != nil {
-		return Candidate{}, cmp.Or(e.switchedOff(id), err)
+		return Candidate{}, err
 	}
 	return e.locate(r, p, open)
 }
@@ -250,30 +240,6 @@ func byName(open []Candidate, name string) []Candidate {
 		}
 	}
 	return found
-}
-
-// switchedOff is the refusal an identifier gets where a system the settings left
-// out would have answered for it, and nothing where none of them would. The
-// question is [worktree.Claimant] and never [Resolver.Identify].
-func (e Env) switchedOff(id string) error {
-	for _, s := range e.Systems.Disabled {
-		c, ok := s.(worktree.Claimant)
-		if !ok {
-			continue
-		}
-		p, its := c.Claims(id)
-		if !its || checkName(p.Name) != nil {
-			continue
-		}
-		return fmt.Errorf("nothing answers for %q; %s", id, off(s.Name()))
-	}
-	return nil
-}
-
-// off is how a system the settings left out reads: the name it goes by and the
-// key that puts it back.
-func off(name string) string {
-	return fmt.Sprintf("%s is off, put it back with %s = true", name, config.SystemKey(name))
 }
 
 // answered stamps a candidate with the resolver that answered for it: the name,
@@ -542,6 +508,30 @@ func (e Env) Addable() ([]Candidate, []error, error) {
 // path is where a worktree for a place would be created.
 func (e Env) path(name string) string {
 	return filepath.Join(e.Repo, e.Config.Worktree.Dir(), name)
+}
+
+// inside refuses a worktree directory leading out of the repository. The setting
+// is read as a path; a symlink standing where it names is not.
+func (e Env) inside() error {
+	dir := e.Config.Worktree.Dir()
+	if contains(e.Repo, filepath.Join(e.Repo, dir)) {
+		return nil
+	}
+	return fmt.Errorf("%q resolves outside the repository", dir)
+}
+
+// contains reports whether path sits below root once symlinks are resolved. A
+// path not on disk yet cannot lead anywhere, and passes.
+func contains(root, path string) bool {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return true
+	}
+	if root, err = filepath.EvalSymlinks(root); err != nil {
+		return true
+	}
+	rel, err := filepath.Rel(root, target)
+	return err == nil && rel != "." && filepath.IsLocal(rel)
 }
 
 // values are what a command for this worktree renders with: the worktree itself,

@@ -29,9 +29,13 @@ const (
 	ActionShell  ActionName = "shell"
 )
 
-// actionNames are the names an [action] key may hold, which is also how they
-// read in a refusal.
-var actionNames = []string{string(ActionClaude), string(ActionShell)}
+// actionNames are the actions on here: what an [action] key may name.
+func (c Config) actionNames() []string {
+	if c.Claude.Enabled {
+		return []string{string(ActionClaude), string(ActionShell)}
+	}
+	return []string{string(ActionShell)}
+}
 
 // renamed are the names an action used to go by, so a file written before a
 // rename is told which name to write instead. One pair covers the action's key,
@@ -62,28 +66,27 @@ func (a Action) Enter() ActionName {
 }
 
 // validate names the key work cannot use the value of, and why.
-func (a *Action) validate() (string, error) {
-	if err := a.CreateName.validate(); err != nil {
+func (a *Action) validate(names []string) (string, error) {
+	if err := a.CreateName.validate(names); err != nil {
 		return createKey, err
 	}
-	if err := a.EnterName.validate(); err != nil {
+	if err := a.EnterName.validate(names); err != nil {
 		return enterKey, err
 	}
 	return "", nil
 }
 
-// validate refuses a name no action goes by. Load starts from Default, so an
-// empty value is a file asking for the default back rather than an unset key.
-func (n ActionName) validate() error {
-	if n == "" || slices.Contains(actionNames, string(n)) {
+// validate refuses a name no action on here goes by. An empty value asks for
+// the default back.
+func (n ActionName) validate(names []string) error {
+	if n == "" || slices.Contains(names, string(n)) {
 		return nil
 	}
 	if now, ok := renamed[n]; ok {
 		return fmt.Errorf("%q is now %q", n, now)
 	}
-	return fmt.Errorf("%q is not an action; the actions are %s", n, strings.Join(actionNames, ", "))
+	return fmt.Errorf("%q is not an action; the actions are %s", n, strings.Join(names, ", "))
 }
 
-// defaultAction is what work opens on where neither key names anything. Neither
-// name may be one a system has to be switched on for.
+// defaultAction is what work opens on where neither key names anything.
 var defaultAction = Action{CreateName: ActionShell, EnterName: ActionShell}

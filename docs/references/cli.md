@@ -11,8 +11,8 @@
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
 | [`work init <shell>`](#init) | prints the shell integration |
-| [`work config dump`](#config) | prints the effective [configuration](configuration.md) and the layer behind each key |
-| [`work config edit`](#config) | opens your own [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
+| [`work config dump`](#config) | prints the effective [configuration](configuration.md) and where each key came from |
+| [`work config edit`](#config) | opens the [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`go`](#go) |
 
@@ -76,13 +76,13 @@ Printing touches no repository.
 
 ### config
 
-`work config dump` prints what the [layers](configuration.md) resolved to here, as TOML work loads back, each key under a comment naming the layer that set it: the compiled-in default, the user file's path, or `.work.toml`. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
+`work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back, each key under a comment naming where it came from: the compiled-in default, or the file's path. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 
-`work config edit` opens [the user's file](configuration.md) in `$VISUAL`, else `$EDITOR`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is. The repository's `.work.toml` is not this file.
+`work config edit` opens [the file](configuration.md) in `$VISUAL`, else `$EDITOR`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is.
 
-Nothing is created where neither variable is set. The file is the same wherever the shell stands, so this verb runs anywhere.
+Nothing is created where neither variable is set. The settings are the same wherever the shell stands, so both verbs run anywhere.
 
 ## Arguments
 
@@ -153,7 +153,7 @@ What a worktree is handed to, for one invocation, ahead of what [`action.create`
 
 [`go`](#go) and [`add`](#add) carry a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) carries none of them and refuses them.
 
-Both sets are the same in every repository, being settled before there is one to read: `--help` lists all of them, and a flag whose [system](systems.md) is off is refused.
+Both sets are spelled from the [settings](configuration.md#systems) as read, before any repository is opened, so a [system](systems.md) that is off has no flag at all and `--help` lists what this machine switched on.
 
 | Flag | Hands the worktree to |
 |---|---|
@@ -170,7 +170,7 @@ A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 si
 
 [`remove`](#remove), [`move`](#move), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what moved and what its branch became, what is open, and the configuration are printed on stdout.
 
-Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/settings/`; replacing the process with it is `internal/worktree/`, and the function and the file it names are `internal/shim/`.
+Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/config/`; replacing the process with it is `internal/worktree/`, and the function and the file it names are `internal/shim/`.
 
 ### The function
 
