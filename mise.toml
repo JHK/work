@@ -1,7 +1,7 @@
 # Toolchain and task runner. `mise tasks` to list, `mise run <task>` to run.
 
 [tools]
-go = "1.26.6"
+go = "1.27.0"
 golangci-lint = "2.12.2"
 
 [vars]
