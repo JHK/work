@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -50,20 +49,20 @@ func TestCarryLeavesIgnoredFilesWhereTheyAre(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(r.Answered, "ignored"), "the ignored file travelled into the worktree")
 }
 
-// A checkout with nothing in hand is refused before any system is asked, and the
-// refusal names the verb that only creates.
+// A checkout with nothing in hand is refused, and the refusal names the verb
+// that only creates.
 func TestCarryRefusesACleanCheckout(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := repository(t)
 
-	r := s.run("carry", "bd-1")
+	r := s.run("carry", "carried")
 
 	r.came(t, result{Code: 1, Errored: []string{
-		"this checkout carries no changes; work add bd-1 makes the worktree and carries nothing"}})
+		"this checkout carries no changes; work add carried makes the worktree and carries nothing"}})
 }
 
-// A place that has a worktree already is nowhere to carry to, and the refusal
+// A name that has a worktree already is nowhere to carry to, and the refusal
 // costs the checkout nothing.
-func TestCarryRefusesAnIdentifierThatAlreadyHasAWorktree(t *testing.T) {
+func TestCarryRefusesANameThatAlreadyHasAWorktree(t *testing.T) {
 	s := repository(t)
 	s.dirty()
 	path := s.opened("scratch")
@@ -76,8 +75,8 @@ func TestCarryRefusesAnIdentifierThatAlreadyHasAWorktree(t *testing.T) {
 	require.Empty(t, carrying(t, path), "something was carried into the worktree that was already there")
 }
 
-// The identifier is named on the command line: no picker stands in for it, and a
-// tab press after the verb offers nothing either.
+// The name is given on the command line: no picker stands in for it, and a tab
+// press after the verb offers nothing either.
 func TestCarryPutsUpNoListing(t *testing.T) {
 	put := putsUp(t)
 	s := repository(t, put.stub())
@@ -87,19 +86,6 @@ func TestCarryPutsUpNoListing(t *testing.T) {
 
 	r.came(t, result{Code: 1}, apart)
 	require.Empty(t, rows(s.completes("carry", "")), "a tab press after carry offered rows")
-}
-
-// The set of flags is add's: the open-on flag wins over what action.create names,
-// and an action is called off for the invocation.
-func TestCarryTakesTheFlagsAddTakes(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, claudeOn+"\n[action]\ncreate = \"claude\"\n")
-	s.dirty()
-	path := s.at("bd-1")
-
-	r := s.run("carry", "bd-1", "--shell", "--no-claim")
-
-	r.came(t, result{Answered: path, Asked: []string{listed, vetted, creates(path, "bd-1-do-a-thing")}})
-	require.Empty(t, carrying(t, s.Repo), "the checkout was left carrying something")
 }
 
 // What travels is what the checkout was carrying: an entry of the user's own is
@@ -140,51 +126,47 @@ func TestOnlyCarryTakesTheCheckoutsWork(t *testing.T) {
 	}
 }
 
-// dirtyTracker stands a shell in a dirty checkout whose tracker answers one of
-// its questions otherwise, which is what a case turning on the carry needs.
-func dirtyTracker(t *testing.T, otherwise testenv.Reply) *session {
-	t.Helper()
-	bd := tracker(tickets(doable), tickets(doable))
-	for i, reply := range bd.Replies {
-		if slices.Equal(reply.To, otherwise.To) {
-			bd.Replies[i] = otherwise
-		}
-	}
-	s := repository(t, bd)
-	s.settings(trackerOn)
-	s.dirty()
-	return s
-}
-
 // A restore that will not apply loses nothing: the entry stays in the stash, and
 // the refusal names the worktree git put part of the changes in.
 func TestACarryThatCannotFinishNamesWhereTheChangesAre(t *testing.T) {
-	// The file the restore is about to collide with, written where only the creation
+	// The file the restore is about to collide with, written where only an action
 	// can reach: between git making the worktree and work restoring into it.
-	s := dirtyTracker(t, testenv.Reply{To: []string{"worktree", "create"},
-		Shell: `git worktree add -q "$3" -b "$5"` + "\n" + `printf 'something else entirely' > "$3/untracked"`})
-	path := s.at("bd-1")
+	s := repository(t, testenv.Stub{Name: "mise", Shell: `printf 'something else entirely' > untracked`})
+	s.settings(miseOn)
+	s.dirty()
+	path := s.at("carried")
 
-	r := s.run("carry", "bd-1")
+	r := s.run("carry", "carried")
 
-	r.came(t, result{Code: 1, Asked: worked("bd-1", path, "bd-1-do-a-thing")}, apart)
+	r.came(t, result{Code: 1, Asked: []string{"mise trust"}}, apart)
 	r.saying(t, "stashed", path)
 	require.Contains(t, testenv.Git(t, s.Repo, "stash", "list"), "stash@{0}", "the entry was not kept")
 	require.NotEmpty(t, carrying(t, path),
 		"the worktree carries nothing; want the part git did put there, which the refusal names")
 }
 
-// The checkout is left carrying what it was carrying where an action refuses:
-// nothing is moved out of it for a worktree the run does not go through with.
-func TestNothingIsCarriedForACreationTheActionsRefuse(t *testing.T) {
-	s := dirtyTracker(t, testenv.Reply{To: []string{"update"}, Grumbles: "the ticket is locked", Exits: 1})
-	was := carrying(t, s.Repo)
-	path := s.at("bd-1")
+// The name is taken as it is spelled, whatever a tracker or a forge would answer
+// for it, and neither is asked. docs/references/cli.md#carry.
+func TestCarryNeverResolvesTheName(t *testing.T) {
+	for _, name := range []string{"bd-1", "7"} {
+		t.Run(name, func(t *testing.T) {
+			s := tracking(t, []ticket{doable}, []ticket{doable}, forgeOn)
+			s.dirty()
 
-	r := s.run("carry", "bd-1")
+			r := s.run("carry", name)
 
-	r.came(t, result{Code: 1, Errored: []string{claims("bd-1") + ": the ticket is locked"},
-		Asked: worked("bd-1", path, "bd-1-do-a-thing")})
-	require.Equal(t, was, carrying(t, s.Repo), "the checkout no longer carries what it was carrying")
-	require.Empty(t, testenv.Git(t, s.Repo, "stash", "list"), "the changes were stashed for a run that refused")
+			r.came(t, result{Answered: s.at(name)})
+			require.True(t, s.hasBranch(name), "the worktree is not on the branch the name spells")
+		})
+	}
+}
+
+// Carry reaches the naming rule with no resolver in the way.
+func TestCarryRefusesANameNoWorktreeCouldCarry(t *testing.T) {
+	s := repository(t)
+	s.dirty()
+
+	r := s.run("carry", "../etc")
+
+	r.came(t, result{Code: 1, Errored: []string{`"../etc" is not a usable worktree name`}})
 }

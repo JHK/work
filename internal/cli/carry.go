@@ -10,25 +10,19 @@ import (
 )
 
 // carryCommand is the verb that brings a worktree into being and takes the
-// checkout's work along. It takes its identifier on the command line and offers
-// no listing behind it.
+// checkout's work along.
 func carryCommand(sys work.Systems, verb opens) *cobra.Command {
 	return handing(&cobra.Command{
-		Use:   "carry <name>|<id>|<pr>|<url>",
+		Use:   "carry <name>",
 		Short: "Create the worktree and take the checkout's changes into it",
-		Long: `Create the worktree an identifier names, forked from the checkout you are
+		Long: `Create a worktree under a name of your own, forked from the checkout you are
 standing in, and move that checkout's working state into it: the checkout is
 left clean on the branch it was already on, and the new worktree carries the
 changes, what was staged still staged. Untracked files travel; ignored files
 stay put.
 
-A ticket is vetted and claimed, a pull request is checked out, and a name no
-system answers for becomes a branch spelled exactly as it is.
-
-An identifier that already has a worktree is refused, and so is a checkout
-carrying nothing: work add is what only creates.
-
-The identifier is named on the command line; there is no listing to pick from.
+A name that already has a worktree is refused, and so is a checkout carrying
+nothing: work add is what only creates.
 
 The worktree opens on what action.create names.`,
 		Args: cobra.ExactArgs(1),
@@ -37,24 +31,22 @@ The worktree opens on what action.create names.`,
 
 // carrying puts carry over the repository the shell stands in.
 func (v verbs) carrying() opens {
-	return func(o options, id string) (worktree.Handoff, error) {
+	return func(o options, name string) (worktree.Handoff, error) {
 		env, err := v.repository()
 		if err != nil {
 			return worktree.Handoff{}, err
 		}
-		return carry(env, o, id)
+		return carry(env, o, name)
 	}
 }
 
-// carry makes the worktree the identifier asks for and moves the checkout's
-// working state into it.
-func carry(env work.Env, o options, id string) (worktree.Handoff, error) {
-	// Ahead of the resolvers, so a checkout with nothing to hand over asks no
-	// system anything.
+// carry makes the worktree the name asks for and moves the checkout's working
+// state into it.
+func carry(env work.Env, o options, name string) (worktree.Handoff, error) {
 	if err := env.Carryable(); err != nil {
-		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes the worktree and carries nothing", err, id)
+		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes the worktree and carries nothing", err, name)
 	}
-	c, err := env.Add(id)
+	c, err := env.Own(name)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

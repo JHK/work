@@ -7,7 +7,7 @@
 | [`work go [<identifier>]`](#go) | reaches the worktree an [identifier](#identifiers) names, creating it if there is none |
 | [`work switch [<identifier>]`](#switch) | enters the worktree an identifier already has |
 | [`work add [<identifier>]`](#add) | creates the worktree an identifier has none of, and opens it |
-| [`work carry <identifier>`](#carry) | creates that worktree and moves the invoking checkout's changes into it |
+| [`work carry <name>`](#carry) | creates a worktree of that name and moves the invoking checkout's changes into it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
@@ -48,11 +48,9 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 ### carry
 
-`work carry <identifier>` creates the worktree the [identifier](#identifiers) has none of, as [`add`](#add) does, and moves the working state of the checkout it was invoked in into it. That checkout is left carrying none of it, and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put.
+`work carry <name>` creates a worktree of that name, as [`add`](#add) does of a name of your own, and moves the working state of the checkout it was invoked in into it. That checkout is left carrying none of it, and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put.
 
 A checkout carrying nothing is refused, in words naming `add`. Changes that do not apply cleanly are kept in the stash, and the refusal names the worktree already carrying whatever part of them git put there.
-
-With no identifier, the invocation is refused.
 
 ### remove
 
@@ -108,7 +106,7 @@ Where neither variable names an editor, the invocation is refused before anythin
 
 A URL contributes its number, and the number is read against the current repository.
 
-The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) and [`carry`](#carry) are the verbs that make a worktree of a name of your own.
+The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) reads it as a name of your own instead.
 
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 

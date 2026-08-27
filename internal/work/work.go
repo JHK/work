@@ -311,7 +311,7 @@ func (e Env) Add(id string) (Candidate, error) {
 		return Candidate{}, err
 	}
 	if c.Open {
-		return Candidate{}, fmt.Errorf("%s already has a worktree; enter it with work switch %s", c.Name, c.Name)
+		return Candidate{}, taken(c.Name)
 	}
 	return c, nil
 }
@@ -327,6 +327,24 @@ func (e Env) invent(name string) (Candidate, error) {
 		return Candidate{}, err
 	}
 	return answered(e.Systems.Named, Candidate{Place: p}), nil
+}
+
+// Own is the place a name of the user's own makes, no identifier resolved and no
+// tracker or forge asked. A name git already lists a worktree under is refused.
+func (e Env) Own(name string) (Candidate, error) {
+	open, err := e.Branches()
+	if err != nil {
+		return Candidate{}, err
+	}
+	if slices.Contains(open, name) {
+		return Candidate{}, taken(name)
+	}
+	return e.invent(name)
+}
+
+// taken is what a name a worktree is already open under is refused with.
+func taken(name string) error {
+	return fmt.Errorf("%s already has a worktree; enter it with work switch %s", name, name)
 }
 
 // Switchable is why a candidate cannot be entered: it has no worktree open.
