@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -37,6 +38,10 @@ func TestMain(m *testing.M) {
 
 // stubVersion is what the tree is built with, which --version alone reads.
 const stubVersion = "v0.0.0-test"
+
+// versionLine is the whole of what --version prints: the test binary and the
+// tree it builds are compiled by the one toolchain.
+var versionLine = "work version " + stubVersion + " (" + runtime.Version() + ")\n"
 
 // defaultDir is where worktrees go with nothing configured.
 var defaultDir = config.Default().Worktree.Dir()

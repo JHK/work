@@ -21,7 +21,7 @@
 |---|---|
 | `-h`, `--help` | prints a command's help, and is the one shorthand of the three |
 | `--log-level <level>` | says what `work` reached for, at `warn`, `info` or `debug` |
-| `--version` | prints [the version](mise-tasks.md#version-stamping), in or out of a repository |
+| `--version` | prints [the version](mise-tasks.md#version-stamping) and the Go toolchain that compiled the binary, in or out of a repository |
 
 ### go
 

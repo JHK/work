@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -159,7 +160,7 @@ func command(version string, logLevel *slog.LevelVar, sys work.Systems, f front)
 		Long: `work is a smarter cd for git worktrees. It knows which worktrees a repository
 has open and which tickets and pull requests are waiting, and hands you the one
 you pick: your shell stands in it, or a command takes the terminal.`,
-		Version: version,
+		Version: fmt.Sprintf("%s (%s)", version, runtime.Version()),
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -172,7 +173,7 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
 	logging(cmd, logLevel)
 	// Declared here so that cobra does not give it the -v below leaves free.
-	cmd.Flags().Bool("version", false, "print the version work was built at")
+	cmd.Flags().Bool("version", false, "print the version and the Go toolchain")
 	// Cobra adds what it is still missing as it runs, too late for [dispatch] to
 	// read them.
 	cmd.InitDefaultHelpCmd()

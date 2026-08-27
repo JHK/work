@@ -27,6 +27,8 @@ The value is read where the task runs: building inside a worktree describes that
 
 Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails.
 
+The Go toolchain in that line is not stamped: `work` reports the one that compiled it.
+
 ## Where the binary lands
 
 `install` and `uninstall` both resolve `$GOBIN`, falling back to `$GOPATH/bin`. Read the live value with `go env GOBIN`.

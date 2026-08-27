@@ -32,7 +32,7 @@ func TestTheFirstWordDecides(t *testing.T) {
 		{"the level and nothing else", []string{"--log-level", "info"}, result{Answered: path, Asked: []string{putUp}}},
 		// A flag spelling its own value takes no word after it: --version is the
 		// root's whichever way it is written.
-		{"a spelled-out value", []string{"--version=true"}, result{Out: "work version " + stubVersion + "\n"}},
+		{"a spelled-out value", []string{"--version=true"}, result{Out: versionLine}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

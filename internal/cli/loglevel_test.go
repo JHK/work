@@ -147,7 +147,7 @@ func TestNeitherTheVersionNorTheLevelTakesAShorthand(t *testing.T) {
 
 		refused.came(t, result{Code: 1, Errored: []string{"unknown shorthand flag: '" + letter + "' in -" + letter}})
 	}
-	s.run("--version").came(t, result{Out: "work version " + stubVersion + "\n"})
+	s.run("--version").came(t, result{Out: versionLine})
 }
 
 // pflag names the values and the default, and no root flag runs past eighty
