@@ -78,28 +78,17 @@ func mustPattern(text string, v values) Pattern {
 // no error; one that cannot be read, names a key work does not know, or carries
 // an unusable value, is.
 func Load() (Config, error) {
-	c, _, err := read()
-	return c, err
-}
-
-// read is Load, keeping which keys the file set, which a dump names and a
-// refusal points at.
-func read() (Config, map[string]string, error) {
 	c := Default()
-	from := map[string]string{}
-	if path := userFile(); path != "" {
-		md, err := decode(path, &c)
-		if err != nil {
-			return Config{}, nil, err
-		}
-		for _, key := range md.Keys() {
-			from[key.String()] = path
+	path := userFile()
+	if path != "" {
+		if err := decode(path, &c); err != nil {
+			return Config{}, err
 		}
 	}
 	if key, err := c.validate(); err != nil {
-		return Config{}, nil, fmt.Errorf("%s: %s: %w", from[key], key, err)
+		return Config{}, fmt.Errorf("%s: %s: %w", path, key, err)
 	}
-	return c, from, nil
+	return c, nil
 }
 
 // userFile is the settings file, named whether or not it is there. A machine
@@ -122,30 +111,30 @@ var renamed = map[string]string{"agent": ClaudeSystem}
 
 // decode reads the file over what the defaults left, leaving every key the file
 // does not name alone.
-func decode(path string, c *Config) (toml.MetaData, error) {
+func decode(path string, c *Config) error {
 	md, err := toml.DecodeFile(path, c)
 	if errors.Is(err, fs.ErrNotExist) {
-		return toml.MetaData{}, nil
+		return nil
 	}
 	if err != nil {
-		return toml.MetaData{}, fmt.Errorf("%s: %w", path, err)
+		return fmt.Errorf("%s: %w", path, err)
 	}
 	// A key nothing decoded is a typo of one that would have, not a value to drop.
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
 		key := undecoded[0]
 		if now, ok := renamed[key[0]]; ok {
-			return md, fmt.Errorf("%s: the [%s] table is now [%s]", path, key[0], now)
+			return fmt.Errorf("%s: the [%s] table is now [%s]", path, key[0], now)
 		}
-		return md, fmt.Errorf("%s: unknown setting %s", path, key)
+		return fmt.Errorf("%s: unknown setting %s", path, key)
 	}
 	// toml matches a key to a field case-insensitively, so two spellings of one
 	// key would race to set it. Only the documented spelling is that key.
 	for _, key := range md.Keys() {
 		if name := key.String(); name != strings.ToLower(name) {
-			return md, fmt.Errorf("%s: unknown setting %s", path, name)
+			return fmt.Errorf("%s: unknown setting %s", path, name)
 		}
 	}
-	return md, nil
+	return nil
 }
 
 // validate names the key work cannot use the value of, and why. It also ties

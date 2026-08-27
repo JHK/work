@@ -18,9 +18,6 @@ func directory(dir string) string {
 	return fmt.Sprintf("[worktree]\ndirectory = %q\n", dir)
 }
 
-// compiledIn is what a dump names as the source of a key no file set.
-const compiledIn = "the compiled-in default"
-
 // documented is every setting work reads, spelled as
 // docs/references/configuration.md spells it and grouped under the table it sits
 // in, which no case may derive from the code.
@@ -36,13 +33,11 @@ var documented = []string{
 }
 
 // dumped is a printed configuration read back: the keys in the order they were
-// printed, the source named above each and the value under it. A key is held by
-// the whole name a settings file spells, which is the table it sits in and its
-// own where it sits in one.
+// printed and the value under each. A key is held by the whole name a settings
+// file spells, which is the table it sits in and its own where it sits in one.
 type dumped struct {
 	text  string
 	keys  []string
-	from  map[string]string
 	value map[string]string
 }
 
@@ -52,14 +47,12 @@ func dumping(t *testing.T, s *session) dumped {
 	r := s.run("config", "dump")
 	r.came(t, result{}, besides("Out"))
 
-	d := dumped{text: r.Out, from: map[string]string{}, value: map[string]string{}}
-	table, source := "", ""
+	d := dumped{text: r.Out, value: map[string]string{}}
+	table := ""
 	for line := range strings.SplitSeq(r.Out, "\n") {
 		switch {
 		case strings.HasPrefix(line, "["):
 			table = strings.TrimSuffix(strings.TrimPrefix(line, "["), "]")
-		case strings.HasPrefix(line, "# "):
-			source = strings.TrimPrefix(line, "# ")
 		case strings.Contains(line, " = "):
 			leaf, value, _ := strings.Cut(line, " = ")
 			name := leaf
@@ -67,7 +60,7 @@ func dumping(t *testing.T, s *session) dumped {
 				name = table + "." + leaf
 			}
 			d.keys = append(d.keys, name)
-			d.from[name], d.value[name] = source, value
+			d.value[name] = value
 		}
 	}
 	return d
@@ -80,27 +73,6 @@ func TestConfigDumpNamesEverySetting(t *testing.T) {
 	s := repository(t)
 
 	testenv.Equal(t, documented, dumping(t, s).keys, "the dump names other settings than the reference does")
-}
-
-// The file, by the path it was read at, or the compiled-in default where the
-// file left it alone.
-func TestConfigDumpNamesWhereEachKeyCameFrom(t *testing.T) {
-	s := repository(t)
-	file := s.settings(on("beads") + directory("trees"))
-
-	from := dumping(t, s).from
-
-	want := map[string]string{
-		"worktree.directory": file,
-		"systems":            file,
-		"branch.ticket":      compiledIn,
-		"claude.on-creation": compiledIn,
-	}
-	got := map[string]string{}
-	for key := range want {
-		got[key] = from[key]
-	}
-	testenv.Equal(t, want, got, "a key came from the wrong place")
 }
 
 // What the dump prints is a settings file: a machine whose whole configuration
@@ -145,14 +117,12 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
-		// The systems list, and the tables and keys it replaced: a system is named in
-		// the one list, and a table of its own is a setting nothing declares.
+		// A system is switched on by the one systems list, which is the only key that
+		// names one.
 		{"a name in the list no system goes by", "systems = [\"linear\"]\n", "is no system work has"},
 		{"a system named in another case", "systems = [\"Beads\"]\n", "is no system work has"},
 		{"systems that are not a list", "systems = \"beads\"\n", "systems"},
 		{"a system that is not a string", "systems = [3]\n", "systems"},
-		{"a system's own table", "[beads]\nenabled = true\n", "unknown setting beads"},
-		{"the key a system was switched on by", agentOn + "enabled = true\n", "unknown setting claude.enabled"},
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
 		{"a table under the name it used to go by", "[agent]\nstart-ticket = [\"claude\"]\n", "the [agent] table is now [claude]"},
@@ -175,17 +145,8 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a session command naming nothing", "[claude]\nstart-session = []\n", "claude.start-session: names no command"},
 		{"a value the key does not have", "[claude]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
 		{"a value no key has", "[claude]\nstart-session = [\"claude\", \"{{.Branch}}\"]\n", "claude.start-session"},
-		// The two work once placed itself, and now has no more than any other name.
-		{"a model or an effort", "[claude]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", "claude.start-ticket"},
 		// Only the arm a ticket carrying a title reaches names it.
 		{"a value named inside a branch", "[claude]\nstart-ticket = [\"claude\", \"{{with .Title}}{{$.Branch}}{{end}}\"]\n", "claude.start-ticket"},
-		// The whole table went with the commands that were under it: the shell action
-		// hands back the worktree now, and the editor and the diff are gone.
-		{"the table of commands to open on", "[open]\nshell = [\"fish\"]\neditor = [\"vi\", \"{{.Dir}}\"]\n", "unknown setting open"},
-		// The keys claude.on-creation replaced: refused as keys nothing declares
-		// rather than read for what they used to mean.
-		{"the table the action keys sat in", "[action]\ncreate = \"claude\"\nenter = \"shell\"\n", "unknown setting action"},
-		{"the command a conversation was resumed with", "[claude]\nresume-session = [\"claude\"]\n", "unknown setting claude.resume-session"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

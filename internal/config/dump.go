@@ -1,7 +1,6 @@
 package config
 
 import (
-	"cmp"
 	"fmt"
 	"iter"
 	"strings"
@@ -9,17 +8,9 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// compiledIn is where a key no file set came from.
-const compiledIn = "the compiled-in default"
-
-// Dump renders the configuration as TOML, each key under a comment naming where
-// it came from. What it prints is what work would load back.
-func Dump() (string, error) {
-	c, from, err := read()
-	if err != nil {
-		return "", err
-	}
-
+// Dump renders the configuration as TOML. What it prints is what work would load
+// back.
+func (c Config) Dump() string {
 	var b strings.Builder
 	table := ""
 	for _, k := range c.keys() {
@@ -38,13 +29,13 @@ func Dump() (string, error) {
 			}
 			table = name
 		}
-		fmt.Fprintf(&b, "# %s\n%s = %s\n", cmp.Or(from[k.name], compiledIn), leaf, value(k.value))
+		fmt.Fprintf(&b, "%s = %s\n", leaf, value(k.value))
 	}
-	return b.String(), nil
+	return b.String()
 }
 
-// key is one setting: the whole name, which is both how a settings file spells
-// it and how its source is keyed, and the value work resolved.
+// key is one setting: the whole name, as a settings file spells it, and the
+// value work resolved.
 type key struct {
 	name  string
 	value any
@@ -87,7 +78,7 @@ func value(v any) string {
 }
 
 // Settings is every key work read and the value it resolved to, in the order
-// the reference documents them. [Dump] is the same settings as a file
+// the reference documents them. [Config.Dump] is the same settings as a file
 // spells them.
 func (c Config) Settings() iter.Seq2[string, any] {
 	return func(yield func(string, any) bool) {

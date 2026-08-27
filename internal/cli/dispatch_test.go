@@ -60,9 +60,7 @@ func TestTheHelpIsTheRootsOwn(t *testing.T) {
 	}
 }
 
-// cobra's own completion command is gone, so the word is a worktree name like
-// any other. The help above is the cobra verb work keeps.
-func TestNoCompletionCommand(t *testing.T) {
+func TestCompletionIsAWorktreeNameLikeAnyOther(t *testing.T) {
 	s := repository(t)
 	path := s.opened("completion")
 

@@ -12,7 +12,7 @@
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
 | [`work init <shell>`](#init) | prints the shell integration |
-| [`work config dump`](#config) | prints the effective [configuration](configuration.md) and where each key came from |
+| [`work config dump`](#config) | prints the effective [configuration](configuration.md) |
 | [`work config edit`](#config) | opens the [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work [<identifier>]` | dispatched to [`go`](#go) |
 
@@ -84,7 +84,7 @@ The main checkout cannot be moved, and neither can the worktree the shell is sta
 
 ### config
 
-`work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back, each key under a comment naming where it came from: the compiled-in default, or the file's path. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
+`work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 

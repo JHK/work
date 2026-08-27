@@ -103,7 +103,7 @@ func fronting(v verbs) front {
 		carry:    v.carrying(),
 		remove:   performs(v, removable, remove),
 		move:     performs(v, movable, move),
-		dump:     dump,
+		dump:     v.dumping,
 		edit:     edit,
 		branches: v.branchListing,
 	}

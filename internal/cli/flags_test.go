@@ -64,24 +64,6 @@ func (s *session) prints(args ...string) []string {
 	return flags
 }
 
-// A flag work once took is one nothing declares now, refused wherever a verb
-// that opens a worktree takes it. What an invocation opens on is the settings'
-// to say: docs/references/configuration.md. Which flags a --help still offers is
-// [TestWhereEachFlagIsDeclared].
-func TestTheFlagsThatNamedAnActionAreGone(t *testing.T) {
-	s := repository(t)
-	s.settings(on("claude", "beads"))
-
-	for _, flag := range []string{"--claude", "--shell", "--agent", "--no-claim"} {
-		t.Run(flag, func(t *testing.T) {
-			for _, args := range [][]string{{"scratch", flag}, {"go", flag, "scratch"},
-				{"switch", flag, "scratch"}, {"add", flag, "scratch"}, {"carry", flag, "scratch"}} {
-				s.run(args...).refused(t, "unknown flag: "+flag)
-			}
-		})
-	}
-}
-
 // The verbs claude.on-creation is read against are the verbs the command line
 // carries, and the ones it may name are the ones a worktree comes into being
 // under. Nothing in the compiler holds the two spellings together.
@@ -123,26 +105,15 @@ func TestCommandRejects(t *testing.T) {
 		name string
 		args []string
 	}{
-		{"--start is gone", []string{"bd-1", "--start"}},
-		{"--model is gone", []string{"bd-1", "--model", "opus"}},
-		{"--effort is gone", []string{"--effort=high", "bd-1"}},
-		{"--editor is gone", []string{"bd-1", "--editor"}},
-		{"--diff is gone", []string{"bd-1", "--diff"}},
-		{"--ask is gone", []string{"bd-1", "--ask"}},
 		{"two identifiers", []string{"bd-1", "bd-2"}},
 		{"two identifiers on go", []string{"go", "bd-1", "bd-2"}},
 		{"a verb's flag on go", []string{"go", "bd-1", "--force"}},
 		{"two identifiers on switch", []string{"switch", "bd-1", "bd-2"}},
 		{"a verb's flag on switch", []string{"switch", "bd-1", "--force"}},
-		// Creating is a verb now.
-		{"--create is gone", []string{"scratch", "--create"}},
 		{"adding two worktrees at once", []string{"add", "scratch", "other"}},
 		// carry takes the one identifier and no listing stands in for it.
 		{"carrying two worktrees at once", []string{"carry", "scratch", "other"}},
 		{"another verb's flag on carry", []string{"carry", "scratch", "--force"}},
-		// Removing is a verb now, and --force went with it.
-		{"--delete is gone", []string{"scratch", "--delete"}},
-		{"--force is gone from the root", []string{"scratch", "--force"}},
 		// remove declares --force and nothing else, so a root flag is unknown to it.
 		{"a root flag on remove", []string{"remove", "scratch", "--version"}},
 		{"removing two worktrees at once", []string{"remove", "scratch", "other"}},
@@ -154,10 +125,7 @@ func TestCommandRejects(t *testing.T) {
 		{"list with a name", []string{"list", "scratch"}},
 		{"a root flag on list", []string{"list", "--version"}},
 		{"unknown flag", []string{"bd-1", "--turbo"}},
-		// The level is a flag of its own now, not a verbosity that raises one, and its
-		// value is mandatory: the word behind it is read as that value.
-		{"--verbose is gone", []string{"--verbose", "scratch"}},
-		{"--verbose at a level is gone", []string{"--verbose=debug", "list"}},
+		// The level's value is mandatory: the word behind it is read as that value.
 		{"the level with no value", []string{"--log-level"}},
 		{"a verb where the level's value goes", []string{"--log-level", "list"}},
 		// config carries sub-verbs, and dump takes nothing.

@@ -32,9 +32,8 @@ defaults.`,
 func dumpCommand(run func(out io.Writer) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dump",
-		Short: "Print the effective configuration as TOML, each key under its source",
-		Long: `Print the configuration work resolved as TOML, every key under a comment naming
-where it came from: the compiled-in default, or your file.
+		Short: "Print the effective configuration as TOML",
+		Long: `Print the configuration work resolved, as the TOML work loads back.
 
 Templates print as they are written; rendering one needs a target.
 
@@ -46,13 +45,12 @@ The settings are the same wherever the shell stands, so this verb runs anywhere.
 	}
 }
 
-// dump prints the settings work resolved.
-func dump(out io.Writer) error {
-	text, err := config.Dump()
-	if err != nil {
-		return err
+// dumping prints the settings work resolved.
+func (v verbs) dumping(out io.Writer) error {
+	if v.read != nil {
+		return v.read
 	}
-	_, err = io.WriteString(out, text)
+	_, err := io.WriteString(out, v.cfg.Dump())
 	return err
 }
 
