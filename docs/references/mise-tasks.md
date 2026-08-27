@@ -11,7 +11,7 @@ Where each task puts things. `mise tasks` lists them and [mise.toml](../../mise.
 | `lint` | `go vet ./...` then `golangci-lint run` |
 | `cover` | the total the suite covers of what the binary ships, over the profile `./coverage.out`, which `.gitignore` covers |
 
-The toolchain versions pinned in `[tools]` are what CI and a fresh checkout resolve to.
+The toolchain versions pinned in `[tools]` are what a fresh checkout resolves to.
 
 ## What the coverage total counts
 
