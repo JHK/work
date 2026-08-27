@@ -52,7 +52,7 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 A checkout carrying nothing is refused, in words naming `add`. Changes that do not apply cleanly are kept in the stash, and the refusal names the worktree already carrying whatever part of them git put there.
 
-With no identifier, the invocation is refused; [the picker](#the-picker) does not stand in for one.
+With no identifier, the invocation is refused.
 
 ### remove
 

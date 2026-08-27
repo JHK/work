@@ -15,7 +15,7 @@ import (
 func carryCommand(sys work.Systems, verb opens) *cobra.Command {
 	return handing(&cobra.Command{
 		Use:   "carry <name>|<id>|<pr>|<url>",
-		Short: "Create the worktree an identifier names and take the checkout's changes into it",
+		Short: "Create the worktree and take the checkout's changes into it",
 		Long: `Create the worktree an identifier names, forked from the checkout you are
 standing in, and move that checkout's working state into it: the checkout is
 left clean on the branch it was already on, and the new worktree carries the
