@@ -13,7 +13,6 @@
 | [`work init <shell>`](#init) | prints the shell integration |
 | [`work config dump`](#config) | prints the effective [configuration](configuration.md) and where each key came from |
 | [`work config edit`](#config) | opens the [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
-| `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`go`](#go) |
 
 `--help`, `--log-level` and `--version` are the root's own:
@@ -64,11 +63,11 @@ A destination spelled as a bare name lands the worktree beside where it sits; on
 
 With no destination, [the prompt](#the-prompt) asks for one. With no name either, [the picker](#the-picker) stands in for the name first.
 
-No tracker is asked and no action runs. The main checkout cannot be moved, and neither can the worktree the shell is standing in.
+The main checkout cannot be moved, and neither can the worktree the shell is standing in.
 
 ### list
 
-`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached. A bare repository's row for itself is left out.
+`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached.
 
 ### init
 
@@ -78,17 +77,15 @@ No tracker is asked and no action runs. The main checkout cannot be moved, and n
 - fish: `work init fish | source` in `config.fish`
 - zsh: `source <(work init zsh)` in `.zshrc`
 
-Printing touches no repository and asks no tool anything: a [settings file](configuration.md) `work` would refuse to load still leaves it alone.
-
 ### config
 
 `work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back, each key under a comment naming where it came from: the compiled-in default, or the file's path. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 
-`work config edit` opens [the file](configuration.md) in `$VISUAL`, else `$EDITOR`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens; a file already there is opened as it is.
+`work config edit` opens [the file](configuration.md) in `$VISUAL`, else `$EDITOR`. The file and the directory it sits in are created where neither is there yet, so an editor that creates neither still opens.
 
-Nothing is created where neither variable is set. The settings are the same wherever the shell stands, so both verbs run anywhere.
+Where neither variable names an editor, the invocation is refused before anything is created. The settings are the same wherever the shell stands, so both verbs run anywhere.
 
 ## Arguments
 
@@ -130,7 +127,7 @@ What a verb puts up is what it can act on:
 
 A listing left with no rows is one line on stderr naming what there is nothing of.
 
-A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [system](systems.md) names it. A bare repository's row for itself has none.
+A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [system](systems.md) names it.
 
 Beside the worktrees, a system can add rows of its own and the titles on them.
 
@@ -149,13 +146,13 @@ What [`init`](#init)'s integration offers at each position:
 | [`go`](#go), [`switch`](#switch), [`add`](#add), [`remove`](#remove) and [`move`](#move)'s identifier or name | what [that verb's picker](#the-picker) offers |
 | [`init`](#init)'s shell | the shells it prints |
 
-A word past the position named completes nothing, and so does every word after [`list`](#list), which takes none. A repository that will not answer completes nothing, and no error reaches the shell. In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
+In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
 
 ## Opening
 
 ### Open-on flags
 
-What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now, and is offered by nothing.
+What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now.
 
 [`go`](#go) and [`add`](#add) carry a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) carries none of them and refuses them.
 
@@ -172,7 +169,7 @@ Both sets are spelled from the [settings](configuration.md#systems) as read, bef
 
 The `shell` action hands the worktree back instead: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that the integration is not sourced; the invocation still exits 0.
 
-A failure to enter is one line on stderr and exit 1; a dismissed list exits 1 silently.
+A dismissed list exits 1 silently.
 
 [`remove`](#remove), [`move`](#move), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what moved and what its branch became, what is open, and the configuration are printed on stdout.
 

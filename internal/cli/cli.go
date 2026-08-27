@@ -158,9 +158,7 @@ func command(version string, logLevel *slog.LevelVar, sys work.Systems, f front)
 		Short: "A smarter cd for git worktrees",
 		Long: `work is a smarter cd for git worktrees. It knows which worktrees a repository
 has open and which tickets and pull requests are waiting, and hands you the one
-you pick: your shell stands in it, or a command takes the terminal.
-
-An identifier in the first position, or none at all, is work go.`,
+you pick: your shell stands in it, or a command takes the terminal.`,
 		Version: version,
 		// A failure to enter is one line on stderr, not a wall of usage.
 		SilenceUsage:  true,

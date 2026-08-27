@@ -23,8 +23,7 @@ being what makes one.
 With no identifier, choose among the repository's worktrees, less the one you are
 standing in. That form needs fzf.
 
-The worktree opens on what action.enter names. Nothing comes into being here, so
-no tracker is asked and no action runs.`,
+The worktree opens on what action.enter names.`,
 	}, sys, nil, verb)
 }
 

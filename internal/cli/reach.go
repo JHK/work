@@ -26,11 +26,9 @@ An existing worktree opens on what action.enter names, a new one on what
 action.create names.
 
 Creating a worktree for a ticket vets that ticket and claims it. A name no
-system answers for is work add's, this verb reaching what its picker offers and
-nothing else.
+system answers for is work add's.
 
-work <identifier> is this same command without the verb: work go add reaches the
-worktree add.`,
+work <identifier> is work go <identifier>: work go add reaches the worktree add.`,
 	}, sys, sys.Actions, verb)
 }
 

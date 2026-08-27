@@ -13,9 +13,7 @@ func listCommand(branches func() ([]string, error)) *cobra.Command {
 		Use:   "list",
 		Short: "Print the repository's open worktrees",
 		Long: `Print the repository's open worktrees, one per line: the branch each has checked
-out, or its directory where it has none.
-
-No tracker and no forge is asked.`,
+out, or its directory where it has none.`,
 		Args: cobra.NoArgs,
 		// It hands over to nothing: the invocation prints and exits.
 		RunE: func(cmd *cobra.Command, _ []string) error {

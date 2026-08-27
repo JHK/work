@@ -71,7 +71,7 @@ An `[action]` value is one of the actions that are on here, which is what an [op
 | `claude` | `claude.enabled = true` | what [`--claude`](cli.md#open-on-flags) hands it to |
 | `shell` | always | nothing: the worktree is [handed back](cli.md#handoff) |
 
-Refused at load: a name no action goes by, an action of a [system](#systems) that is off among them. An action that only runs when a worktree comes into being, such as `beads` or `mise`, is not an `[action]` value at all: it is [declined by a flag](cli.md#open-on-flags), never named here.
+Refused at load: a name no action goes by, an action of a [system](#systems) that is off among them. An action that only runs when a worktree comes into being, such as `beads` or `mise`, is not an `[action]` value: it is [declined by a flag](cli.md#open-on-flags).
 
 ## Commands
 
@@ -85,7 +85,7 @@ A `[claude]` value is the argv of a command run without a shell, one [Go templat
 | `.Number` | `claude.start-pull-request` | the pull request number |
 | `.Session` | `claude.resume-session` | the conversation the worktree carries, empty where it carries several |
 
-An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several. No id is ever asked of a person.
+An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several.
 
 Refused at load:
 

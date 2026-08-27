@@ -2,7 +2,7 @@
 
 A system is what `work` reaches for beyond git: a tracker, a forge, a tool, an agent. Each has [a table of its own](configuration.md#systems) with an `enabled` key in it, and none runs until you ask for it.
 
-`work` bundles none of them. What a system needs, it looks for on `PATH` when it is asked a question, never when it is built, so a machine that asked for none starts nothing of its own. A command that is not there is refused, and asked nothing more that run. A refusal reaches stderr once, naming the command that was run and what it answered with.
+`work` bundles none of them: what a system needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
 
 ## beads
 
@@ -14,7 +14,7 @@ The forge, over `gh`, pinned to origin's URL. It reads origin's open pull reques
 
 ## mise
 
-The tool trust, over `mise`. It runs `mise trust` in a worktree that was just created, and nothing on the way back into one. It is `internal/action/mise/`.
+The tool trust, over `mise`. It runs `mise trust` in a worktree that was just created. It is `internal/action/mise/`.
 
 ## claude
 
