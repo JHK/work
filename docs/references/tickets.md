@@ -4,7 +4,7 @@ What `work` asks of a ticket before it creates a worktree for it. The tracker is
 
 ## Vetting
 
-A worktree about to be created for a ticket is vetted first, whatever it will open on. Refused, each naming its reason: a ticket in any status but `open` or `in_progress`, one with no acceptance criteria, and an open one whose dependencies are not satisfied. An epic is asked for none of that: only a closed epic is refused. `vet` in [internal/resolve/beads/beads.go](../../internal/resolve/beads/beads.go) is the list and the messages.
+A ticket is vetted before its worktree is created. Refused, each naming its reason: a ticket in any status but `open` or `in_progress`, one with no acceptance criteria, and an open one whose dependencies are not satisfied. An epic is asked for none of that: only a closed epic is refused. `vet` in [internal/resolve/beads/beads.go](../../internal/resolve/beads/beads.go) is the list and the messages.
 
 ## Claiming
 

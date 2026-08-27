@@ -99,7 +99,7 @@ Where neither variable names an editor, the invocation is refused before anythin
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
 
-A pull request number is read against the current repository, whatever host the URL names.
+A URL contributes its number, and the number is read against the current repository.
 
 The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) is the verb that makes a worktree of a name of your own.
 

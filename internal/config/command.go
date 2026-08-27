@@ -101,8 +101,7 @@ type keyValues struct {
 	names []string
 }
 
-// common are the values every command has, whatever it is for; a key's own
-// follow them.
+// common are the values every command has; a key's own follow them.
 var common = []string{"Name", "Dir"}
 
 var (
