@@ -200,7 +200,7 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 // read stops it where it stands rather than halfway through.
 func TestASettingsFileWorkWillNotReadStopsEveryVerb(t *testing.T) {
 	commands := [][]string{
-		{"go", "scratch"}, {"switch", "scratch"}, {"add", "other"},
+		{"go", "scratch"}, {"switch", "scratch"}, {"add", "other"}, {"carry", "other"},
 		{"remove", "scratch"}, {"move", "scratch", "other"}, {"list"}, {"config", "dump"},
 		// A file that would not load wired nothing, so the flag a system spells is
 		// missing too: what the reader hears is still the settings.

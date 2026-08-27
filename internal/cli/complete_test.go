@@ -38,7 +38,7 @@ func TestCompleteBarePosition(t *testing.T) {
 	out := s.completes("")
 
 	offered := names(rows(out))
-	for _, verb := range []string{"go", "switch", "add", "remove", "move", "list", "init"} {
+	for _, verb := range []string{"go", "switch", "add", "carry", "remove", "move", "list", "init"} {
 		require.Contains(t, offered, verb, "completing the bare position offered no %s row", verb)
 	}
 	for _, absent := range []string{"bd-1", "scratch"} {

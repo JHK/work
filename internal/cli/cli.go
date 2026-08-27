@@ -24,9 +24,9 @@ var errCancelled = errors.New("cancelled")
 // options are what the flags settled and the verb added, in the names the
 // systems go by: which action the worktree opens on, and which were declined.
 type options struct {
-	open string
-	skip []string
-	park bool // the checkout's working state moves into the worktree add makes
+	open  string
+	skip  []string
+	carry bool // the checkout's working state moves into the worktree carry makes
 }
 
 // The shape each verb takes once the flags are read: an opening verb hands a
@@ -49,6 +49,7 @@ type front struct {
 	reach    offering[opens]
 	enter    offering[opens]
 	add      offering[opens]
+	carry    opens
 	remove   offering[removes]
 	move     offering[moves]
 	dump     func(out io.Writer) error
@@ -108,6 +109,7 @@ func fronting(v verbs) front {
 		reach:    performs(v, workable, reach),
 		enter:    performs(v, enterable, enter),
 		add:      performs(v, addable, add),
+		carry:    v.carrying(),
 		remove:   performs(v, removable, remove),
 		move:     performs(v, movable, move),
 		dump:     dump,
@@ -170,7 +172,7 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), carryCommand(sys, f.carry), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
 	logging(cmd, logLevel)
 	// Declared here so that cobra does not give it the -v below leaves free.
 	cmd.Flags().Bool("version", false, "print the version and the Go toolchain")
@@ -182,16 +184,22 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 	return cmd
 }
 
-// opening builds a verb that reaches a worktree and hands it to something: the
-// one identifier, the open-on flags and the one handoff. declines are the
-// actions it may be told not to run.
+// opening builds a verb that reaches a worktree and hands it to something, with
+// the listing it offers behind both its picker and its completion.
 func opening(help *cobra.Command, sys work.Systems, declines []work.Action, verb offering[opens]) *cobra.Command {
-	var o options
-
 	help.Args = cobra.MaximumNArgs(1)
 	help.ValidArgsFunction = suggest(verb.list)
+	return handing(help, sys, declines, verb.run)
+}
+
+// handing wires what a verb that opens something carries: the open-on flags, the
+// flags that call an action off, and the one handoff. declines are the actions
+// it may be told not to run.
+func handing(help *cobra.Command, sys work.Systems, declines []work.Action, run opens) *cobra.Command {
+	var o options
+
 	help.RunE = func(cmd *cobra.Command, args []string) error {
-		h, err := verb.run(o, arg(args, 0))
+		h, err := run(o, arg(args, 0))
 		if err != nil {
 			return err
 		}

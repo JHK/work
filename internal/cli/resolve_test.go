@@ -303,18 +303,25 @@ func TestAClaudeSessionIsOpenedOnThePullRequestNumber(t *testing.T) {
 	r.came(t, result{Asked: []string{"claude --name=PR #7"}})
 }
 
-// A name the tracker does not list is nobody's, so add takes it at its word: a
-// worktree of its own, on a branch spelled exactly as the name is.
+// A name the tracker does not list is nobody's, so the verbs that make a
+// worktree take it at its word: one of their own, on a branch spelled exactly as
+// the name is.
 func TestANameNoSystemAnswersForIsTakenAtItsWord(t *testing.T) {
 	// A name a ticket id could have been read into, the tracker being what settles
 	// that it is not one.
 	const name = "one-two"
-	s := tracking(t, nil, nil, "")
+	for _, verb := range []string{"add", "carry"} {
+		t.Run(verb, func(t *testing.T) {
+			s := tracking(t, nil, nil, "")
+			// A clean checkout is all carry refuses over, and add is indifferent to it.
+			s.dirty()
 
-	r := s.run("add", name)
+			r := s.run(verb, name)
 
-	r.came(t, result{Answered: s.at(name), Asked: []string{listed}})
-	require.True(t, s.hasBranch(name), "the branch is not spelled as the name is")
+			r.came(t, result{Answered: s.at(name), Asked: []string{listed}})
+			require.True(t, s.hasBranch(name), "the branch is not spelled as the name is")
+		})
+	}
 }
 
 // A detached worktree has no branch for a ticket to own, so it stands for

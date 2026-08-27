@@ -7,6 +7,7 @@
 | [`work go [<identifier>]`](#go) | reaches the worktree an [identifier](#identifiers) names, creating it if there is none |
 | [`work switch [<identifier>]`](#switch) | enters the worktree an identifier already has |
 | [`work add [<identifier>]`](#add) | creates the worktree an identifier has none of, and opens it |
+| [`work carry <identifier>`](#carry) | creates that worktree and moves the invoking checkout's changes into it |
 | [`work remove [<name>]`](#remove) | removes a worktree and deletes the branch it had checked out |
 | [`work move [<name>] [<destination>]`](#move) | moves a worktree and renames the branch it has checked out with it |
 | [`work list`](#list) | prints the worktrees open |
@@ -41,11 +42,17 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 `work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
 
-The working state moves with it: the invoking checkout is left carrying none of it and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put. Changes that do not apply cleanly are kept in the stash, whatever part of them the new worktree already carries.
-
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 
 With no identifier, [the picker](#the-picker) stands in for one.
+
+### carry
+
+`work carry <identifier>` creates the worktree the [identifier](#identifiers) has none of, as [`add`](#add) does, and moves the working state of the checkout it was invoked in into it. That checkout is left carrying none of it, and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put.
+
+A checkout carrying nothing is refused, in words naming `add`. Changes that do not apply cleanly are kept in the stash, and the refusal names the worktree already carrying whatever part of them git put there.
+
+With no identifier, the invocation is refused; [the picker](#the-picker) does not stand in for one.
 
 ### remove
 
@@ -101,7 +108,7 @@ Where neither variable names an editor, the invocation is refused before anythin
 
 A URL contributes its number, and the number is read against the current repository.
 
-The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) is the verb that makes a worktree of a name of your own.
+The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) and [`carry`](#carry) are the verbs that make a worktree of a name of your own.
 
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 
@@ -152,9 +159,9 @@ In bash the completion needs the `bash-completion` package sourced, cobra's scri
 
 ### Open-on flags
 
-What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch) and [`add`](#add) carry the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now.
+What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch), [`add`](#add) and [`carry`](#carry) take the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now.
 
-[`go`](#go) and [`add`](#add) carry a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) carries none of them and refuses them.
+[`go`](#go), [`add`](#add) and [`carry`](#carry) take a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) takes none of them and refuses them.
 
 Both sets are spelled from the [settings](configuration.md#systems) as read, before any repository is opened, so a [system](systems.md) that is off has no flag at all and `--help` lists what this machine switched on.
 

@@ -52,7 +52,7 @@ func TestTheHelpIsTheRootsOwn(t *testing.T) {
 		r := s.run(args...)
 
 		r.came(t, result{}, besides("Out"))
-		for _, verb := range []string{"go", "switch", "add", "remove", "move", "list", "init", "config"} {
+		for _, verb := range []string{"go", "switch", "add", "carry", "remove", "move", "list", "init", "config"} {
 			require.Contains(t, r.Out, verb, "work %v named no %s", args, verb)
 		}
 	}

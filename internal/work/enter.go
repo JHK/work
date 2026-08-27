@@ -12,9 +12,9 @@ import (
 // Options are the choices a front end makes on the way in, beyond the place
 // itself.
 type Options struct {
-	Open string   // the action the worktree opens on, empty for the moment's own key
-	Skip []string // actions not to run, under the names they go by
-	Park bool     // the invoking checkout's working state moves into a worktree just made
+	Open  string   // the action the worktree opens on, empty for the moment's own key
+	Skip  []string // actions not to run, under the names they go by
+	Carry bool     // the invoking checkout's working state moves into a worktree just made
 }
 
 // Enter takes a place to work through to the handoff, preparing, creating and
@@ -54,7 +54,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 		// Asked before the worktree is made: the directory about to appear under the
 		// checkout would itself read as work in hand.
-		carrying = o.Park && e.Dir != "" && git.Dirty(e.Dir)
+		carrying = o.Carry && e.carries()
 		if err := c.by.Create(t.Place, t.Path); err != nil {
 			return worktree.Handoff{}, err
 		}
@@ -75,7 +75,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	// Last of all that can refuse, so nothing is moved out of the checkout for a
 	// run that does not go through with the worktree.
 	if carrying {
-		if err := e.park(t.Path); err != nil {
+		if err := e.carry(t.Path); err != nil {
 			return worktree.Handoff{}, err
 		}
 	}
@@ -85,9 +85,24 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	return opener.Open(t, e.values(t))
 }
 
-// park moves the working state of the checkout work was invoked in into the
+// Carryable is why the checkout work was invoked in has nothing to hand over: it
+// carries no changes.
+func (e Env) Carryable() error {
+	if e.carries() {
+		return nil
+	}
+	return errors.New("this checkout carries no changes")
+}
+
+// carries reports whether the checkout work was invoked in holds a working state
+// to hand over.
+func (e Env) carries() bool {
+	return e.Dir != "" && git.Dirty(e.Dir)
+}
+
+// carry moves the working state of the checkout work was invoked in into the
 // worktree at to.
-func (e Env) park(to string) error {
+func (e Env) carry(to string) error {
 	saved, err := git.Stash(e.Dir)
 	if err != nil {
 		return fmt.Errorf("%w; the worktree at %s is made, and the changes are where they were", err, to)

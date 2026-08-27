@@ -15,8 +15,8 @@ import (
 // openingVerbs hand a worktree to something; creatingVerbs are the ones among
 // them that can bring one into being.
 var (
-	openingVerbs  = []string{"go", "switch", "add"}
-	creatingVerbs = []string{"go", "add"}
+	openingVerbs  = []string{"go", "switch", "add", "carry"}
+	creatingVerbs = []string{"go", "add", "carry"}
 )
 
 // The systems the settings wired spell the flags, and --help is where a reader
@@ -53,7 +53,7 @@ func TestWhereEachSystemsFlagIsDeclared(t *testing.T) {
 	// Every command that carries a flag at all, so one landing where the system
 	// cannot run is caught beside one missing where it can.
 	declared := map[string][]string{}
-	for _, args := range [][]string{nil, {"go"}, {"switch"}, {"add"}, {"remove"}, {"move"},
+	for _, args := range [][]string{nil, {"go"}, {"switch"}, {"add"}, {"carry"}, {"remove"}, {"move"},
 		{"list"}, {"init"}, {"config"}, {"config", "dump"}, {"config", "edit"}} {
 		declared[strings.Join(args, " ")] = s.prints(args...)
 	}
@@ -116,7 +116,7 @@ func TestTheRenamedFlagIsRefusedByItsNewName(t *testing.T) {
 	s := repository(t)
 	s.settings(claudeOn)
 
-	for _, args := range [][]string{{"bd-1", "--agent"}, {"go", "--agent", "bd-1"}, {"switch", "--agent", "bd-1"}, {"add", "--agent", "scratch"}} {
+	for _, args := range [][]string{{"bd-1", "--agent"}, {"go", "--agent", "bd-1"}, {"switch", "--agent", "bd-1"}, {"add", "--agent", "scratch"}, {"carry", "--agent", "scratch"}} {
 		r := s.run(args...)
 
 		r.refused(t, "--claude")
@@ -153,6 +153,10 @@ func TestCommandRejects(t *testing.T) {
 		{"--create is gone", []string{"scratch", "--create"}},
 		{"adding two worktrees at once", []string{"add", "scratch", "other"}},
 		{"two actions on add at once", []string{"add", "scratch", "--shell", "--claude"}},
+		// carry takes the one identifier and no listing stands in for it.
+		{"carrying two worktrees at once", []string{"carry", "scratch", "other"}},
+		{"two actions on carry at once", []string{"carry", "scratch", "--shell", "--claude"}},
+		{"another verb's flag on carry", []string{"carry", "scratch", "--force"}},
 		// Removing is a verb now, and --force went with it.
 		{"--delete is gone", []string{"scratch", "--delete"}},
 		{"--force is gone from the root", []string{"scratch", "--force"}},

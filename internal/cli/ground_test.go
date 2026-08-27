@@ -498,6 +498,23 @@ func (s *session) settings(body string) string {
 	return testenv.Settings(s.t, body)
 }
 
+// dirty puts one of each sort of change in the checkout the shell stands in:
+// staged, unstaged, untracked and ignored. The worktree directory is ignored, as
+// a repository does.
+func (s *session) dirty() {
+	s.t.Helper()
+	testenv.Write(s.t, filepath.Join(s.Dir, "tracked"), "as committed")
+	testenv.Write(s.t, filepath.Join(s.Dir, ".gitignore"), "ignored\n"+defaultDir+"/\n")
+	testenv.Git(s.t, s.Dir, "add", "tracked", ".gitignore")
+	testenv.Git(s.t, s.Dir, "commit", "-m", "a file to change")
+
+	testenv.Write(s.t, filepath.Join(s.Dir, "staged"), "staged")
+	testenv.Git(s.t, s.Dir, "add", "staged")
+	testenv.Write(s.t, filepath.Join(s.Dir, "tracked"), "changed")
+	testenv.Write(s.t, filepath.Join(s.Dir, "untracked"), "untracked")
+	testenv.Write(s.t, filepath.Join(s.Dir, "ignored"), "ignored")
+}
+
 // hasBranch reports whether the repository still has that branch.
 func (s *session) hasBranch(name string) bool {
 	s.t.Helper()

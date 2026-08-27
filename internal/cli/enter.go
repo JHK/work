@@ -43,7 +43,7 @@ func enter(env work.Env, l listing, o options, target string) (worktree.Handoff,
 // open is where every verb that opens something ends: work brings the worktree
 // into being if it has to, and says what it opens on.
 func open(env work.Env, o options, c work.Candidate) (worktree.Handoff, error) {
-	return env.Enter(c, work.Options{Open: o.open, Skip: o.skip, Park: o.park})
+	return env.Enter(c, work.Options{Open: o.open, Skip: o.skip, Carry: o.carry})
 }
 
 // hand ends the invocation: the worktree goes back to the shell, or the command
