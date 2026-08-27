@@ -21,7 +21,7 @@ func Edit() (worktree.Handoff, error) {
 	if len(editor) == 0 {
 		return worktree.Handoff{}, errors.New("neither $VISUAL nor $EDITOR names an editor to open your settings in")
 	}
-	path := UserFile()
+	path := userFile()
 	if path == "" {
 		return worktree.Handoff{}, errors.New("this machine names neither $XDG_CONFIG_HOME nor a home directory, so there is nowhere to keep your settings")
 	}

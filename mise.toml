@@ -30,3 +30,11 @@ run = "go test ./..."
 [tasks."lint"]
 description = "Vet and lint the packages"
 run = ["go vet ./...", "golangci-lint run"]
+
+[tasks."cover"]
+description = "Report the coverage the suite reaches over the packages the binary ships"
+run = '''
+pkgs="$(go list -deps ./cmd/work | grep "^$(go list -m)/" | paste -sd,)"
+go test -coverpkg="$pkgs" -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out | tail -n 1
+'''

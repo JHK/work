@@ -1,37 +1,56 @@
 // Package testenv is the ground the tests stand on: throwaway repositories, a
 // settings home of the test's own, the files put in either, and stand-ins for
-// the tools a test would otherwise reach on PATH.
+// the tools a test would otherwise reach on PATH. Importing it is what isolates
+// a process, so the code under test sees none of the machine it runs on either:
+// docs/rules/test-isolation.md.
 package testenv
 
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/run"
 )
 
-// Main runs a package's tests against a settings home nobody has written to and
-// a git that reads no configuration but the repository's own. It isolates the
-// whole process, so the code under test inherits it too.
-//
-// A package whose tests reach the settings or git declares one TestMain reaching
-// this, which TestEveryTestPackageReachingGitOrTheSettingsIsIsolated holds to.
-func Main(m *testing.M) {
-	dir, err := os.MkdirTemp("", "work-testenv")
-	if err != nil {
-		panic(err)
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
+// init puts the process on a settings home and a home directory nobody has
+// written to, on a git that reads no configuration but the repository's own,
+// and on a log that says nothing at all. A process reached under a stand-in's
+// name answers as that tool here and runs no test.
+func init() {
+	standIn()
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	set := func(k, v string) {
 		if err := os.Setenv(k, v); err != nil {
 			panic(err)
 		}
 	}
-	set("XDG_CONFIG_HOME", dir)
+	// A child of a test binary stands where the case that spawned it left it.
+	if dir := os.Getenv(inherited); dir != "" {
+		ground = dir
+		return
+	}
+	dir, err := os.MkdirTemp("", "work-testenv")
+	if err != nil {
+		panic(err)
+	}
+	ground, owned = dir, dir
+	set(inherited, dir)
+	settings := filepath.Join(dir, "settings")
+	if err := os.Mkdir(settings, 0o755); err != nil {
+		panic(err)
+	}
+	set("XDG_CONFIG_HOME", settings)
+	home := filepath.Join(dir, "home")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		panic(err)
+	}
+	set("HOME", home)
 	// A shell that ran the tests from inside work named a file of its own in
 	// shim.CDFile, which a front end under test would answer into.
 	set("WORK_CD_FILE", "")
@@ -46,11 +65,51 @@ func Main(m *testing.M) {
 	set("GIT_AUTHOR_EMAIL", "t@t")
 	set("GIT_COMMITTER_NAME", "t")
 	set("GIT_COMMITTER_EMAIL", "t@t")
-	// What work says of the tools it reached for belongs on a terminal, not in a
-	// test run; a test that reads one takes it with [Warnings].
-	run.Warnings = io.Discard
+}
+
+// Main takes the ground away once a package's tests are done with it. A package
+// importing this one declares func TestMain(m *testing.M) { testenv.Main(m) },
+// which is what leaves nothing behind in the temporary directory.
+func Main(m *testing.M) {
+	defer func() {
+		if owned != "" {
+			_ = os.RemoveAll(owned)
+		}
+	}()
 	m.Run()
 }
+
+// inherited names the ground to a child of a test binary.
+const inherited = "WORK_TESTENV_GROUND"
+
+// ground is the directory this process holds what its tests have in common in,
+// and owned that same directory where this process is the one that made it.
+var ground, owned string
+
+// UserHome is the home directory the process was given: one nobody has written
+// to, which is what a test reading $HOME sees.
+func UserHome() string { return filepath.Join(ground, "home") }
+
+// template is the repository [InitRepo] copies: one empty commit on main, built
+// once for the process. A repository this new names no path of its own, so a
+// copy of it stands wherever it is put.
+var template = sync.OnceValues(func() (string, error) {
+	dir := filepath.Join(ground, "template")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return "", err
+	}
+	for _, args := range [][]string{{"init", "-b", "main"}, {"commit", "--allow-empty", "-m", "root"}} {
+		if _, err := run.Output(dir, "git", args...); err != nil {
+			return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		}
+	}
+	// The samples git seeds are most of what each copy would carry, and nothing
+	// runs them.
+	if err := os.RemoveAll(filepath.Join(dir, ".git", "hooks")); err != nil {
+		return "", err
+	}
+	return dir, nil
+})
 
 // Home hands back a settings home the test owns, for the tests that put a
 // configuration in one rather than only needing the user's kept out.
@@ -73,16 +132,32 @@ func Settings(t *testing.T, body string) string {
 // InitRepo hands back a repository holding one empty commit on main.
 func InitRepo(t *testing.T) string {
 	t.Helper()
+	src, err := template()
+	if err != nil {
+		t.Fatalf("testenv.InitRepo: %v", err)
+	}
 	dir := t.TempDir()
-	Git(t, dir, "init", "-b", "main")
-	Git(t, dir, "commit", "--allow-empty", "-m", "root")
+	if err := os.CopyFS(dir, os.DirFS(src)); err != nil {
+		t.Fatalf("testenv.InitRepo: %v", err)
+	}
 	return dir
 }
 
-// Git runs one git command and hands back its stdout, reaching git the way the
-// code under test does.
-func Git(t *testing.T, dir string, args ...string) string {
+// absolute stops the test where the path a helper was handed is not absolute,
+// naming that helper.
+func absolute(t testing.TB, helper, path string) {
 	t.Helper()
+	if !filepath.IsAbs(path) {
+		t.Fatalf("%s: %q is not an absolute path", helper, path)
+	}
+}
+
+// Git runs one git command in that directory and hands back its stdout,
+// reaching git the way the code under test does. A directory that is not
+// absolute is refused.
+func Git(t testing.TB, dir string, args ...string) string {
+	t.Helper()
+	absolute(t, "testenv.Git", dir)
 	out, err := run.Output(dir, "git", args...)
 	if err != nil {
 		t.Fatalf("git %s: %v", strings.Join(args, " "), err)
@@ -90,83 +165,24 @@ func Git(t *testing.T, dir string, args ...string) string {
 	return out
 }
 
-// Warnings hands back what work has said of the tools it reached for, which
-// [Main] otherwise keeps off a test run.
-func Warnings(t *testing.T) func() string {
+// Terminal hands back a writer that is a terminal, for a case turning on what
+// the reader is, the case skipped where the machine opens none. Nothing drains
+// it, so a case sending more than a line or two through it blocks.
+func Terminal(t testing.TB) io.Writer {
 	t.Helper()
-	var said strings.Builder
-	was := run.Warnings
-	run.Warnings = &said
-	t.Cleanup(func() { run.Warnings = was })
-	return said.String
-}
-
-// Stub is a stand-in for one tool: the name it answers to, what it answers with
-// on stdout and on stderr, and the status it exits with. Shell is the way out
-// for a stub that has to do more than answer, run after it has recorded and
-// before it answers.
-type Stub struct {
-	Name     string
-	Says     string
-	Grumbles string
-	Exits    int
-	Shell    string
-}
-
-// Stubs puts a stand-in for each tool on PATH ahead of whatever the machine has
-// installed, and hands back what they were asked to run: one line per
-// invocation, the tool and its arguments, in the order they ran. One that
-// answers reads its answer with cat, so a test emptying PATH first gets a stub
-// that can exit but not speak.
-func Stubs(t *testing.T, stubs ...Stub) func() []string {
-	t.Helper()
-	// A tool an earlier case found missing is out for the rest of the process, which
-	// would leave the stand-ins put here unasked.
-	run.Forget()
-	t.Cleanup(run.Forget)
-	dir := t.TempDir()
-	log := filepath.Join(dir, "log")
-	for _, s := range stubs {
-		// In a file rather than in the script, so quotes and newlines reach the caller
-		// as they were written.
-		says := ""
-		if s.Says != "" {
-			answer := filepath.Join(dir, "says-"+s.Name)
-			Write(t, answer, s.Says)
-			says = fmt.Sprintf("cat %q\n", answer)
-		}
-		if s.Grumbles != "" {
-			answer := filepath.Join(dir, "grumbles-"+s.Name)
-			Write(t, answer, s.Grumbles)
-			says += fmt.Sprintf("cat %q >&2\n", answer)
-		}
-		record := fmt.Sprintf("printf '%%s %%s\\n' %q \"$*\" >> %q\n", s.Name, log)
-		body := "#!/bin/sh\n" + record + s.Shell + says + fmt.Sprintf("exit %d\n", s.Exits)
-		if err := os.WriteFile(filepath.Join(dir, s.Name), []byte(body), 0o755); err != nil {
-			t.Fatalf("write %s: %v", s.Name, err)
-		}
+	f, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	if err != nil {
+		t.Skipf("no pseudo-terminal to open: %v", err)
 	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	return func() []string {
-		out, err := os.ReadFile(log)
-		if err != nil && !os.IsNotExist(err) {
-			t.Fatalf("read %s: %v", log, err)
-		}
-		var ran []string
-		for line := range strings.SplitSeq(string(out), "\n") {
-			// A tool called with no arguments records its name and an empty rest.
-			if line = strings.TrimSpace(line); line != "" {
-				ran = append(ran, line)
-			}
-		}
-		return ran
-	}
+	t.Cleanup(func() { _ = f.Close() })
+	return f
 }
 
-// Write puts a file where the test says, making the directories above it.
-func Write(t *testing.T, path, body string) {
+// Write puts a file where the test says, making the directories above it. A
+// path that is not absolute is refused.
+func Write(t testing.TB, path, body string) {
 	t.Helper()
+	absolute(t, "testenv.Write", path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}

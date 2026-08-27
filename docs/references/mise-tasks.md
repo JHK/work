@@ -9,8 +9,17 @@ Where each task puts things. `mise tasks` lists them and [mise.toml](../../mise.
 | `uninstall` | removes the binary `install` wrote |
 | `test` | `go test ./...` |
 | `lint` | `go vet ./...` then `golangci-lint run` |
+| `cover` | the total the suite covers of what the binary ships, over the profile `./coverage.out`, which `.gitignore` covers |
 
 The toolchain versions pinned in `[tools]` are what CI and a fresh checkout resolve to.
+
+## What the coverage total counts
+
+`cover` runs the whole suite, and counts only the packages `go list -deps ./cmd/work` names inside this module. `internal/testenv` is imported by tests alone, so it falls out of that list and out of the total, and no list has to be kept in step with the tree.
+
+Open the profile it writes with `go tool cover -html=coverage.out`.
+
+The total reads below what the suite reaches, for the reasons in [tests](../gotchas/tests.md#coverage-lost-to-the-handoff-and-the-stand-ins).
 
 ## Version stamping
 

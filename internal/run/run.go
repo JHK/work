@@ -6,23 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 )
 
-var (
-	// Warnings is where what work says of the tools it reached for goes.
-	Warnings io.Writer = os.Stderr
-
-	// gone are the commands this run has already found missing.
-	gone sync.Map
-)
+// gone are the commands this run has already found missing.
+var gone sync.Map
 
 // Output runs bin in dir and returns its stdout, trimmed of the trailing
-// newline. A failing tool's first line of stderr becomes the message.
+// newline. A failing tool's first line of stderr becomes the message. The
+// command as it was run is said at info, which --log-level=info puts on stderr.
 //
 // A tool the machine does not have is out for the rest of the run: the first
 // question to it fails and every later one fails with it, unasked.
@@ -38,12 +34,12 @@ func InEnglish(dir, bin string, args ...string) (string, error) {
 }
 
 func output(dir string, english bool, bin string, args ...string) (string, error) {
+	what := CommandLine(bin, args...)
 	if _, missing := gone.Load(bin); missing {
-		return "", absent(asked(bin, args...), bin)
+		return "", absent(what, bin)
 	}
 
-	cmd := exec.Command(bin, args...)
-	cmd.Dir = dir
+	cmd := Command(dir, bin, args...)
 	if english {
 		cmd.Env = append(os.Environ(), "LC_ALL=C")
 	}
@@ -52,7 +48,6 @@ func output(dir string, english bool, bin string, args ...string) (string, error
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		what := asked(bin, args...)
 		if errors.Is(err, exec.ErrNotFound) {
 			return "", absent(what, bin)
 		}
@@ -62,6 +57,16 @@ func output(dir string, english bool, bin string, args ...string) (string, error
 		return "", fmt.Errorf("%s: %w", what, err)
 	}
 	return strings.TrimRight(stdout.String(), "\n"), nil
+}
+
+// Command is bin as [Output] would run it, said the same way, for a caller that
+// has to reach the process itself: one that writes its stdin, or one that reads
+// its exit status apart.
+func Command(dir, bin string, args ...string) *exec.Cmd {
+	slog.Info(CommandLine(bin, args...))
+	cmd := exec.Command(bin, args...)
+	cmd.Dir = dir
+	return cmd
 }
 
 // JSON runs bin the way [Output] does and reads what it answered with into a
@@ -74,14 +79,14 @@ func JSON[T any](dir, bin string, args ...string) (T, error) {
 		return v, err
 	}
 	if err := json.Unmarshal([]byte(out), &v); err != nil {
-		return v, fmt.Errorf("%s: %w", asked(bin, args...), err)
+		return v, fmt.Errorf("%s: %w", CommandLine(bin, args...), err)
 	}
 	return v, nil
 }
 
-// asked is the tool and the question put to it, as a refusal names them: the
-// command as it was run, for whoever has to put it again by hand.
-func asked(bin string, args ...string) string {
+// CommandLine is bin and its arguments as a shell would spell them, for whoever
+// has to run the same thing by hand.
+func CommandLine(bin string, args ...string) string {
 	if len(args) == 0 {
 		return bin
 	}
@@ -98,10 +103,3 @@ func absent(what, bin string) error {
 // Forget drops what this run has found missing, so a tool that has since arrived
 // on PATH is asked again. It is for tests, whose machine changes between cases.
 func Forget() { gone.Clear() }
-
-// Say puts a refusal on stderr, for the one caller that throws one away rather
-// than handing it on. Everywhere else it is whoever is handed a refusal that
-// says it, so nothing says one twice.
-func Say(err error) {
-	_, _ = fmt.Fprintln(Warnings, "work:", err)
-}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/JHK/work-cli/internal/run"
@@ -179,7 +180,7 @@ func Stash(dir string) (bool, error) {
 	if _, err := git(dir, "stash", "push", "--include-untracked"); err != nil {
 		return false, err
 	}
-	return stashed(dir) != before, nil
+	return stashed(dir) > before, nil
 }
 
 // Unstash pops the repository's topmost stash entry into the checkout at dir,
@@ -189,13 +190,19 @@ func Unstash(dir string) error {
 	return err
 }
 
-// stashed is what refs/stash points at, empty where there is no entry.
-func stashed(dir string) string {
-	out, err := git(dir, "rev-parse", "--verify", "--quiet", "refs/stash")
+// stashed is how many entries the repository's stash holds, none where there is
+// no stash. Counted rather than read off refs/stash, which two saves of the same
+// state in the one second leave pointing at the one commit.
+func stashed(dir string) int {
+	out, err := git(dir, "rev-list", "--walk-reflogs", "--count", "refs/stash")
 	if err != nil {
-		return ""
+		return 0
 	}
-	return out
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses

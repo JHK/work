@@ -49,9 +49,9 @@ func open(env work.Env, o options, c work.Candidate) (worktree.Handoff, error) {
 
 // hand ends the invocation: the worktree goes back to the shell, or the command
 // takes the terminal.
-func hand(h worktree.Handoff, out, note io.Writer) error {
+func hand(h worktree.Handoff, stdout io.Writer) error {
 	if h.Directory() {
-		return shim.Answer(h.Dir, out, note)
+		return shim.Answer(h.Dir, stdout)
 	}
 	// Dropped before the exec, so nothing the terminal goes to, and nothing it
 	// starts in turn, answers into the shim that called this invocation.

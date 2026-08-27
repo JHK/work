@@ -2,7 +2,7 @@
 
 ## Commands
 
-| Command | Does |
+| Command | Description |
 |---|---|
 | [`work go [<identifier>]`](#go) | reaches the worktree an [identifier](#identifiers) names, creating it if there is none |
 | [`work switch [<identifier>]`](#switch) | enters the worktree an identifier already has |
@@ -16,7 +16,13 @@
 | `work help [<command>]` | prints a command's help, the root's with none |
 | `work [<identifier>]` | dispatched to [`go`](#go) |
 
-`--help` and `--version` are the root's own, shorthands included; `--version` prints [the version](mise-tasks.md#version-stamping), in or out of a repository.
+`--help`, `--log-level` and `--version` are the root's own:
+
+| Flag | Description |
+|---|---|
+| `-h`, `--help` | prints a command's help, and is the one shorthand of the three |
+| `--log-level <level>` | says what `work` reached for, at `warn`, `info` or `debug` |
+| `--version` | prints [the version](mise-tasks.md#version-stamping), in or out of a repository |
 
 ### go
 
@@ -36,7 +42,7 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 `work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
 
-The working state moves with it: the invoking checkout is left clean and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put. Changes that do not apply cleanly stay in the stash.
+The working state moves with it: the invoking checkout is left carrying none of it and the new worktree carries the changes, what was staged still staged. Untracked files travel; ignored files stay put. Changes that do not apply cleanly are kept in the stash, whatever part of them the new worktree already carries.
 
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 
@@ -72,7 +78,7 @@ No tracker is asked and no action runs. The main checkout cannot be moved, and n
 - fish: `work init fish | source` in `config.fish`
 - zsh: `source <(work init zsh)` in `.zshrc`
 
-Printing touches no repository.
+Printing touches no repository and asks no tool anything: a [settings file](configuration.md) `work` would refuse to load still leaves it alone.
 
 ### config
 

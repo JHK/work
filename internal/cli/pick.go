@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/work"
 )
 
@@ -17,9 +17,6 @@ const (
 	reset     = "\x1b[0m"
 
 	openMark = "⎇"
-	// unmarked keeps the column a resolver that named no icon leaves empty, so the
-	// names line up.
-	unmarked = " "
 
 	// prompt is what the one question fzf is put reads as.
 	prompt = "work> "
@@ -57,8 +54,7 @@ func offered(env work.Env, l listing, id string, resolve func(string) (work.Cand
 	if id != "" {
 		return resolve(id)
 	}
-	rows, refused, err := l.rows(env)
-	report(os.Stderr, refused)
+	rows, _, err := l.rows(env)
 	return pickFrom(l.nothing, rows, err)
 }
 
@@ -104,7 +100,7 @@ func choose(rows []string) (int, error) {
 // fzf exits 1 with no match and 130 when interrupted; anything else, a missing
 // binary above all, is a failure the user has to be told about.
 func putThrough(stdin string, args ...string) (string, error) {
-	fzf := exec.Command("fzf", append([]string{"--height", "40%", "--reverse", "--prompt", prompt}, args...)...)
+	fzf := run.Command("", "fzf", append([]string{"--height", "40%", "--reverse", "--prompt", prompt}, args...)...)
 	fzf.Stdin = strings.NewReader(stdin)
 	fzf.Stderr = os.Stderr
 	out, err := fzf.Output()
@@ -159,9 +155,9 @@ func labels(candidates []work.Candidate) []string {
 }
 
 // label renders one candidate, making the ones with a worktree stand out. A row
-// goes unmarked or untitled where the resolver that answered for it named neither.
+// goes untitled where the resolver that answered for it named no title.
 func label(c work.Candidate, width int) string {
-	mark, icon := " ", cmp.Or(c.Icon, unmarked)
+	mark := " "
 	if c.Open {
 		mark = openMark
 	}
@@ -170,7 +166,7 @@ func label(c work.Candidate, width int) string {
 	if about != "" {
 		name = fmt.Sprintf("%-*s", width, name)
 	}
-	row := mark + " " + icon + " " + name
+	row := mark + " " + c.Icon + " " + name
 	if c.Open {
 		row = highlight + row + reset
 	}

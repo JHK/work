@@ -1,10 +1,8 @@
 package testenv
 
 import (
-	"go/build"
-	"io/fs"
-	"path"
-	"path/filepath"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -12,39 +10,23 @@ import (
 // Module is the module every package of this repository sits under.
 const Module = "github.com/JHK/work-cli"
 
-// Packages reads every package of the module, keyed by import path. root is the
-// module's root directory, from the directory the test runs in. Imports are read
-// with UseAllFiles, so a build tag hides none of them from a caller judging them.
-func Packages(t *testing.T, root string) map[string]*build.Package {
+// machine is the home directory the process started under, read before init
+// takes it away. The go tool keeps its caches there, and [Listed] is the one
+// thing a test runs that needs them.
+var machine = os.Getenv("HOME")
+
+// Listed runs go list over the module rooted at root and hands back the line it
+// wrote for each package. A guard on what the packages import reads them through
+// this rather than walking the module itself.
+func Listed(t *testing.T, root string, args ...string) []string {
 	t.Helper()
-	ctx := build.Default
-	ctx.UseAllFiles = true
-	pkgs := map[string]*build.Package{}
-	err := filepath.WalkDir(root, func(dir string, d fs.DirEntry, err error) error {
-		if err != nil || !d.IsDir() {
-			return err
-		}
-		// The worktrees of this same module sit under a dot directory, as the
-		// repository itself does.
-		if name := d.Name(); dir != root && (strings.HasPrefix(name, ".") || name == "testdata") {
-			return fs.SkipDir
-		}
-		pkg, err := ctx.ImportDir(dir, 0)
-		if _, empty := err.(*build.NoGoError); empty {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, dir)
-		if err != nil {
-			return err
-		}
-		pkgs[path.Join(Module, filepath.ToSlash(rel))] = pkg
-		return nil
-	})
+	cmd := exec.Command("go", append([]string{"list"}, args...)...)
+	cmd.Dir, cmd.Env = root, append(os.Environ(), "HOME="+machine)
+	var said strings.Builder
+	cmd.Stderr = &said
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("read the module's packages: %v", err)
+		t.Fatalf("go list %s: %v\n%s", strings.Join(args, " "), err, said.String())
 	}
-	return pkgs
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
 }

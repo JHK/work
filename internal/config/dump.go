@@ -3,6 +3,7 @@ package config
 import (
 	"cmp"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -30,35 +31,35 @@ func Dump() (string, error) {
 			fmt.Fprintf(&b, "[%s]\n", name)
 			table = name
 		}
-		fmt.Fprintf(&b, "# %s\n%s = %s\n", cmp.Or(from[k.name], compiledIn), leaf, k.value)
+		fmt.Fprintf(&b, "# %s\n%s = %s\n", cmp.Or(from[k.name], compiledIn), leaf, value(k.value))
 	}
 	return b.String(), nil
 }
 
-// key is one setting of a dump: the whole dotted name, which is both how a
-// settings file spells it and how its source is keyed, and its value as TOML.
+// key is one setting: the whole dotted name, which is both how a settings file
+// spells it and how its source is keyed, and the value work resolved.
 type key struct {
 	name  string
-	value string
+	value any
 }
 
 // keys is every setting work reads, in the order the reference documents them,
 // each holding the value work resolved rather than what a file wrote.
 func (c Config) keys() []key {
 	return []key{
-		{dirKey, value(c.Worktree.Dir())},
-		{ticketKey, value(c.Branch.ticket().tmpl.text)},
-		{pullRequestKey, value(c.Branch.pullRequest().tmpl.text)},
-		{createKey, value(string(c.Action.Create()))},
-		{enterKey, value(string(c.Action.Enter()))},
-		{SystemKey(githubSystem), value(c.Github.Enabled)},
-		{SystemKey(beadsSystem), value(c.Beads.Enabled)},
-		{SystemKey(miseSystem), value(c.Mise.Enabled)},
-		{SystemKey(claudeSystem), value(c.Claude.Enabled)},
-		{startTicketKey, value(argv(c.Claude.StartTicket()))},
-		{startPullRequestKey, value(argv(c.Claude.StartPullRequest()))},
-		{startSessionKey, value(argv(c.Claude.StartSession()))},
-		{resumeSessionKey, value(argv(c.Claude.ResumeSession()))},
+		{dirKey, c.Worktree.Dir()},
+		{ticketKey, c.Branch.ticket().tmpl.text},
+		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
+		{createKey, string(c.Action.Create())},
+		{enterKey, string(c.Action.Enter())},
+		{systemKey(githubSystem), c.Github.Enabled},
+		{systemKey(beadsSystem), c.Beads.Enabled},
+		{systemKey(miseSystem), c.Mise.Enabled},
+		{systemKey(claudeSystem), c.Claude.Enabled},
+		{startTicketKey, argv(c.Claude.StartTicket())},
+		{startPullRequestKey, argv(c.Claude.StartPullRequest())},
+		{startSessionKey, argv(c.Claude.StartSession())},
+		{resumeSessionKey, argv(c.Claude.ResumeSession())},
 	}
 }
 
@@ -80,4 +81,17 @@ func value(v any) string {
 		panic(fmt.Sprintf("config: dumping %v: %v", v, err))
 	}
 	return string(out)
+}
+
+// Settings is every key work read and the value it resolved to, in the order
+// the reference documents them. [Dump] is the same settings as a file
+// spells them.
+func (c Config) Settings() iter.Seq2[string, any] {
+	return func(yield func(string, any) bool) {
+		for _, k := range c.keys() {
+			if !yield(k.name, k.value) {
+				return
+			}
+		}
+	}
 }

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"log/slog"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -81,10 +81,23 @@ func performs[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B
 				var none R
 				return none, err
 			}
-			return verb(env, l, a, b)
+			return verb(env, reporting(l), a, b)
 		},
 		list: v.offers(l),
 	}
+}
+
+// reporting is l with every system it came back short of said once.
+func reporting(l listing) listing {
+	rows := l.rows
+	l.rows = func(env work.Env) ([]work.Candidate, []error, error) {
+		found, refused, err := rows(env)
+		for _, was := range refused {
+			slog.Warn(was.Error())
+		}
+		return found, refused, err
+	}
+	return l
 }
 
 // fronting wires each verb to the listing it offers, which its picker and its
@@ -102,34 +115,36 @@ func fronting(v verbs) front {
 	}
 }
 
-// Execute runs work and returns the process exit status. A settings file that
-// will not load is carried to the verbs that read it, not refused here.
-func Execute(version string, wire work.Wiring) int {
+// Execute runs work over the words it was given and returns the process exit
+// status. A run answers on stdout and says on the log the caller stood the
+// process on. A settings file that will not load is carried to the verbs that
+// read it, not refused here.
+func Execute(version string, wire work.Wiring, args []string, stdout io.Writer, logLevel *slog.LevelVar) int {
 	cfg, read := config.Load()
 	// Without a repository: only the names and the flags are read off what comes back.
 	sys := wire("", "", cfg)
 
-	f := fronting(verbs{cfg: cfg, read: read, wire: wire})
-	if err := run(command(version, sys, f), os.Args[1:]); err != nil {
+	cmd := command(version, logLevel, sys, fronting(verbs{cfg: cfg, read: read, wire: wire}))
+	if read != nil {
+		// A file that would not load wired nothing, so a flag a system spells is
+		// missing rather than misspelled: the settings are what the reader has to hear.
+		cmd.SetFlagErrorFunc(func(*cobra.Command, error) error { return read })
+	}
+	if err := through(cmd, args, stdout); err != nil {
 		if !errors.Is(err, errCancelled) {
-			fmt.Fprintln(os.Stderr, "work:", err)
+			slog.Error(err.Error())
 		}
 		return 1
 	}
 	return 0
 }
 
-// report says the refusals a listing came back short of, nothing else carrying
-// them to the reader.
-func report(w io.Writer, refused []error) {
-	for _, err := range refused {
-		_, _ = fmt.Fprintln(w, "work:", err)
-	}
-}
-
-// run puts args through the tree. The tree is never executed on the words as
-// typed: [dispatch] belongs to every way in.
-func run(cmd *cobra.Command, args []string) error {
+// through puts args through the tree on the stream work answers on, cobra's own
+// writes going nowhere. The tree is never executed on the words as typed:
+// [dispatch] belongs to every way in.
+func through(cmd *cobra.Command, args []string, stdout io.Writer) error {
+	cmd.SetOut(stdout)
+	cmd.SetErr(io.Discard)
 	cmd.SetArgs(dispatch(cmd, args))
 	return cmd.Execute()
 }
@@ -137,7 +152,7 @@ func run(cmd *cobra.Command, args []string) error {
 // command builds the command tree, calling the verb front once the flags are
 // valid and answering a tab press from its listings. The root runs nothing
 // itself: [dispatch] has already sent the bare form to go.
-func command(version string, sys work.Systems, f front) *cobra.Command {
+func command(version string, logLevel *slog.LevelVar, sys work.Systems, f front) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "work",
 		Short: "A smarter cd for git worktrees",
@@ -157,10 +172,13 @@ An identifier in the first position, or none at all, is work go.`,
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
-	// Cobra adds these three as it runs, too late for [dispatch] to read them.
+	logging(cmd, logLevel)
+	// Declared here so that cobra does not give it the -v below leaves free.
+	cmd.Flags().Bool("version", false, "print the version work was built at")
+	// Cobra adds what it is still missing as it runs, too late for [dispatch] to
+	// read them.
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
-	cmd.InitDefaultVersionFlag()
 
 	return cmd
 }
@@ -178,7 +196,7 @@ func opening(help *cobra.Command, sys work.Systems, declines []work.Action, verb
 		if err != nil {
 			return err
 		}
-		return hand(h, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		return hand(h, cmd.OutOrStdout())
 	}
 	openOn(help, &o, sys.Openers)
 	decline(help, &o, declines)

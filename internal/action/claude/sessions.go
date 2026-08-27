@@ -18,30 +18,17 @@ import (
 	"unicode/utf16"
 )
 
-// transcripts are the conversations a worktree carries, newest first. Only what
-// the agent would return to counts, so whatever its own picker hides is left out.
-type transcripts interface {
-	list(dir string) ([]string, error)
-}
-
-// recorded reads the transcripts Claude Code writes under home.
-type recorded struct {
-	home string // user home directory; empty means os.UserHomeDir
-}
-
-// list reports the conversations recorded for the given working directory, most
-// recently touched first. A directory that was never worked in has none, which is
-// not an error.
-func (c recorded) list(dir string) ([]string, error) {
-	home := c.home
-	if home == "" {
-		var err error
-		if home, err = os.UserHomeDir(); err != nil {
-			return nil, err
-		}
+// carried are the conversations a worktree carries, newest first, read off the
+// transcripts Claude Code writes under home. Only what the agent would return to
+// counts, so whatever its own picker hides is left out. A directory that was
+// never worked in carries none, which is not an error.
+func carried(dir string) ([]string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
 	}
 
-	b := bucket(home, dir)
+	b := Bucket(home, dir)
 	entries, err := os.ReadDir(b)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -79,10 +66,10 @@ func (c recorded) list(dir string) ([]string, error) {
 // appends a hash of the original.
 const bucketLen = 200
 
-// bucket is the directory Claude Code files a working directory's transcripts
+// Bucket is the directory Claude Code files a working directory's transcripts
 // under: the absolute path with every non-alphanumeric character flattened to a
 // dash, truncated with a hash suffix when that runs long.
-func bucket(home, dir string) string {
+func Bucket(home, dir string) string {
 	var b strings.Builder
 	b.Grow(len(dir))
 	for _, r := range dir {

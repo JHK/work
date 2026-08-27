@@ -1,5 +1,6 @@
 // Package config reads the settings behind the choices work makes on a user's
-// behalf: the user's file, over the compiled-in defaults.
+// behalf: the user's file, over the compiled-in defaults. It also hands that
+// file to an editor, bringing it into being where it is not there yet.
 package config
 
 import (
@@ -89,7 +90,7 @@ func Load() (Config, error) {
 func read() (Config, map[string]string, error) {
 	c := Default()
 	from := map[string]string{}
-	if path := UserFile(); path != "" {
+	if path := userFile(); path != "" {
 		md, err := decode(path, &c)
 		if err != nil {
 			return Config{}, nil, err
@@ -104,9 +105,9 @@ func read() (Config, map[string]string, error) {
 	return c, from, nil
 }
 
-// UserFile is the settings file, named whether or not it is there. A machine
+// userFile is the settings file, named whether or not it is there. A machine
 // with nowhere to keep it has none, and answers with the empty path.
-func UserFile() string {
+func userFile() string {
 	// Not os.UserConfigDir, which reads XDG_CONFIG_HOME on Unix alone.
 	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
 		return filepath.Join(dir, "work", "config.toml")

@@ -3,6 +3,8 @@
 package mise
 
 import (
+	"log/slog"
+
 	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -20,7 +22,7 @@ func (Trust) Name() string { return Name }
 // else carries that refusal to the reader, so it is said here.
 func (Trust) Run(t worktree.Tree) error {
 	if _, err := run.Output(t.Path, "mise", "trust"); err != nil {
-		run.Say(err)
+		slog.Warn(err.Error())
 	}
 	return nil
 }

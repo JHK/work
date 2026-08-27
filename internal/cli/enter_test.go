@@ -1,40 +1,191 @@
 package cli
 
 import (
-	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/JHK/work-cli/internal/shim"
-	"github.com/JHK/work-cli/internal/worktree"
+	"github.com/JHK/work-cli/internal/testenv"
+	"github.com/stretchr/testify/require"
 )
 
-// A worktree that opens on no command is handed back rather than run: the shim
-// changes into it, and a shell without one reads it off stdout.
-func TestHandAnswersWithTheWorktree(t *testing.T) {
-	var out strings.Builder
-	if err := hand(worktree.Handoff{Dir: "/repo/.worktrees/bd-1"}, &out, io.Discard); err != nil {
-		t.Fatalf("hand: %v", err)
+// A shell that never sourced the function named no file, so the worktree is
+// printed instead: the invocation still says where the work is.
+func TestAShellWithoutTheIntegrationIsPrintedTheWorktree(t *testing.T) {
+	s := repository(t)
+	path := s.opened("scratch")
+	s.Shim = ""
+
+	r := s.run("switch", "scratch")
+
+	r.came(t, result{Out: path + "\n"})
+}
+
+// A terminal reading that path is a person, who hears of the one install step
+// that was skipped: internal/shim.
+func TestAPersonReadingThePathIsToldOfTheIntegration(t *testing.T) {
+	s := repository(t)
+	s.opened("scratch")
+	s.Shim = ""
+
+	r := s.reads(testenv.Terminal(t), "switch", "scratch")
+
+	r.came(t, result{Warned: []string{"the shell integration is not sourced, so your shell stays where it is; see work init --help"}})
+}
+
+// A file the shell named that work cannot write is a refusal rather than a
+// silent print: the shell would otherwise stay where it was with nothing said.
+func TestAFileTheShellNamedThatCannotBeWrittenIsRefused(t *testing.T) {
+	s := repository(t)
+	s.opened("scratch")
+	s.Shim = filepath.Join(t.TempDir(), "nowhere", "answer")
+
+	r := s.run("switch", "scratch")
+
+	r.refused(t, s.Shim)
+}
+
+// A worktree that opens on a command the machine does not have is refused, and
+// the shell is left standing where it typed: internal/worktree.
+func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
+	s := repository(t)
+	s.opened("scratch")
+	s.settings(claudeOn + "start-session = [\"no-such-binary-xyz\"]\n")
+
+	r := s.run("switch", "scratch", "--claude")
+
+	r.refused(t, "no-such-binary-xyz")
+	here, err := os.Getwd()
+	require.NoError(t, err)
+	require.Equal(t, s.Dir, here, "the refused handoff left the process elsewhere")
+}
+
+// A worktree that opens on a command hands the terminal to it, running inside
+// that worktree, and work says nothing of its own on the way past.
+func TestSwitchHandsTheTerminalToTheCommandItOpensOn(t *testing.T) {
+	s := repository(t, testenv.Stub{Name: "claude", Shell: "git rev-parse --show-toplevel"})
+	path := s.opened("scratch")
+	s.settings(claudeOn)
+
+	r := s.hands("switch", "scratch", "--claude")
+
+	// The worktree carries no conversation to return to, so the session opened on it
+	// is named after it: docs/references/claude.md.
+	r.came(t, result{Out: path + "\n", Asked: []string{"claude --permission-mode auto --name=scratch"}})
+}
+
+// The file names one invocation, so what the terminal goes to must not inherit
+// it: a work run inside that command would answer into a shell done waiting.
+func TestTheCommandTheTerminalGoesToDoesNotInheritTheShellsFile(t *testing.T) {
+	s := repository(t, testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$WORK_CD_FILE"`})
+	s.opened("scratch")
+	s.settings(claudeOn)
+
+	r := s.hands("switch", "scratch", "--claude")
+
+	r.came(t, result{Out: "[]", Asked: []string{"claude --permission-mode auto --name=scratch"}})
+}
+
+// With no identifier the picker stands in for one, over the worktrees open less
+// the one the shell stands in.
+func TestSwitchWithNoIdentifierTakesThePickersRow(t *testing.T) {
+	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
+	path := s.opened("scratch")
+
+	r := s.run("switch")
+
+	r.came(t, result{Answered: path, Asked: []string{putUp}})
+}
+
+// Nothing comes into being on the way back in, so the ticket a worktree was made
+// for is not claimed again: the tracker is asked only what names the worktree.
+func TestSwitchClaimsNothingOnTheWayBackIn(t *testing.T) {
+	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	path := s.openedOn("bd-1", "bd-1-do-a-thing")
+
+	r := s.run("switch", "bd-1")
+
+	r.came(t, result{Answered: path, Asked: []string{listed}})
+}
+
+// switch only enters, so what it cannot enter it refuses: the refusal names add
+// for a place with no worktree, and names no verb for a name nothing answers for.
+func TestSwitchRefuses(t *testing.T) {
+	tests := []struct {
+		name string
+		// tracked wires the tracker, for a row whose identifier is a ticket.
+		tracked bool
+		args    []string
+		said    string
+	}{
+		{"a ticket with no worktree open", true, []string{"switch", "bd-1"},
+			"bd-1 has no worktree open; work add bd-1 makes one"},
+		{"a name nothing answers for", false, []string{"switch", "typo"},
+			`nothing answers for "typo"`},
 	}
-	if !strings.Contains(out.String(), "/repo/.worktrees/bd-1") {
-		t.Errorf("the worktree came back as %q; want the path", out.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, asked := repository(t), []string(nil)
+			if tt.tracked {
+				s = tracking(t, []ticket{doable}, []ticket{doable}, "")
+				asked = []string{listed}
+			}
+
+			r := s.run(tt.args...)
+
+			r.came(t, result{Code: 1, Errored: []string{tt.said}, Asked: asked})
+		})
 	}
 }
 
-// The file names one invocation: a command the terminal goes to must not inherit
-// it, or a work run inside it answers into the shell still waiting on that one.
-func TestHandForgetsTheFileBeforeTheCommandRuns(t *testing.T) {
-	t.Setenv(shim.CDFile, filepath.Join(t.TempDir(), "answer"))
+// A worktree already there returns to what it carries: one conversation is
+// resumed outright, several reach the agent's own list.
+func TestSwitchReturnsToTheConversationAWorktreeCarries(t *testing.T) {
+	tests := []struct {
+		name string
+		// dir is the worktree the row records under, so that no two rows read one
+		// store.
+		dir     string
+		carried []string
+		want    string
+	}{
+		{"one is returned to", "one", []string{"s1"}, "claude --resume s1"},
+		{"several reach the list", "several", []string{"s1", "s2"}, "claude --resume"},
+	}
+	s := repository(t, testenv.Stub{Name: "claude"})
+	s.settings(claudeOn)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.carries(s.opened(tt.dir), tt.carried...)
 
-	// A command nothing can find refuses before the exec, leaving the test its own
-	// process to look at.
-	h := worktree.Handoff{Dir: t.TempDir(), Run: []string{"work-cli-nothing-goes-by-this"}}
-	if err := hand(h, io.Discard, io.Discard); err == nil {
-		t.Fatal("hand ran a command that is not there; want the refusal")
+			r := s.hands("switch", tt.dir, "--claude")
+
+			r.came(t, result{Asked: []string{tt.want}})
+		})
 	}
-	if file := os.Getenv(shim.CDFile); file != "" {
-		t.Errorf("the command was handed the terminal with %s=%q; want it dropped", shim.CDFile, file)
-	}
+}
+
+// An agent that cannot say what a worktree carries is not asked to guess: the
+// run refuses rather than starting a conversation over the one already there.
+func TestSwitchRefusesATranscriptStoreItCannotRead(t *testing.T) {
+	s := repository(t)
+	path := s.opened("scratch")
+	testenv.Write(t, s.transcripts(path), "not a directory\n")
+	s.settings(claudeOn)
+
+	r := s.run("switch", "scratch", "--claude")
+
+	r.refused(t, "not a directory")
+}
+
+// A worktree git still lists but nobody can enter is refused: nothing execs on
+// this path, so an answer nobody checked would be a shell left where it was.
+func TestSwitchRefusesAWorktreeThatIsNoLongerThere(t *testing.T) {
+	s := repository(t)
+	path := s.opened("scratch")
+	require.NoError(t, os.RemoveAll(path), "empty the worktree")
+
+	r := s.run("switch", "scratch")
+
+	r.refused(t, path)
 }

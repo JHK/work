@@ -5,8 +5,10 @@ package work
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -21,6 +23,10 @@ import (
 // its candidates, and creates the worktree.
 type Resolver interface {
 	worktree.System
+
+	// Icon is the mark a screen draws the rows this resolver answers for, one
+	// column wide.
+	Icon() string
 
 	// Identify names the place behind what the core is holding: an identifier a
 	// person typed, or a worktree the repository has open, which a resolver tells
@@ -109,7 +115,22 @@ func Open(dir string, cfg config.Config, wire Wiring) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
+	logDebugEnvironment(repo, here, cfg)
 	return Env{Repo: repo, Dir: here, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
+}
+
+func logDebugEnvironment(repo, here string, cfg config.Config) {
+	ctx := context.Background()
+	if !slog.Default().Enabled(ctx, slog.LevelDebug) {
+		return
+	}
+	slog.LogAttrs(ctx, slog.LevelDebug, "work opened a repository",
+		slog.String("repository", repo), slog.String("checkout", here))
+	var settings []slog.Attr
+	for name, value := range cfg.Settings() {
+		settings = append(settings, slog.Any(name, value))
+	}
+	slog.LogAttrs(ctx, slog.LevelDebug, "the settings in force", settings...)
 }
 
 // The name becomes a directory of its own and an argument to git, so it may not
@@ -129,7 +150,7 @@ func checkName(name string) error {
 type Candidate struct {
 	worktree.Place
 	Open bool   // a worktree for it already exists
-	Icon string // the mark that resolver draws its rows with, empty where it named none
+	Icon string // the mark that resolver draws its rows with
 
 	by     Resolver
 	path   string // where that worktree sits
@@ -245,10 +266,7 @@ func byName(open []Candidate, name string) []Candidate {
 // answered stamps a candidate with the resolver that answered for it: the name,
 // the mark a screen draws it with, and the resolver itself.
 func answered(r Resolver, c Candidate) Candidate {
-	c.Source, c.by = r.Name(), r
-	if d, ok := r.(worktree.Drawn); ok {
-		c.Icon = d.Icon()
-	}
+	c.Source, c.by, c.Icon = r.Name(), r, r.Icon()
 	return c
 }
 
@@ -361,6 +379,7 @@ func (e Env) Removable() ([]Candidate, error) {
 // listing is the worktrees git reports, less the row a bare repository lists for
 // itself, and none at all where there is no repository for git to report on.
 func (e Env) listing() ([]git.Worktree, error) {
+	// internal/cli hands back a zero Env beside the refusal unreadable settings carry.
 	if e.Repo == "" {
 		return nil, nil
 	}

@@ -17,14 +17,10 @@ const Name = "claude"
 // Opener renders the command a worktree opens on.
 type Opener struct {
 	commands config.Claude
-	carried  transcripts
 }
 
-// New reads the commands from the settings and the conversations a worktree
-// carries from Claude Code's own transcripts.
-func New(commands config.Claude) Opener {
-	return Opener{commands: commands, carried: recorded{}}
-}
+// New reads the commands from the settings.
+func New(commands config.Claude) Opener { return Opener{commands: commands} }
 
 func (o Opener) Name() string { return Name }
 
@@ -58,7 +54,7 @@ func (o Opener) command(t worktree.Tree, vals worktree.Values) ([]string, error)
 // resume returns to what the worktree already carries: no conversation starts one,
 // a single one is returned to, and several reach claude's own list.
 func (o Opener) resume(t worktree.Tree, vals worktree.Values) ([]string, error) {
-	list, err := o.carried.list(t.Path)
+	list, err := carried(t.Path)
 	if err != nil {
 		return nil, err
 	}

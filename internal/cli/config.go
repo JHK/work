@@ -10,7 +10,7 @@ import (
 
 // configCommand is the verb that answers for the settings. It runs nothing
 // itself: what it carries is dump and edit.
-func configCommand(run, open func(out io.Writer) error) *cobra.Command {
+func configCommand(dumping func(out io.Writer) error, open func(out io.Writer) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Answer for the settings work reads",
@@ -25,7 +25,7 @@ dump prints what they resolved to; edit opens the file.`,
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(dumpCommand(run), editCommand(open))
+	cmd.AddCommand(dumpCommand(dumping), editCommand(open))
 
 	return cmd
 }
@@ -78,12 +78,12 @@ Nothing runs after: the terminal is the editor's from here.`,
 	}
 }
 
-// edit opens the settings file in the editor the environment names.
-func edit(out io.Writer) error {
+// edit opens the settings file in the editor the environment names. It asks git
+// nothing.
+func edit(stdout io.Writer) error {
 	h, err := config.Edit()
 	if err != nil {
 		return err
 	}
-	// The editor always takes the terminal, so nothing is ever handed back to advise on.
-	return hand(h, out, io.Discard)
+	return hand(h, stdout)
 }

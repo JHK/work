@@ -6,10 +6,13 @@ package worktree
 import (
 	"cmp"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+
+	"github.com/JHK/work-cli/internal/run"
 )
 
 // Place is one place to work, as the resolver that owns it describes it. The
@@ -52,15 +55,6 @@ type Tree struct {
 // [Place] is sourced to, an [action] key holds, and a flag spells.
 type System interface {
 	Name() string
-}
-
-// Drawn is a system that says how a screen marks the rows it answers for. One
-// that says nothing is drawn unmarked.
-type Drawn interface {
-	System
-
-	// Icon is the mark, one column wide.
-	Icon() string
 }
 
 // Flagged is a system a flag on the command line spells: the name it answers to
@@ -116,6 +110,7 @@ func (h Handoff) Exec() error {
 	if h.Directory() {
 		return errors.New("nothing to run")
 	}
+	slog.Info(run.CommandLine(h.Run[0], h.Run[1:]...))
 	// Resolved before the chdir, so a failure leaves the process where it started.
 	bin, err := exec.LookPath(h.Run[0])
 	if err != nil {

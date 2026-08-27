@@ -35,6 +35,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	// Only a worktree about to be made is prepared, which is where a ticket that
 	// cannot be worked is refused.
 	t := worktree.Tree{Place: c.Place, Path: c.path, By: c.by}
+	carrying := false
 	if !c.Open {
 		if t.Place, err = c.by.Prepare(c.Place); err != nil {
 			return worktree.Handoff{}, err
@@ -51,14 +52,11 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		if err := git.Vacant(t.Path); err != nil {
 			return worktree.Handoff{}, err
 		}
+		// Asked before the worktree is made: the directory about to appear under the
+		// checkout would itself read as work in hand.
+		carrying = o.Park && e.Dir != "" && git.Dirty(e.Dir)
 		if err := c.by.Create(t.Place, t.Path); err != nil {
 			return worktree.Handoff{}, err
-		}
-		// After the creation, so nothing is stashed for a worktree that never came to be.
-		if o.Park {
-			if err := e.park(t.Path); err != nil {
-				return worktree.Handoff{}, err
-			}
 		}
 	}
 
@@ -74,17 +72,22 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
+	// Last of all that can refuse, so nothing is moved out of the checkout for a
+	// run that does not go through with the worktree.
+	if carrying {
+		if err := e.park(t.Path); err != nil {
+			return worktree.Handoff{}, err
+		}
+	}
+
 	// Past the creation and the actions, so the resolver is asked of a worktree that
 	// exists.
 	return opener.Open(t, e.values(t))
 }
 
 // park moves the working state of the checkout work was invoked in into the
-// worktree at to. One git reports nothing of has nothing to move.
+// worktree at to.
 func (e Env) park(to string) error {
-	if e.Dir == "" || !git.Dirty(e.Dir) {
-		return nil
-	}
 	saved, err := git.Stash(e.Dir)
 	if err != nil {
 		return fmt.Errorf("%w; the worktree at %s is made, and the changes are where they were", err, to)

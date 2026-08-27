@@ -1,144 +1,152 @@
 package claude
 
+// The transcript reader is what no command reaches: one sees only which
+// conversation --resume was handed, and the mangling, the ordering and how far
+// into an event the reader goes decide that between them.
+
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/JHK/work-cli/internal/testenv"
+	"github.com/stretchr/testify/require"
 )
 
-// Claude Code's mangling, reproduced: every non-alphanumeric becomes a dash,
-// one per UTF-16 code unit, and a name past bucketLen is truncated and hashed.
+func TestMain(m *testing.M) { testenv.Main(m) }
+
+// transcript is one conversation as it sits on disk.
+type transcript struct {
+	id    string
+	lines []string
+	mod   time.Time
+}
+
+// record takes the case a home of its own and files the transcripts under the
+// bucket Claude Code would file them in. None leaves the bucket itself unmade,
+// which is a directory never worked in.
+func record(t *testing.T, dir string, held ...transcript) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, c := range held {
+		path := filepath.Join(Bucket(home, dir), c.id+".jsonl")
+		testenv.Write(t, path, strings.Join(c.lines, "\n")+"\n")
+		require.NoError(t, os.Chtimes(path, c.mod, c.mod))
+	}
+}
+
+// Claude Code's mangling, reproduced: every non-alphanumeric becomes a dash, one
+// per UTF-16 code unit, and a name past bucketLen is truncated and hashed.
 func TestBucket(t *testing.T) {
-	tests := []struct{ dir, want string }{
-		{"/home/u/Code/repo/.worktrees/bd-42", "-home-u-Code-repo--worktrees-bd-42"},
-		{"/home/u/Code/my_repo/.worktrees/bd-42", "-home-u-Code-my-repo--worktrees-bd-42"},
-		{"/home/u/Code/some repo (v2)/.worktrees/x+y@z", "-home-u-Code-some-repo--v2---worktrees-x-y-z"},
-		{"/home/u/Code/repo-\U0001F600/.worktrees/bd-1", "-home-u-Code-repo-----worktrees-bd-1"},
-		{"/home/u/" + strings.Repeat("a", 220) + "/wt", "-home-u-" + strings.Repeat("a", 192) + "-ekpdbl"},
+	tests := []struct{ name, dir, want string }{
+		{"a plain path", "/home/u/Code/repo/.worktrees/bd-42", "-home-u-Code-repo--worktrees-bd-42"},
+		{"an underscore", "/home/u/Code/my_repo/.worktrees/bd-42", "-home-u-Code-my-repo--worktrees-bd-42"},
+		{"spaces and punctuation", "/home/u/Code/some repo (v2)/.worktrees/x+y@z", "-home-u-Code-some-repo--v2---worktrees-x-y-z"},
+		{"a rune of two code units", "/home/u/Code/repo-\U0001F600/.worktrees/bd-1", "-home-u-Code-repo-----worktrees-bd-1"},
+		{"a name past bucketLen", "/home/u/" + strings.Repeat("a", 220) + "/wt", "-home-u-" + strings.Repeat("a", 192) + "-ekpdbl"},
 	}
 	for _, tt := range tests {
-		if got := bucket("/home/u", tt.dir); got != filepath.Join("/home/u/.claude/projects", tt.want) {
-			t.Errorf("bucket(%q) = %q, want the bucket %q", tt.dir, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			want := filepath.Join("/home/u/.claude/projects", tt.want)
+			require.Equalf(t, want, Bucket("/home/u", tt.dir), "the bucket %q is filed under", tt.dir)
+		})
 	}
 }
 
-func TestListMissingBucket(t *testing.T) {
-	got, err := recorded{home: t.TempDir()}.list("/nowhere")
-	if err != nil || got != nil {
-		t.Errorf("list() = %v, %v; want no conversations and no error", got, err)
+// Only what the agent would return to is on offer, newest first, against the
+// invocations docs/references/claude.md tabulates.
+func TestCarriedOffersTheConversationsWorthReturningTo(t *testing.T) {
+	const dir = "/w/t"
+	tests := []struct {
+		name string
+		has  []transcript
+		want []string
+	}{
+		{
+			// Nothing recorded, so the bucket was never made: a missing one is not an error.
+			"a directory never worked in carries none",
+			nil,
+			nil,
+		},
+		{
+			"newest first",
+			[]transcript{
+				{"oldest", []string{`{"type":"user"}`}, time.Unix(100, 0)},
+				{"newest", []string{`{"type":"user"}`}, time.Unix(300, 0)},
+				{"middle", []string{`{"type":"user"}`}, time.Unix(200, 0)},
+			},
+			[]string{"newest", "middle", "oldest"},
+		},
+		{
+			// The second transcript quotes the key in a message body, where it is text
+			// rather than that transcript's entrypoint.
+			"print mode is not on offer",
+			[]transcript{
+				{"printed", []string{
+					`{"type":"system","entrypoint":"sdk-cli"}`,
+					`{"type":"user","message":"summarise this"}`,
+				}, time.Unix(200, 0)},
+				{"interactive", []string{
+					`{"type":"user","entrypoint":"cli","message":"what is \"entrypoint\":\"sdk-cli\"?"}`,
+				}, time.Unix(100, 0)},
+			},
+			[]string{"interactive"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record(t, dir, tt.has...)
+
+			got, err := carried(dir)
+			require.NoError(t, err)
+			testenv.Equal(t, tt.want, got, "the wrong conversations are on offer")
+		})
 	}
 }
 
-func TestListOrder(t *testing.T) {
-	home := t.TempDir()
-	dir := "/w/t"
-
-	write(t, home, dir, "oldest", []string{`{"type":"user"}`}, time.Unix(100, 0))
-	write(t, home, dir, "newest", []string{`{"type":"user"}`}, time.Unix(300, 0))
-	write(t, home, dir, "middle", []string{`{"type":"user"}`}, time.Unix(200, 0))
-
-	got, err := recorded{home: home}.list(dir)
-	if err != nil {
-		t.Fatal(err)
+// The entrypoint is read off a whole event within a bounded prefix of the file: a
+// line headLen severs is a fragment, and one the writer left unterminated is not.
+func TestPrintModeReadsAWholeEventWithinABoundedHead(t *testing.T) {
+	unnamed := `{"type":"user","message":"nothing named here"}` + "\n"
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			"a transcript naming no entrypoint",
+			strings.Repeat(unnamed, 1+headLen/len(unnamed)),
+			false,
+		},
+		{
+			// Padded with spaces, so the severed prefix parses and only the cut decides.
+			"an event the head severed",
+			`{"type":"system","entrypoint":"sdk-cli"}` + strings.Repeat(" ", headLen) + "\n",
+			false,
+		},
+		{
+			"a final event left unterminated",
+			`{"type":"system","entrypoint":"sdk-cli"}`,
+			true,
+		},
+		{
+			// The oversized event names the key below the top level, where it decides
+			// nothing, and the event behind it still settles the transcript.
+			"an event too long to read hides nothing behind it",
+			`{"type":"user","message":{"entrypoint":"sdk-cli","pad":"` + strings.Repeat("x", headLen/4) + `"}}` + "\n" +
+				`{"type":"system","entrypoint":"sdk-cli"}` + "\n",
+			true,
+		},
 	}
-	want := []string{"newest", "middle", "oldest"}
-	if !slices.Equal(got, want) {
-		t.Errorf("list() = %q, want %q", got, want)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.body)
 
-// claude -p writes a transcript like any other, and neither --continue nor the
-// picker offers one, so a worktree holding nothing else holds no conversation.
-func TestListHidesPrintMode(t *testing.T) {
-	home := t.TempDir()
-	dir := "/w/t"
-
-	write(t, home, dir, "printed", []string{
-		`{"type":"system","entrypoint":"sdk-cli"}`,
-		`{"type":"user","message":"summarise this"}`,
-	}, time.Unix(200, 0))
-
-	// The key inside a message body is text, not this transcript's entrypoint.
-	write(t, home, dir, "interactive", []string{
-		`{"type":"user","entrypoint":"cli","message":"what is \"entrypoint\":\"sdk-cli\"?"}`,
-	}, time.Unix(100, 0))
-
-	got, err := recorded{home: home}.list(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0] != "interactive" {
-		t.Errorf("list() = %q, want the interactive transcript alone", got)
-	}
-}
-
-// An event too long to be one of the short ones read here must not hide the
-// events behind it.
-func TestListHidesPrintModeBehindAnOversizedLine(t *testing.T) {
-	home := t.TempDir()
-	dir := "/w/t"
-
-	// The oversized event names the key below the top level, where it decides nothing.
-	write(t, home, dir, "printed", []string{
-		`{"type":"user","message":{"entrypoint":"sdk-cli","pad":"` + strings.Repeat("x", headLen/4) + `"}}`,
-		`{"type":"system","entrypoint":"sdk-cli"}`,
-	}, time.Unix(100, 0))
-	write(t, home, dir, "interactive", []string{`{"type":"user","entrypoint":"cli"}`}, time.Unix(200, 0))
-
-	got, err := recorded{home: home}.list(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0] != "interactive" {
-		t.Errorf("list() = %q, want the interactive transcript alone", got)
-	}
-}
-
-// A transcript naming no entrypoint stays on offer, and costs a bounded prefix
-// rather than the whole file.
-func TestPrintModeStopsAtHeadLen(t *testing.T) {
-	line := `{"type":"user","message":"nothing named here"}` + "\n"
-	r := strings.NewReader(strings.Repeat(line, 1+headLen/len(line)))
-
-	if printMode(r) {
-		t.Error("printMode() = true, want false for a transcript naming no entrypoint")
-	}
-	if read := r.Size() - int64(r.Len()); read > headLen {
-		t.Errorf("printMode read %d bytes, want at most headLen (%d)", read, headLen)
-	}
-}
-
-// The line headLen severs is a fragment, whatever it appears to name. Padded
-// with spaces, so the severed prefix parses and only the cut decides.
-func TestPrintModeIgnoresASeveredLine(t *testing.T) {
-	severed := `{"type":"system","entrypoint":"sdk-cli"}` + strings.Repeat(" ", headLen) + "\n"
-	if printMode(strings.NewReader(severed)) {
-		t.Error("printMode() = true, want false: the line was severed, not read")
-	}
-}
-
-// A writer that stopped short of the newline still wrote a whole event.
-func TestPrintModeReadsAnUnterminatedFinalLine(t *testing.T) {
-	if !printMode(strings.NewReader(`{"type":"system","entrypoint":"sdk-cli"}`)) {
-		t.Error("printMode() = false, want true: the file ran out, not the budget")
-	}
-}
-
-func write(t *testing.T, home, dir, id string, lines []string, mod time.Time) {
-	t.Helper()
-	b := bucket(home, dir)
-	if err := os.MkdirAll(b, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(b, id+".jsonl")
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chtimes(path, mod, mod); err != nil {
-		t.Fatal(err)
+			require.Equal(t, tt.want, printMode(r))
+			require.LessOrEqual(t, r.Size()-int64(r.Len()), int64(headLen))
+		})
 	}
 }

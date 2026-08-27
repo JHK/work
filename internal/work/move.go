@@ -1,7 +1,6 @@
 package work
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -70,9 +69,6 @@ func (e Env) Move(c Candidate, dest string) (Move, error) {
 // one carrying a separator a path of its own, read from [Env.Dir] where it is
 // relative. Its last element is the name either way.
 func (e Env) destination(from, dest string) (string, error) {
-	if dest == "" {
-		return "", errors.New("no destination given")
-	}
 	if err := checkName(filepath.Base(dest)); err != nil {
 		return "", err
 	}

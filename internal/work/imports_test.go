@@ -1,14 +1,15 @@
 package work
 
 import (
-	"go/build"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/testenv"
 )
+
+// root is where the module sits, from the directory these tests run in.
+const root = "../.."
 
 // reachable is every package the core may import directly: the vocabulary both
 // sides of the seams speak, git because worktrees are git's, and the settings.
@@ -22,13 +23,7 @@ var reachable = []string{
 // implementation the core names is a capability living in the file that should
 // be the most stable.
 func TestCoreReachesNothingElse(t *testing.T) {
-	ctx := build.Default
-	ctx.UseAllFiles = true // a build tag is not a way out of the rule
-	pkg, err := ctx.ImportDir(".", 0)
-	if err != nil {
-		t.Fatalf("read the core's imports: %v", err)
-	}
-	for _, path := range pkg.Imports {
+	for _, path := range testenv.Listed(t, root, "-f", `{{join .Imports "\n"}}`, "./internal/work") {
 		if standard(path) || slices.Contains(reachable, path) {
 			continue
 		}
@@ -48,20 +43,19 @@ var seams = []string{
 // one system does is its own, and an implementation that named another would put
 // the second one's work into the first one's answer.
 func TestNoSystemReachesAnother(t *testing.T) {
-	pkgs := testenv.Packages(t, "../..")
-
 	read := map[string]bool{}
-	for _, path := range slices.Sorted(maps.Keys(pkgs)) {
-		seam, from := system(path)
+	// Test files are held to the rule too, so all three compilations are read.
+	for _, line := range testenv.Listed(t, root, "-f",
+		`{{.ImportPath}}{{range .Imports}} {{.}}{{end}}{{range .TestImports}} {{.}}{{end}}{{range .XTestImports}} {{.}}{{end}}`, "./...") {
+		paths := strings.Fields(line)
+		seam, from := system(paths[0])
 		if from == "" {
 			continue
 		}
 		read[seam] = true
-		pkg := pkgs[path]
-		// Test files are held to the rule too, so all three compilations are read.
-		for _, imported := range slices.Concat(pkg.Imports, pkg.TestImports, pkg.XTestImports) {
+		for _, imported := range paths[1:] {
 			if _, to := system(imported); to != "" && to != from {
-				t.Errorf("%s imports %s; a system reaches no other system's package", path, imported)
+				t.Errorf("%s imports %s; a system reaches no other system's package", paths[0], imported)
 			}
 		}
 	}

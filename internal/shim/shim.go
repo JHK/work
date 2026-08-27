@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"golang.org/x/term"
@@ -26,19 +27,20 @@ var Fish string
 var Bash string
 
 // advice is the line a terminal reading the path is given.
-const advice = "work: the shell integration is not sourced, so your shell stays where it is; see work init --help"
+const advice = "the shell integration is not sourced, so your shell stays where it is; see work init --help"
 
-// Answer hands the worktree back: into the file the shim named, else on out,
-// with one line on note naming work init where a terminal is reading that path.
-func Answer(dir string, out, note io.Writer) error {
+// Answer hands the worktree back: into the file the shim named, else onto
+// stdout, with one warning naming work init where a terminal is reading that
+// path.
+func Answer(dir string, stdout io.Writer) error {
 	if file := os.Getenv(CDFile); file != "" {
 		return os.WriteFile(file, []byte(dir+"\n"), 0o600)
 	}
-	if _, err := fmt.Fprintln(out, dir); err != nil {
+	if _, err := fmt.Fprintln(stdout, dir); err != nil {
 		return err
 	}
-	if terminal(out) {
-		_, _ = fmt.Fprintln(note, advice)
+	if terminal(stdout) {
+		slog.Warn(advice)
 	}
 	return nil
 }

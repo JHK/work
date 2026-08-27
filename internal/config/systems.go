@@ -32,5 +32,5 @@ func SystemNames() []string {
 	return []string{githubSystem, beadsSystem, miseSystem, claudeSystem}
 }
 
-// SystemKey is what switches a system on: its table, and the one key in it.
-func SystemKey(name string) string { return name + ".enabled" }
+// systemKey is what switches a system on: its table, and the one key in it.
+func systemKey(name string) string { return name + ".enabled" }
