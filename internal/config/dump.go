@@ -50,16 +50,14 @@ func (c Config) keys() []key {
 		{dirKey, c.Worktree.Dir()},
 		{ticketKey, c.Branch.ticket().tmpl.text},
 		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
-		{createKey, string(c.Action.Create())},
-		{enterKey, string(c.Action.Enter())},
 		{systemKey(githubSystem), c.Github.Enabled},
 		{systemKey(beadsSystem), c.Beads.Enabled},
 		{systemKey(miseSystem), c.Mise.Enabled},
 		{systemKey(claudeSystem), c.Claude.Enabled},
+		{onCreationKey, c.Claude.OnCreation()},
 		{startTicketKey, argv(c.Claude.StartTicket())},
 		{startPullRequestKey, argv(c.Claude.StartPullRequest())},
 		{startSessionKey, argv(c.Claude.StartSession())},
-		{resumeSessionKey, argv(c.Claude.ResumeSession())},
 	}
 }
 

@@ -51,19 +51,10 @@ type Tree struct {
 	By System
 }
 
-// System is a resolver or an action under the name it goes by: the name a
-// [Place] is sourced to, an [action] key holds, and a flag spells.
+// System is a resolver or an action under the name it goes by, which is the name
+// a [Place] is sourced to.
 type System interface {
 	Name() string
-}
-
-// Flagged is a system a flag on the command line spells: the name it answers to
-// and the line --help shows for it. An opener's flag names it and an action's
-// declines it; a system that spells none is reached by the settings alone.
-type Flagged interface {
-	System
-
-	Flag() (name, usage string)
 }
 
 // Values are what a command renders with, keyed by the name a template places

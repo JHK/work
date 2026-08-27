@@ -8,7 +8,7 @@ Refused at load, naming the file:
 
 - an unknown key
 - a key whose case does not match
-- a table or an [action](#actions) under a name a rename replaced, refused with the name it goes by now
+- a table under a name a rename replaced, refused with the name it goes by now
 
 Values are validated once the file is read, before anything is created.
 
@@ -20,12 +20,10 @@ Values are validated once the file is read, before anything is created.
 | [`worktree.directory`](../../internal/config/config.go) | a directory inside the main checkout, where a new worktree is created |
 | [`branch.ticket`](../../internal/config/config.go) | the branch a ticket's worktree checks out |
 | [`branch.pull-request`](../../internal/config/config.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
-| [`action.create`](../../internal/config/action.go) | the [action](#actions) a newly created worktree opens on |
-| [`action.enter`](../../internal/config/action.go) | the [action](#actions) an existing worktree opens on |
+| [`claude.on-creation`](../../internal/config/verbs.go) | the verbs whose creations [open a session](#opening-on-a-session) |
 | [`claude.start-ticket`](../../internal/config/command.go) | the [command](#commands) a ticket's new worktree opens on |
 | [`claude.start-pull-request`](../../internal/config/command.go) | the [command](#commands) a pull request's new worktree opens on |
-| [`claude.start-session`](../../internal/config/command.go) | the [command](#commands) a worktree opens on with no ticket and no conversation to name another |
-| [`claude.resume-session`](../../internal/config/command.go) | the [command](#commands) that returns to the conversation a worktree carries |
+| [`claude.start-session`](../../internal/config/command.go) | the [command](#commands) a worktree opens on where nothing names a ticket or a pull request |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
@@ -44,9 +42,7 @@ enabled = true
 # claude.* is read whether or not this is
 ```
 
-One name carries a system wherever it appears: the table its own keys sit in, its rows, and its flags. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
-
-A system left out is wired nowhere: it spells no [flag](cli.md#open-on-flags) and offers no rows, and a file naming its [action](#actions) is refused at load.
+One name carries a system wherever it appears: the table its own keys sit in, and its rows. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
 
 ## Branch patterns
 
@@ -62,16 +58,13 @@ Refused at load:
 - a pattern placing no `.ID` or no `.Number`
 - a pattern rendering a branch that opens with a dash
 
-## Actions
+## Opening on a session
 
-An `[action]` value is one of the actions that are on here, which is what an [open-on flag](cli.md#open-on-flags) names. Both keys fall to `shell` where nothing names one, and a flag naming an action wins over both for that invocation.
+`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree where `claude.enabled` is `false` is [handed back](cli.md#handoff).
 
-| Value | On where | Hands the worktree to |
-|---|---|---|
-| `claude` | `claude.enabled = true` | what [`--claude`](cli.md#open-on-flags) hands it to |
-| `shell` | always | nothing: the worktree is [handed back](cli.md#handoff) |
+It falls to `add` and `go` where nothing names it.
 
-Refused at load: a name no action goes by, an action of a [system](#systems) that is off among them. An action that only runs when a worktree comes into being, such as `beads` or `mise`, is not an `[action]` value: it is [declined by a flag](cli.md#open-on-flags).
+Refused at load: a word no verb goes by, and a verb no worktree comes into being under. Only `add`, `carry` and `go` create one.
 
 ## Commands
 
@@ -83,9 +76,6 @@ A `[claude]` value is the argv of a command run without a shell, one [Go templat
 | `.Dir` | every command | the worktree, which the process has already changed into |
 | `.ID`, `.Title` | `claude.start-ticket` | the ticket id and its title |
 | `.Number` | `claude.start-pull-request` | the pull request number |
-| `.Session` | `claude.resume-session` | the conversation the worktree carries, empty where it carries several |
-
-An empty `.Session` drops the element that placed it, so `claude.resume-session` reaches the one [conversation](claude.md#the-contract) outright and the agent's own list where there are several.
 
 Refused at load:
 
@@ -94,4 +84,4 @@ Refused at load:
 
 A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed.
 
-The defaults are in [internal/config/command.go](../../internal/config/command.go), and rest on [`claude`'s own behaviour](claude.md).
+The defaults are in [internal/config/command.go](../../internal/config/command.go), and [what they open](claude.md) is `claude`.

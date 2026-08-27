@@ -28,16 +28,14 @@ var documented = []string{
 	"worktree.directory",
 	"branch.ticket",
 	"branch.pull-request",
-	"action.create",
-	"action.enter",
 	"github.enabled",
 	"beads.enabled",
 	"mise.enabled",
 	"claude.enabled",
+	"claude.on-creation",
 	"claude.start-ticket",
 	"claude.start-pull-request",
 	"claude.start-session",
-	"claude.resume-session",
 }
 
 // dumped is a printed configuration read back: the keys in the order they were
@@ -114,7 +112,7 @@ func TestConfigDumpLoadsBack(t *testing.T) {
 	s := repository(t)
 	// A quote and a tab survive the printing, being written as TOML escapes.
 	s.settings(directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n" +
-		"[action]\nenter = \"claude\"\n[claude]\nenabled = true\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
+		"[claude]\nenabled = true\non-creation = [\"carry\"]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
 
 	first := dumping(t, s)
 	// A machine whose whole configuration is what the first dump printed.
@@ -150,18 +148,18 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
 		{"a system work does not have", "[linear]\nenabled = true\n", "unknown setting"},
-		{"an unknown action key", "[action]\nopen = \"shell\"\n", "unknown setting"},
-		{"an action nothing goes by", "[action]\ncreate = \"launcher\"\n", "is not an action"},
-		{"an action named for its flag", "[action]\nenter = \"--shell\"\n", "is not an action"},
-		{"the unnamed action, which is no action", "[action]\nenter = \"unnamed\"\n", "is not an action"},
-		{"an action that is not a string", "[action]\ncreate = 3\n", "create"},
-		{"an action in another case", "[action]\nenter = \"Shell\"\n", "is not an action"},
-		// An action work ships, of a system this file left out: docs/references/configuration.md#actions.
-		{"an action nothing here is on for", "[action]\nenter = \"claude\"\n", "is not an action"},
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
-		{"an action under the name it used to go by", "[action]\ncreate = \"agent\"\n", `"agent" is now "claude"`},
 		{"a table under the name it used to go by", "[agent]\nstart-ticket = [\"claude\"]\n", "the [agent] table is now [claude]"},
+		// claude.on-creation names verbs a worktree can come into being under:
+		// docs/references/configuration.md#opening-on-a-session.
+		{"a verb that creates no worktree", claudeOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
+		{"a word no verb goes by", claudeOn + "on-creation = [\"launch\"]\n", `"launch" is not a verb`},
+		{"a verb in another case", claudeOn + "on-creation = [\"Add\"]\n", `"Add" is not a verb`},
+		{"a verb spelled as its flag", claudeOn + "on-creation = [\"--add\"]\n", `"--add" is not a verb`},
+		{"a verb naming the agent rather than a verb", claudeOn + "on-creation = [\"claude\"]\n", `"claude" is not a verb`},
+		{"verbs that are not a list", claudeOn + "on-creation = \"add\"\n", "claude.on-creation"},
+		{"a verb that is not a string", claudeOn + "on-creation = [3]\n", "claude.on-creation"},
 		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
 		{"a command that is not a list", "[claude]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
 		{"a list of something other than strings", "[claude]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
@@ -170,19 +168,19 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a ticket command naming nothing", "[claude]\nstart-ticket = []\n", "claude.start-ticket: names no command"},
 		{"a pull request command naming nothing", "[claude]\nstart-pull-request = []\n", "claude.start-pull-request: names no command"},
 		{"a session command naming nothing", "[claude]\nstart-session = []\n", "claude.start-session: names no command"},
-		{"a resumed command naming nothing", "[claude]\nresume-session = []\n", "claude.resume-session: names no command"},
 		{"a value the key does not have", "[claude]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[claude]\nresume-session = [\"claude\", \"{{.Branch}}\"]\n", "claude.resume-session"},
+		{"a value no key has", "[claude]\nstart-session = [\"claude\", \"{{.Branch}}\"]\n", "claude.start-session"},
 		// The two work once placed itself, and now has no more than any other name.
 		{"a model or an effort", "[claude]\nstart-ticket = [\"claude\", \"--model={{.Model}}\", \"--effort={{.Effort}}\"]\n", "claude.start-ticket"},
-		// Only the arm a target with a session reaches names it.
-		{"a value named inside a branch", "[claude]\nresume-session = [\"claude\", \"{{with .Session}}{{$.Branch}}{{end}}\"]\n", "claude.resume-session"},
+		// Only the arm a ticket carrying a title reaches names it.
+		{"a value named inside a branch", "[claude]\nstart-ticket = [\"claude\", \"{{with .Title}}{{$.Branch}}{{end}}\"]\n", "claude.start-ticket"},
 		// The whole table went with the commands that were under it: the shell action
 		// hands back the worktree now, and the editor and the diff are gone.
 		{"the table of commands to open on", "[open]\nshell = [\"fish\"]\neditor = [\"vi\", \"{{.Dir}}\"]\n", "unknown setting open"},
-		{"the editor action", "[action]\ncreate = \"editor\"\n", "action.create"},
-		{"the diff action", "[action]\nenter = \"diff\"\n", "action.enter"},
-		{"the screen, which was never a command", "[action]\ncreate = \"ask\"\n", "action.create"},
+		// The keys claude.on-creation replaced: refused as keys nothing declares
+		// rather than read for what they used to mean.
+		{"the table the action keys sat in", "[action]\ncreate = \"claude\"\nenter = \"shell\"\n", "unknown setting action"},
+		{"the command a conversation was resumed with", "[claude]\nresume-session = [\"claude\"]\n", "unknown setting claude.resume-session"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -202,9 +200,9 @@ func TestASettingsFileWorkWillNotReadStopsEveryVerb(t *testing.T) {
 	commands := [][]string{
 		{"go", "scratch"}, {"switch", "scratch"}, {"add", "other"}, {"carry", "other"},
 		{"remove", "scratch"}, {"move", "scratch", "other"}, {"list"}, {"config", "dump"},
-		// A file that would not load wired nothing, so the flag a system spells is
-		// missing too: what the reader hears is still the settings.
-		{"go", "--claude", "scratch"},
+		// A word the command line refuses too: the settings are still what the reader
+		// hears, being why the verb could not run at all.
+		{"go", "--turbo", "scratch"},
 	}
 	for _, args := range commands {
 		typed := strings.Join(args, " ")
@@ -258,19 +256,6 @@ func TestASettingsFileWorkWillNotReadLeavesInitAlone(t *testing.T) {
 	require.Contains(t, r.Out, shim.Fish, "work init fish printed no shell integration")
 }
 
-// The flags the command line records are spelled from the settings as read, so a
-// system no file switched on is a system no flag names.
-func TestASystemTheSettingsLeftOutSpellsNoFlag(t *testing.T) {
-	s := repository(t)
-
-	// Refused in the flag parsing, so the worktree the words name need not be there.
-	r := s.run("switch", "scratch", "--claude")
-
-	// A file work could read, so the word itself is what is wrong with it. The same
-	// flag under a file work refuses hears about the file instead.
-	r.came(t, result{Code: 1, Errored: []string{"unknown flag: --claude"}})
-}
-
 // A system its table switched on is reached on every seam it fills, and one the
 // file left out is reached nowhere: docs/references/systems.md.
 func TestEachSystemIsReachedOnlyWhereItsTableSwitchesItOn(t *testing.T) {
@@ -283,7 +268,9 @@ func TestEachSystemIsReachedOnlyWhereItsTableSwitchesItOn(t *testing.T) {
 		{"the forge lists the pull requests", forgeOn, []string{pullRequests(hosted), putUp}, nil},
 		{"the tracker lists the tickets", trackerOn, []string{listed, vetted, putUp}, []string{listed}},
 		{"the runner trusts a fresh worktree", miseOn, []string{putUp}, []string{"mise trust"}},
-		{"the agent fills neither seam", claudeOn, []string{putUp}, nil},
+		// Told to open no creation on a session, so what the agent is asked here is what
+		// it is asked at a seam, which is nothing.
+		{"the agent fills neither seam", claudeOn + "on-creation = []\n", []string{putUp}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,31 +309,27 @@ func TestWhereAWorktreeLands(t *testing.T) {
 }
 
 // A file that names one key leaves the rest to the compiled-in defaults: a table
-// present but empty moves nothing, and the [action] key it left out is still the
-// default.
+// present but empty moves nothing, and the keys it left out still name the
+// directory, the verbs and the command.
 func TestAFileNamingOneKeyLeavesTheRestToTheDefaults(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings("[worktree]\n" + claudeOn + "[action]\nenter = \"claude\"\n")
+	s.settings("[worktree]\n" + claudeOn)
 
-	made := s.run("add", "scratch")
+	r := s.hands("add", "scratch")
 
-	made.came(t, result{Answered: s.at("scratch")})
-
-	entered := s.hands("switch", "scratch")
-
-	entered.came(t, result{Asked: []string{"claude --permission-mode auto --name=scratch"}})
+	r.came(t, result{Asked: []string{sessionOn("scratch")}})
+	require.DirExists(t, s.at("scratch"), "the worktree did not land where the compiled-in directory names")
 }
 
 // A command the file names replaces the compiled-in one whole rather than
 // element by element, and is what the worktree opens on.
 func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude"})
-	s.opened("scratch")
 	// Shorter than the default, so one replaced element by element would leave the
 	// default's tail behind.
 	s.settings(claudeOn + "start-session = [\"claude\", \"{{.Name}}\"]\n")
 
-	r := s.hands("switch", "scratch", "--claude")
+	r := s.hands("add", "scratch")
 
 	r.came(t, result{Asked: []string{"claude scratch"}})
 }

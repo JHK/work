@@ -20,7 +20,9 @@ func TestTheFirstWordDecides(t *testing.T) {
 		want result
 	}{
 		{"nothing at all", nil, result{Answered: path, Asked: []string{putUp}}},
-		{"a flag in the bare position", []string{"--shell", "scratch"}, result{Answered: path}},
+		// A flag the root does not declare holds no position either: the words reach
+		// go, which refuses the flag it does not carry.
+		{"a flag in the bare position", []string{"--force", "scratch"}, result{Code: 1}},
 		// The root passes --log-level down to every verb, so it says how the bare form
 		// runs rather than standing for a verb of its own.
 		{"the level spelled out", []string{"--log-level=info", "scratch"}, result{Answered: path}},

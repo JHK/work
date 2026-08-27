@@ -1,5 +1,5 @@
-// Package cli is work's headless front end: it turns flags into one call on
-// [work.Env] and prints what came back.
+// Package cli is work's headless front end: it turns the words typed into one
+// call on [work.Env] and prints what came back.
 package cli
 
 import (
@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"runtime"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -21,18 +20,10 @@ import (
 // without a message: nothing happened, and nothing went wrong.
 var errCancelled = errors.New("cancelled")
 
-// options are what the flags settled and the verb added, in the names the
-// systems go by: which action the worktree opens on, and which were declined.
-type options struct {
-	open  string
-	skip  []string
-	carry bool // the checkout's working state moves into the worktree carry makes
-}
-
-// The shape each verb takes once the flags are read: an opening verb hands a
+// The shape each verb takes once the words are read: an opening verb hands a
 // worktree over, the two that act on one hand back what they did.
 type (
-	opens   = func(o options, target string) (worktree.Handoff, error)
+	opens   = func(verb, target string) (worktree.Handoff, error)
 	removes = func(force bool, target string) (work.Deletion, error)
 	moves   = func(target, dest string) (work.Move, error)
 )
@@ -43,7 +34,7 @@ type offering[T any] struct {
 	list func() ([]work.Candidate, error)
 }
 
-// front is what the command tree calls once cobra has read the flags: an
+// front is what the command tree calls once cobra has read the words: an
 // offering per verb, and the verbs that offer nothing.
 type front struct {
 	reach    offering[opens]
@@ -124,13 +115,11 @@ func fronting(v verbs) front {
 // read it, not refused here.
 func Execute(version string, wire work.Wiring, args []string, stdout io.Writer, logLevel *slog.LevelVar) int {
 	cfg, read := config.Load()
-	// Without a repository: only the names and the flags are read off what comes back.
-	sys := wire("", "", cfg)
 
-	cmd := command(version, logLevel, sys, fronting(verbs{cfg: cfg, read: read, wire: wire}))
+	cmd := command(version, logLevel, fronting(verbs{cfg: cfg, read: read, wire: wire}))
 	if read != nil {
-		// A file that would not load wired nothing, so a flag a system spells is
-		// missing rather than misspelled: the settings are what the reader has to hear.
+		// The settings are what the reader has to hear: a file that would not load is
+		// the reason a verb refuses, whatever else the words were wrong about.
 		cmd.SetFlagErrorFunc(func(*cobra.Command, error) error { return read })
 	}
 	if err := through(cmd, args, stdout); err != nil {
@@ -155,7 +144,7 @@ func through(cmd *cobra.Command, args []string, stdout io.Writer) error {
 // command builds the command tree, calling the verb front once the flags are
 // valid and answering a tab press from its listings. The root runs nothing
 // itself: [dispatch] has already sent the bare form to go.
-func command(version string, logLevel *slog.LevelVar, sys work.Systems, f front) *cobra.Command {
+func command(version string, logLevel *slog.LevelVar, f front) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "work",
 		Short: "A smarter cd for git worktrees",
@@ -172,7 +161,7 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 	// Every position cobra would otherwise answer with a file listing, the
 	// subcommands' arguments included, answers with nothing instead.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	cmd.AddCommand(initCommand(), goCommand(sys, f.reach), switchCommand(sys, f.enter), addCommand(sys, f.add), carryCommand(sys, f.carry), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
+	cmd.AddCommand(initCommand(), goCommand(f.reach), switchCommand(f.enter), addCommand(f.add), carryCommand(f.carry), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
 	logging(cmd, logLevel)
 	// Declared here so that cobra does not give it the -v below leaves free.
 	cmd.Flags().Bool("version", false, "print the version and the Go toolchain")
@@ -186,96 +175,23 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 
 // opening builds a verb that reaches a worktree and hands it to something, with
 // the listing it offers behind both its picker and its completion.
-func opening(help *cobra.Command, sys work.Systems, declines []work.Action, verb offering[opens]) *cobra.Command {
+func opening(help *cobra.Command, verb offering[opens]) *cobra.Command {
 	help.Args = cobra.MaximumNArgs(1)
 	help.ValidArgsFunction = suggest(verb.list)
-	return handing(help, sys, declines, verb.run)
+	return handing(help, verb.run)
 }
 
-// handing wires what a verb that opens something carries: the open-on flags, the
-// flags that call an action off, and the one handoff. declines are the actions
-// it may be told not to run.
-func handing(help *cobra.Command, sys work.Systems, declines []work.Action, run opens) *cobra.Command {
-	var o options
-
+// handing wires the one handoff a verb that opens something ends on. The verb is
+// read off the command that ran, which is what a creation's opener follows from.
+func handing(help *cobra.Command, run opens) *cobra.Command {
 	help.RunE = func(cmd *cobra.Command, args []string) error {
-		h, err := run(o, arg(args, 0))
+		h, err := run(cmd.Name(), arg(args, 0))
 		if err != nil {
 			return err
 		}
 		return hand(h, cmd.OutOrStdout())
 	}
-	openOn(help, &o, sys.Openers)
-	decline(help, &o, declines)
-
 	return help
-}
-
-// openOn gives a command the flags that name what a worktree opens on: one per
-// action wired, under the spelling that action answers to, mutually exclusive.
-func openOn(cmd *cobra.Command, o *options, openers []work.Opener) {
-	exclusive := make([]string, 0, len(openers))
-	for _, op := range openers {
-		name, usage := spelling(op)
-		exclusive = append(exclusive, name)
-		// The name rather than the opener: cobra holds the callback for the life of the
-		// process, and a system captured here is one nothing can let go of.
-		action := op.Name()
-		boolFlag(cmd, name, usage, func() { o.open = action })
-		// What was renamed is the action; the refusal names the flag that reaches it today.
-		for _, was := range config.Renamed(config.ActionName(op.Name())) {
-			renamedFlag(cmd, string(was), name)
-		}
-	}
-	cmd.MarkFlagsMutuallyExclusive(exclusive...)
-}
-
-// decline gives a command the flags that call off an action that would otherwise
-// run. An action spelling no flag runs whenever a worktree comes into being.
-func decline(cmd *cobra.Command, o *options, actions []work.Action) {
-	for _, a := range actions {
-		f, ok := a.(worktree.Flagged)
-		if !ok {
-			continue
-		}
-		name, usage := f.Flag()
-		action := a.Name()
-		boolFlag(cmd, name, usage, func() { o.skip = append(o.skip, action) })
-	}
-}
-
-// spelling is the flag an opener answers to and the line --help shows for it. An
-// opener that spells neither is named by the flag its own name spells.
-func spelling(op work.Opener) (name, usage string) {
-	if f, ok := op.(worktree.Flagged); ok {
-		return f.Flag()
-	}
-	return op.Name(), ""
-}
-
-// boolFlag declares a flag that stands for itself and calls set where it was
-// given. A value spelled out is read, so --flag=false settles nothing.
-func boolFlag(cmd *cobra.Command, name, usage string, set func()) {
-	cmd.Flags().BoolFunc(name, usage, func(v string) error {
-		on, err := strconv.ParseBool(v)
-		if err != nil {
-			return err
-		}
-		if on {
-			set()
-		}
-		return nil
-	})
-}
-
-// renamedFlag keeps the spelling an action used to answer to, hidden and refused
-// with the one it answers to now.
-func renamedFlag(cmd *cobra.Command, was, now string) {
-	cmd.Flags().BoolFunc(was, "", func(string) error {
-		return fmt.Errorf("this flag is now --%s", now)
-	})
-	// The error is a flag that was not declared, and one just was.
-	_ = cmd.Flags().MarkHidden(was)
 }
 
 // arg is the word a verb was given at a position, empty where it was left out

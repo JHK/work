@@ -7,32 +7,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The ticket a worktree was just made for is claimed, unless the flag that calls
-// the claim off was given. What else the tracker is asked is work go's own case.
+// The ticket a worktree was just made for is claimed, and nothing on the command
+// line calls that off: docs/references/tickets.md. What else the tracker is
+// asked is work go's own case.
 func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    []string
-		claimed bool
-	}{
-		{"claimed", []string{"add", "bd-1"}, true},
-		{"the claim called off", []string{"add", "bd-1", "--no-claim"}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := tracking(t, []ticket{doable}, []ticket{doable}, "")
-			path := s.at("bd-1")
-			asked := []string{listed, vetted, creates(path, "bd-1-do-a-thing")}
-			if tt.claimed {
-				asked = append(asked, claims("bd-1"))
-			}
+	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	path := s.at("bd-1")
 
-			r := s.run(tt.args...)
+	r := s.run("add", "bd-1")
 
-			r.came(t, result{Answered: path, Asked: asked})
-			require.True(t, s.hasBranch("bd-1-do-a-thing"), "the worktree is not on the branch the ticket names")
-		})
-	}
+	r.came(t, result{Answered: path, Asked: worked("bd-1", path, "bd-1-do-a-thing")})
+	require.True(t, s.hasBranch("bd-1-do-a-thing"), "the worktree is not on the branch the ticket names")
 }
 
 // With no identifier the picker stands in for one, over what has no worktree
@@ -113,39 +98,15 @@ func TestAddRefusesANameNoWorktreeCouldCarry(t *testing.T) {
 	}
 }
 
-// Which key names the action is the moment's own: action.create for the worktree
-// just made, action.enter for the same worktree entered again.
-func TestTheMomentDecidesWhatAWorktreeOpensOn(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings(claudeOn + "\n[action]\ncreate = \"claude\"\nenter = \"shell\"\n")
-
-	made := s.hands("add", "scratch")
-
-	made.came(t, result{Asked: []string{"claude --permission-mode auto --name=scratch"}})
-
-	entered := s.run("switch", "scratch")
-
-	entered.came(t, result{Answered: s.at("scratch")})
-}
-
-func TestAnOpenOnFlagWinsOverTheKey(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings(claudeOn + "\n[action]\ncreate = \"claude\"\n")
-
-	r := s.run("add", "scratch", "--shell")
-
-	r.came(t, result{Answered: s.at("scratch")})
-}
-
 // The command a fresh worktree opens on is rendered from what the resolver that
 // answered supplied, which for a ticket is its id and its title.
 func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, claudeOn, testenv.Stub{Name: "claude"})
 
-	r := s.hands("add", "bd-1", "--claude")
+	r := s.hands("add", "bd-1")
 
 	r.came(t, result{Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"),
-		"claude --permission-mode auto --name=bd-1: Do a thing /start bd-1")})
+		ticketSessionOn("bd-1", "Do a thing"))})
 }
 
 // An action that throws a refusal away rather than handing it on says it on the
@@ -172,7 +133,7 @@ func TestAKeyThatRendersNoCommandRefusesRatherThanFallingThrough(t *testing.T) {
 	s := tracking(t, []ticket{untitled}, []ticket{untitled},
 		claudeOn+"start-ticket = [\"{{.Title}}\"]\n")
 
-	r := s.run("add", "bd-1", "--claude")
+	r := s.run("add", "bd-1")
 
 	r.came(t, result{Code: 1, Asked: worked("bd-1", s.at("bd-1"), "bd-1")}, apart)
 	require.Contains(t, r.Errored[0], "claude.start-ticket", "the refusal does not name the key work could not render")

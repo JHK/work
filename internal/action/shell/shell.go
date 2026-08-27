@@ -9,18 +9,13 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// name is what this action goes by, in the key and the flag alike.
-const name = string(config.ActionShell)
+// name is what this action goes by.
+const name = config.ShellOpener
 
 // Action hands the worktree back rather than running anything inside it.
 type Action struct{}
 
 func (Action) Name() string { return name }
-
-// Flag is what names this action on the command line.
-func (Action) Flag() (string, string) {
-	return name, "stand in the worktree, the shell you typed in changing into it"
-}
 
 // Open answers with the worktree, which is a handoff naming no command.
 func (Action) Open(t worktree.Tree, _ worktree.Values) (worktree.Handoff, error) {

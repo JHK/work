@@ -9,23 +9,23 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Claude is the agent's table: whether the action runs at all, and the commands
-// it runs. Each command falls back to defaultClaude on its own, so an unset one
-// is the compiled-in command and a config pointing the action at another binary
-// sets every one of them.
+// Claude is the agent's table: whether the action runs at all, which verbs open
+// a session on what they create, and the commands it runs. Each command falls
+// back to defaultClaude on its own, so an unset one is the compiled-in command
+// and a config pointing the action at another binary sets every one of them.
 type Claude struct {
 	Enabled                 bool
-	StartTicketCommand      Command `toml:"start-ticket"`
-	StartPullRequestCommand Command `toml:"start-pull-request"`
-	StartSessionCommand     Command `toml:"start-session"`
-	ResumeSessionCommand    Command `toml:"resume-session"`
+	OnCreationVerbs         []string `toml:"on-creation"`
+	StartTicketCommand      Command  `toml:"start-ticket"`
+	StartPullRequestCommand Command  `toml:"start-pull-request"`
+	StartSessionCommand     Command  `toml:"start-session"`
 }
 
 const (
+	onCreationKey       = "claude.on-creation"
 	startTicketKey      = "claude.start-ticket"
 	startPullRequestKey = "claude.start-pull-request"
 	startSessionKey     = "claude.start-session"
-	resumeSessionKey    = "claude.resume-session"
 )
 
 // StartTicket is the command a fresh ticket worktree opens on.
@@ -38,21 +38,18 @@ func (c Claude) StartPullRequest() Command {
 	return c.StartPullRequestCommand.or(defaultClaude.StartPullRequestCommand)
 }
 
-// StartSession is the command a worktree that carries no conversation opens on.
+// StartSession is the command a worktree opens on where nothing names a ticket
+// or a pull request.
 func (c Claude) StartSession() Command {
 	return c.StartSessionCommand.or(defaultClaude.StartSessionCommand)
-}
-
-// ResumeSession is the command that returns to the conversation a worktree
-// carries. An empty Session drops the element that placed it, so the one
-// conversation is returned to outright and several reach claude's own list.
-func (c Claude) ResumeSession() Command {
-	return c.ResumeSessionCommand.or(defaultClaude.ResumeSessionCommand)
 }
 
 // validate judges each command against the values its key renders with, and
 // names the key work cannot use the value of.
 func (c *Claude) validate() (string, error) {
+	if err := c.validateOnCreation(); err != nil {
+		return onCreationKey, err
+	}
 	if err := c.StartTicketCommand.bind(startTicketValues); err != nil {
 		return startTicketKey, err
 	}
@@ -61,9 +58,6 @@ func (c *Claude) validate() (string, error) {
 	}
 	if err := c.StartSessionCommand.bind(startSessionValues); err != nil {
 		return startSessionKey, err
-	}
-	if err := c.ResumeSessionCommand.bind(resumeSessionValues); err != nil {
-		return resumeSessionKey, err
 	}
 	return "", nil
 }
@@ -79,10 +73,6 @@ var defaultClaude = Claude{
 	// every later list.
 	StartSessionCommand: mustCommand(startSessionValues,
 		"claude", "--permission-mode", "auto", "--name={{.Name}}",
-	),
-	// No --permission-mode: claude ignores it alongside --resume.
-	ResumeSessionCommand: mustCommand(resumeSessionValues,
-		"claude", "--resume", "{{.Session}}",
 	),
 }
 
@@ -108,7 +98,6 @@ var (
 	startTicketValues      = keyValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
 	startPullRequestValues = keyValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
 	startSessionValues     = keyValues{startSessionKey, common}
-	resumeSessionValues    = keyValues{resumeSessionKey, slices.Concat(common, []string{"Session"})}
 )
 
 // ErrUnsupplied is a value the key places that nothing in the wiring supplied. It

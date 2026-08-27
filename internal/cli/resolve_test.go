@@ -298,7 +298,7 @@ func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
 func TestAClaudeSessionIsOpenedOnThePullRequestNumber(t *testing.T) {
 	s := reviewing(t, claudeOn, testenv.Stub{Name: "claude"})
 
-	r := s.hands("add", "7", "--claude")
+	r := s.hands("add", "7")
 
 	r.came(t, result{Asked: []string{"claude --name=PR #7"}})
 }

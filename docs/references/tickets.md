@@ -8,4 +8,4 @@ A ticket is vetted before its worktree is created. Refused, each naming its reas
 
 ## Claiming
 
-Creating a ticket's worktree claims it, an epic's included, whatever that worktree opens on. [`--no-claim`](cli.md#opening) declines the claim.
+Creating a ticket's worktree claims it, an epic's included, whatever that worktree opens on.

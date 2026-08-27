@@ -171,11 +171,10 @@ func TestTheLogLevelReadsLikeTheRootFlagsBesideIt(t *testing.T) {
 // replaces itself with it, so only a run watched from outside sees the line.
 func TestInfoNamesTheCommandTheWorktreeOpensOn(t *testing.T) {
 	s := repository(t)
-	s.opened("scratch")
 	// One nothing else in the run spawns, so only the handoff can have said it.
 	s.settings(claudeOn + "start-session = [\"git\", \"--version\"]\n")
 
-	r := s.hands("--log-level", "info", "switch", "scratch", "--claude")
+	r := s.hands("--log-level", "info", "add", "scratch")
 
 	r.came(t, result{}, apart, besides("Out"))
 	require.Equal(t, "git --version", r.Informed[len(r.Informed)-1],

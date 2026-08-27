@@ -12,4 +12,4 @@ A worktree whose name is a command's cannot be reached by that name; `work go <n
 
 `--help`, `--log-level` and `--version`, shorthands included, are the root's; no other flag is. `--log-level` is the one the root hands down, so every verb carries it. Neither it nor `--version` takes a shorthand: one letter that could name either the version or the level names neither. The verb that uses any other flag declares it, and a verb that does not declare one refuses it.
 
-*Enforced by:* `openOn` in `internal/cli/cli.go` and `logging` in `internal/cli/loglevel.go`, which declare the shared set once per verb that opens something and the handed-down flag once for the tree, and `TestWhereEachSystemsFlagIsDeclared` and `TestCommandRejects` in `internal/cli/flags_test.go`, `TestNeitherTheVersionNorTheLevelTakesAShorthand` in `internal/cli/loglevel_test.go`.
+*Enforced by:* `logging` in `internal/cli/loglevel.go`, which declares the handed-down flag once for the tree, and `TestWhereEachFlagIsDeclared` and `TestCommandRejects` in `internal/cli/flags_test.go`, `TestNeitherTheVersionNorTheLevelTakesAShorthand` in `internal/cli/loglevel_test.go`.

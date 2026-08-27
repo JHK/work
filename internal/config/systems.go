@@ -7,7 +7,7 @@ const (
 	githubSystem = "github"
 	beadsSystem  = "beads"
 	miseSystem   = "mise"
-	claudeSystem = string(ActionClaude)
+	claudeSystem = "claude"
 )
 
 // Github is the forge's table: the repository's pull requests.

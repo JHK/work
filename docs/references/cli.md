@@ -40,7 +40,7 @@ With no identifier, [the picker](#the-picker) stands in for one.
 
 ### add
 
-`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and hands it to what [`action.create`](configuration.md#actions) names or an [open-on flag](#open-on-flags) named.
+`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and [opens it](#handoff).
 
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 
@@ -153,26 +153,11 @@ What [`init`](#init)'s integration offers at each position:
 
 In bash the completion needs the `bash-completion` package sourced, cobra's script calling into it. In zsh it needs `compinit` already run.
 
-## Opening
-
-### Open-on flags
-
-What a worktree is handed to, for one invocation, ahead of what [`action.create` and `action.enter`](configuration.md#actions) name. [`go`](#go), [`switch`](#switch), [`add`](#add) and [`carry`](#carry) take the set, and naming two of it in one invocation is refused. A flag an action used to answer to is refused with the one it answers to now.
-
-[`go`](#go), [`add`](#add) and [`carry`](#carry) take a second set beside it: one flag per action that spells one, calling that action off for the invocation; [`switch`](#switch) takes none of them and refuses them.
-
-Both sets are spelled from the [settings](configuration.md#systems) as read, before any repository is opened, so a [system](systems.md) that is off has no flag at all and `--help` lists what this machine switched on.
-
-| Flag | Hands the worktree to |
-|---|---|
-| `--claude` | the [`claude` command](configuration.md#keys) the moment names: its launcher where the worktree was just created, else the one [its conversations](claude.md#the-contract) name |
-| `--shell` | nothing: the worktree is [handed back](#handoff), one just created included |
-
 ## Handoff
 
-`work` changes into the worktree and execs the command it opens on, so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
+`work` changes into the worktree and execs [the command it opens on](configuration.md#opening-on-a-session), so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
 
-The `shell` action hands the worktree back instead: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that the integration is not sourced; the invocation still exits 0.
+Every other worktree is handed back: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that the integration is not sourced; the invocation still exits 0.
 
 A dismissed list exits 1 silently.
 

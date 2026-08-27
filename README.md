@@ -33,8 +33,8 @@ work
 
 Choose from the repository's worktrees, its ready tickets and its open pull requests.
 
-- **With a worktree:** what you set it to open on, a shell by default.
-- **Without one:** the worktree is created first, then opens the same way.
+- **With a worktree:** your shell stands in it.
+- **Without one:** the worktree is created first, then opens on what you set for creations.
 
 ```
 work <name>

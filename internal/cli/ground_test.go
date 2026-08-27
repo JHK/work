@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/JHK/work-cli/internal/action/claude"
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/shim"
@@ -369,13 +368,21 @@ func tickets(list ...ticket) string {
 }
 
 // trackerOn, forgeOn, miseOn and claudeOn are the settings keys that put the
-// tracker, the forge, the runner and the agent in force.
+// tracker, the forge, the runner and the agent in force. A body written beside
+// claudeOn lands in the [claude] table.
 const (
 	trackerOn = "[beads]\nenabled = true\n"
 	forgeOn   = "[github]\nenabled = true\n"
 	miseOn    = "[mise]\nenabled = true\n"
 	claudeOn  = "[claude]\nenabled = true\n"
 )
+
+// sessionOn and ticketSessionOn are the compiled-in claude.start-session and
+// claude.start-ticket as they run, which are the lines a run that opened a
+// conversation asked for.
+func sessionOn(name string) string { return "claude --permission-mode auto --name=" + name }
+
+func ticketSessionOn(id, title string) string { return sessionOn(id+": "+title) + " /start " + id }
 
 // putUp is the picker as a stand-in records being put up, which is one screen
 // however many rows it carries. The prompt carries a trailing space of its own.
@@ -472,22 +479,6 @@ func (s *session) detached(name string) string {
 	path := s.at(name)
 	testenv.Git(s.t, s.Repo, "worktree", "add", "--detach", path)
 	return path
-}
-
-// transcripts is where Claude Code files a directory's conversations under the
-// home the test process was given, which is what work reads them back out of.
-func (s *session) transcripts(dir string) string {
-	return claude.Bucket(testenv.UserHome(), dir)
-}
-
-// carries records these conversations for a worktree, which is what work reads
-// to decide what one already there opens on.
-func (s *session) carries(dir string, ids ...string) {
-	s.t.Helper()
-	store := s.transcripts(dir)
-	for _, id := range ids {
-		testenv.Write(s.t, filepath.Join(store, id+".jsonl"), `{"type":"user"}`+"\n")
-	}
 }
 
 // settings is what the commands after it are read under, and where that landed.

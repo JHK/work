@@ -42,4 +42,4 @@ Cases that differ only in their input are one function over a table, each row a 
 
 A test file is named for the surface it covers. What two or more of a package's test files read lives in `ground_test.go` with `TestMain`; what one file reads stays in it, and no two stand-ins answer the same question. A test's name should carry what the case establishes; a comment above it only where the name cannot, in two lines at most.
 
-[internal/cli/](internal/cli/) is the worked example of a command's tests, [internal/action/claude/](internal/action/claude/) of a package's own.
+[internal/cli/](internal/cli/) is the worked example of a command's tests, [internal/config/](internal/config/) of a package's own.

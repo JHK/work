@@ -18,4 +18,4 @@ The tool trust, over `mise`. It runs `mise trust` in a worktree that was just cr
 
 ## claude
 
-The agent, `claude` by default, whatever the [`[claude]` commands](configuration.md#commands) name. A worktree is handed to it, and [the transcripts](claude.md#the-contract) under `~/.claude` are what say which conversations an existing worktree carries. It is `internal/action/claude/`, over the commands in `internal/config/command.go`.
+The agent, `claude` by default, whatever the [`[claude]` commands](configuration.md#commands) name. A worktree a verb created is handed to it, where [the settings name that verb](configuration.md#opening-on-a-session). It is `internal/action/claude/`, over the commands in `internal/config/command.go`.

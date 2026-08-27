@@ -68,9 +68,7 @@ type Action interface {
 type Opener interface {
 	worktree.System
 
-	// Open renders the handoff from the values gathered for the worktree. The values
-	// are the core's account of the worktree, so an action with a name of its own
-	// to place renders against a copy.
+	// Open renders the handoff from the values gathered for the worktree.
 	Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error)
 }
 

@@ -49,10 +49,9 @@ func TestAFileTheShellNamedThatCannotBeWrittenIsRefused(t *testing.T) {
 // the shell is left standing where it typed: internal/worktree.
 func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 	s := repository(t)
-	s.opened("scratch")
 	s.settings(claudeOn + "start-session = [\"no-such-binary-xyz\"]\n")
 
-	r := s.run("switch", "scratch", "--claude")
+	r := s.run("add", "scratch")
 
 	r.refused(t, "no-such-binary-xyz")
 	here, err := os.Getwd()
@@ -62,28 +61,24 @@ func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 
 // A worktree that opens on a command hands the terminal to it, running inside
 // that worktree, and work says nothing of its own on the way past.
-func TestSwitchHandsTheTerminalToTheCommandItOpensOn(t *testing.T) {
+func TestAWorktreeThatOpensOnACommandHandsItTheTerminal(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude", Shell: "git rev-parse --show-toplevel"})
-	path := s.opened("scratch")
 	s.settings(claudeOn)
 
-	r := s.hands("switch", "scratch", "--claude")
+	r := s.hands("add", "scratch")
 
-	// The worktree carries no conversation to return to, so the session opened on it
-	// is named after it: docs/references/claude.md.
-	r.came(t, result{Out: path + "\n", Asked: []string{"claude --permission-mode auto --name=scratch"}})
+	r.came(t, result{Out: s.at("scratch") + "\n", Asked: []string{sessionOn("scratch")}})
 }
 
 // The file names one invocation, so what the terminal goes to must not inherit
 // it: a work run inside that command would answer into a shell done waiting.
 func TestTheCommandTheTerminalGoesToDoesNotInheritTheShellsFile(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$WORK_CD_FILE"`})
-	s.opened("scratch")
 	s.settings(claudeOn)
 
-	r := s.hands("switch", "scratch", "--claude")
+	r := s.hands("add", "scratch")
 
-	r.came(t, result{Out: "[]", Asked: []string{"claude --permission-mode auto --name=scratch"}})
+	r.came(t, result{Out: "[]", Asked: []string{sessionOn("scratch")}})
 }
 
 // With no identifier the picker stands in for one, over the worktrees open less
@@ -136,46 +131,6 @@ func TestSwitchRefuses(t *testing.T) {
 			r.came(t, result{Code: 1, Errored: []string{tt.said}, Asked: asked})
 		})
 	}
-}
-
-// A worktree already there returns to what it carries: one conversation is
-// resumed outright, several reach the agent's own list.
-func TestSwitchReturnsToTheConversationAWorktreeCarries(t *testing.T) {
-	tests := []struct {
-		name string
-		// dir is the worktree the row records under, so that no two rows read one
-		// store.
-		dir     string
-		carried []string
-		want    string
-	}{
-		{"one is returned to", "one", []string{"s1"}, "claude --resume s1"},
-		{"several reach the list", "several", []string{"s1", "s2"}, "claude --resume"},
-	}
-	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings(claudeOn)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s.carries(s.opened(tt.dir), tt.carried...)
-
-			r := s.hands("switch", tt.dir, "--claude")
-
-			r.came(t, result{Asked: []string{tt.want}})
-		})
-	}
-}
-
-// An agent that cannot say what a worktree carries is not asked to guess: the
-// run refuses rather than starting a conversation over the one already there.
-func TestSwitchRefusesATranscriptStoreItCannotRead(t *testing.T) {
-	s := repository(t)
-	path := s.opened("scratch")
-	testenv.Write(t, s.transcripts(path), "not a directory\n")
-	s.settings(claudeOn)
-
-	r := s.run("switch", "scratch", "--claude")
-
-	r.refused(t, "not a directory")
 }
 
 // A worktree git still lists but nobody can enter is refused: nothing execs on

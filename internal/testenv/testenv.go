@@ -86,10 +86,6 @@ const inherited = "WORK_TESTENV_GROUND"
 // and owned that same directory where this process is the one that made it.
 var ground, owned string
 
-// UserHome is the home directory the process was given: one nobody has written
-// to, which is what a test reading $HOME sees.
-func UserHome() string { return filepath.Join(ground, "home") }
-
 // template is the repository [InitRepo] copies: one empty commit on main, built
 // once for the process. A repository this new names no path of its own, so a
 // copy of it stands wherever it is put.

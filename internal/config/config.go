@@ -18,7 +18,6 @@ import (
 type Config struct {
 	Worktree Worktree
 	Branch   Branch
-	Action   Action
 	Github   Github
 	Beads    Beads
 	Mise     Mise
@@ -60,7 +59,6 @@ func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
 		Branch:   defaults,
-		Action:   defaultAction,
 		Claude:   defaultClaude,
 	}
 }
@@ -119,6 +117,10 @@ func userFile() string {
 	return filepath.Join(home, ".config", "work", "config.toml")
 }
 
+// renamed are the names a table used to go by, so a file written before a rename
+// is told which name to write instead.
+var renamed = map[string]string{"agent": claudeSystem}
+
 // decode reads the file over what the defaults left, leaving every key the file
 // does not name alone.
 func decode(path string, c *Config) (toml.MetaData, error) {
@@ -132,7 +134,7 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 	// A key nothing decoded is a typo of one that would have, not a value to drop.
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
 		key := undecoded[0]
-		if now, ok := renamed[ActionName(key[0])]; ok {
+		if now, ok := renamed[key[0]]; ok {
 			return md, fmt.Errorf("%s: the [%s] table is now [%s]", path, key[0], now)
 		}
 		return md, fmt.Errorf("%s: unknown setting %s", path, key)
@@ -157,9 +159,6 @@ func (c *Config) validate() (string, error) {
 		return pullRequestKey, err
 	}
 
-	if key, err := c.Action.validate(c.actionNames()); err != nil {
-		return key, err
-	}
 	if key, err := c.Claude.validate(); err != nil {
 		return key, err
 	}
