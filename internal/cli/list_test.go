@@ -11,7 +11,7 @@ import (
 func TestListPrintsWhatGitReportsAndAsksNoSystem(t *testing.T) {
 	s := repository(t)
 	// Both systems on, and every stand-in refuses: one asked would be a line said.
-	s.settings(trackerOn + forgeOn)
+	s.settings(on("beads", "github"))
 	testenv.Git(t, s.Repo, "branch", "--move", "trunk")
 	s.openedOn("worked", "bd-1-do-a-thing")
 	s.detached("adrift")

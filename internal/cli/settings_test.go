@@ -25,13 +25,10 @@ const compiledIn = "the compiled-in default"
 // docs/references/configuration.md spells it and grouped under the table it sits
 // in, which no case may derive from the code.
 var documented = []string{
+	"systems",
 	"worktree.directory",
 	"branch.ticket",
 	"branch.pull-request",
-	"github.enabled",
-	"beads.enabled",
-	"mise.enabled",
-	"claude.enabled",
 	"claude.on-creation",
 	"claude.start-ticket",
 	"claude.start-pull-request",
@@ -40,8 +37,8 @@ var documented = []string{
 
 // dumped is a printed configuration read back: the keys in the order they were
 // printed, the source named above each and the value under it. A key is held by
-// the dotted name a settings file spells, a leaf alone not being unique with
-// `enabled` standing in every system's table.
+// the whole name a settings file spells, which is the table it sits in and its
+// own where it sits in one.
 type dumped struct {
 	text  string
 	keys  []string
@@ -65,7 +62,10 @@ func dumping(t *testing.T, s *session) dumped {
 			source = strings.TrimPrefix(line, "# ")
 		case strings.Contains(line, " = "):
 			leaf, value, _ := strings.Cut(line, " = ")
-			name := table + "." + leaf
+			name := leaf
+			if table != "" {
+				name = table + "." + leaf
+			}
 			d.keys = append(d.keys, name)
 			d.from[name], d.value[name] = source, value
 		}
@@ -86,17 +86,15 @@ func TestConfigDumpNamesEverySetting(t *testing.T) {
 // file left it alone.
 func TestConfigDumpNamesWhereEachKeyCameFrom(t *testing.T) {
 	s := repository(t)
-	file := s.settings(directory("trees") + trackerOn)
+	file := s.settings(on("beads") + directory("trees"))
 
 	from := dumping(t, s).from
 
-	// A system nothing named says it is off and where that comes from, so a dump
-	// shows every system's state and not only the ones a file spoke for.
 	want := map[string]string{
 		"worktree.directory": file,
-		"beads.enabled":      file,
+		"systems":            file,
 		"branch.ticket":      compiledIn,
-		"claude.enabled":     compiledIn,
+		"claude.on-creation": compiledIn,
 	}
 	got := map[string]string{}
 	for key := range want {
@@ -111,8 +109,8 @@ func TestConfigDumpNamesWhereEachKeyCameFrom(t *testing.T) {
 func TestConfigDumpLoadsBack(t *testing.T) {
 	s := repository(t)
 	// A quote and a tab survive the printing, being written as TOML escapes.
-	s.settings(directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n" +
-		"[claude]\nenabled = true\non-creation = [\"carry\"]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n")
+	s.settings(agentOn + "on-creation = [\"carry\"]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
+		directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n")
 
 	first := dumping(t, s)
 	// A machine whose whole configuration is what the first dump printed.
@@ -147,19 +145,26 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
-		{"a system work does not have", "[linear]\nenabled = true\n", "unknown setting"},
+		// The systems list, and the tables and keys it replaced: a system is named in
+		// the one list, and a table of its own is a setting nothing declares.
+		{"a name in the list no system goes by", "systems = [\"linear\"]\n", "is no system work has"},
+		{"a system named in another case", "systems = [\"Beads\"]\n", "is no system work has"},
+		{"systems that are not a list", "systems = \"beads\"\n", "systems"},
+		{"a system that is not a string", "systems = [3]\n", "systems"},
+		{"a system's own table", "[beads]\nenabled = true\n", "unknown setting beads"},
+		{"the key a system was switched on by", agentOn + "enabled = true\n", "unknown setting claude.enabled"},
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
 		{"a table under the name it used to go by", "[agent]\nstart-ticket = [\"claude\"]\n", "the [agent] table is now [claude]"},
 		// claude.on-creation names verbs a worktree can come into being under:
 		// docs/references/configuration.md#opening-on-a-session.
-		{"a verb that creates no worktree", claudeOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
-		{"a word no verb goes by", claudeOn + "on-creation = [\"launch\"]\n", `"launch" is not a verb`},
-		{"a verb in another case", claudeOn + "on-creation = [\"Add\"]\n", `"Add" is not a verb`},
-		{"a verb spelled as its flag", claudeOn + "on-creation = [\"--add\"]\n", `"--add" is not a verb`},
-		{"a verb naming the agent rather than a verb", claudeOn + "on-creation = [\"claude\"]\n", `"claude" is not a verb`},
-		{"verbs that are not a list", claudeOn + "on-creation = \"add\"\n", "claude.on-creation"},
-		{"a verb that is not a string", claudeOn + "on-creation = [3]\n", "claude.on-creation"},
+		{"a verb that creates no worktree", agentOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
+		{"a word no verb goes by", agentOn + "on-creation = [\"launch\"]\n", `"launch" is not a verb`},
+		{"a verb in another case", agentOn + "on-creation = [\"Add\"]\n", `"Add" is not a verb`},
+		{"a verb spelled as its flag", agentOn + "on-creation = [\"--add\"]\n", `"--add" is not a verb`},
+		{"a verb naming the agent rather than a verb", agentOn + "on-creation = [\"claude\"]\n", `"claude" is not a verb`},
+		{"verbs that are not a list", agentOn + "on-creation = \"add\"\n", "claude.on-creation"},
+		{"a verb that is not a string", agentOn + "on-creation = [3]\n", "claude.on-creation"},
 		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
 		{"a command that is not a list", "[claude]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
 		{"a list of something other than strings", "[claude]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
@@ -256,21 +261,21 @@ func TestASettingsFileWorkWillNotReadLeavesInitAlone(t *testing.T) {
 	require.Contains(t, r.Out, shim.Fish, "work init fish printed no shell integration")
 }
 
-// A system its table switched on is reached on every seam it fills, and one the
-// file left out is reached nowhere: docs/references/systems.md.
-func TestEachSystemIsReachedOnlyWhereItsTableSwitchesItOn(t *testing.T) {
+// A system the list names is reached on every seam it fills, and one the list
+// leaves out is reached nowhere: docs/references/systems.md.
+func TestEachSystemIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 	tests := []struct {
 		name, body string
 		// picking is what the stand-ins were asked to put the picker up with, and
 		// creating what they were asked to bring a worktree of a plain name into being.
 		picking, creating []string
 	}{
-		{"the forge lists the pull requests", forgeOn, []string{pullRequests(hosted), putUp}, nil},
-		{"the tracker lists the tickets", trackerOn, []string{listed, vetted, putUp}, []string{listed}},
-		{"the runner trusts a fresh worktree", miseOn, []string{putUp}, []string{"mise trust"}},
+		{"the forge lists the pull requests", on("github"), []string{pullRequests(hosted), putUp}, nil},
+		{"the tracker lists the tickets", on("beads"), []string{listed, vetted, putUp}, []string{listed}},
+		{"the runner trusts a fresh worktree", on("mise"), []string{putUp}, []string{"mise trust"}},
 		// Told to open no creation on a session, so what the agent is asked here is what
 		// it is asked at a seam, which is nothing.
-		{"the agent fills neither seam", claudeOn + "on-creation = []\n", []string{putUp}, nil},
+		{"the agent fills neither seam", agentOn + "on-creation = []\n", []string{putUp}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -313,7 +318,7 @@ func TestWhereAWorktreeLands(t *testing.T) {
 // directory, the verbs and the command.
 func TestAFileNamingOneKeyLeavesTheRestToTheDefaults(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings("[worktree]\n" + claudeOn)
+	s.settings(agentOn + "[worktree]\n")
 
 	r := s.hands("add", "scratch")
 
@@ -327,7 +332,7 @@ func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude"})
 	// Shorter than the default, so one replaced element by element would leave the
 	// default's tail behind.
-	s.settings(claudeOn + "start-session = [\"claude\", \"{{.Name}}\"]\n")
+	s.settings(agentOn + "start-session = [\"claude\", \"{{.Name}}\"]\n")
 
 	r := s.hands("add", "scratch")
 

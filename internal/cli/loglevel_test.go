@@ -17,7 +17,7 @@ func picking(t *testing.T) *session {
 	t.Helper()
 	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"},
 		testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 	s.opened("scratch")
 	return s
 }
@@ -74,7 +74,7 @@ func (r result) levels() []slog.Level {
 // naming the tool and the arguments work put to it, the tool itself unchanged.
 func TestInfoSaysEveryCommandWorkSpawned(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "bd", Says: "[]"})
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 	wt := s.at("scratch")
 
 	r := s.run("--log-level", "info", "add", "scratch")
@@ -117,7 +117,7 @@ func TestDebugNamesWhatWorkRead(t *testing.T) {
 			require.Equal(t, s.Repo, r.under("work opened a repository")["repository"], "debug named no repository")
 			force := r.under("the settings in force")
 			require.Equal(t, defaultDir, force["worktree.directory"], "debug named no worktree directory")
-			require.Equal(t, "true", force["beads.enabled"], "debug named no tracker in force")
+			require.Equal(t, `["beads"]`, force["systems"], "debug named no tracker in force")
 		})
 	}
 }
@@ -172,7 +172,7 @@ func TestTheLogLevelReadsLikeTheRootFlagsBesideIt(t *testing.T) {
 func TestInfoNamesTheCommandTheWorktreeOpensOn(t *testing.T) {
 	s := repository(t)
 	// One nothing else in the run spawns, so only the handoff can have said it.
-	s.settings(claudeOn + "start-session = [\"git\", \"--version\"]\n")
+	s.settings(agentOn + "start-session = [\"git\", \"--version\"]\n")
 
 	r := s.hands("--log-level", "info", "add", "scratch")
 

@@ -16,7 +16,7 @@ Values are validated once the file is read, before anything is created.
 
 | Key | Names |
 |---|---|
-| [`<system>.enabled`](../../internal/config/config.go) | whether that [system](#systems) runs at all |
+| [`systems`](../../internal/config/systems.go) | the [systems](#systems) that run |
 | [`worktree.directory`](../../internal/config/config.go) | a directory inside the main checkout, where a new worktree is created |
 | [`branch.ticket`](../../internal/config/config.go) | the branch a ticket's worktree checks out |
 | [`branch.pull-request`](../../internal/config/config.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
@@ -31,18 +31,16 @@ The value is read as a path at load, and where it leads at creation. A directory
 
 ## Systems
 
-What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell` is there to open on. Everything reached beyond git is a [system](systems.md), and you turn on the ones you work with:
+What `work` runs on is worktrees, and no file can take that away: a worktree is listed, entered and removed, `work add` makes a place of a name of your own, and `shell` is there to open on. Everything reached beyond git is a [system](systems.md), and you name the ones you work with:
 
 ```toml
-[beads]
-enabled = true
-
-[claude]
-enabled = true
-# claude.* is read whether or not this is
+systems = ["beads", "claude"]
+# claude.* is read whether or not claude is named
 ```
 
-One name carries a system wherever it appears: the table its own keys sit in, and its rows. One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one key.
+One that both names places and acts on them, as `beads` does in resolving a ticket and claiming it, is turned on for both by the one name.
+
+Refused at load: a name no system goes by, refused with the names there are.
 
 ## Branch patterns
 
@@ -60,7 +58,7 @@ Refused at load:
 
 ## Opening on a session
 
-`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree where `claude.enabled` is `false` is [handed back](cli.md#handoff).
+`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff).
 
 It falls to `add` and `go` where nothing names it.
 

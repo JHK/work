@@ -1,6 +1,6 @@
 # Systems
 
-A system is what `work` reaches for beyond git: a tracker, a forge, a tool, an agent. Each has [a table of its own](configuration.md#systems) with an `enabled` key in it, and none runs until you ask for it.
+A system is what `work` reaches for beyond git: a tracker, a forge, a tool, an agent. Each goes by one name in [the settings' list](configuration.md#systems), and none runs until you name it.
 
 `work` bundles none of them: what a system needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
 

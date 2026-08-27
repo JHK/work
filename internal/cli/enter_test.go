@@ -49,7 +49,7 @@ func TestAFileTheShellNamedThatCannotBeWrittenIsRefused(t *testing.T) {
 // the shell is left standing where it typed: internal/worktree.
 func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 	s := repository(t)
-	s.settings(claudeOn + "start-session = [\"no-such-binary-xyz\"]\n")
+	s.settings(agentOn + "start-session = [\"no-such-binary-xyz\"]\n")
 
 	r := s.run("add", "scratch")
 
@@ -63,7 +63,7 @@ func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 // that worktree, and work says nothing of its own on the way past.
 func TestAWorktreeThatOpensOnACommandHandsItTheTerminal(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude", Shell: "git rev-parse --show-toplevel"})
-	s.settings(claudeOn)
+	s.settings(on("claude"))
 
 	r := s.hands("add", "scratch")
 
@@ -74,7 +74,7 @@ func TestAWorktreeThatOpensOnACommandHandsItTheTerminal(t *testing.T) {
 // it: a work run inside that command would answer into a shell done waiting.
 func TestTheCommandTheTerminalGoesToDoesNotInheritTheShellsFile(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$WORK_CD_FILE"`})
-	s.settings(claudeOn)
+	s.settings(on("claude"))
 
 	r := s.hands("add", "scratch")
 
@@ -95,7 +95,7 @@ func TestSwitchWithNoIdentifierTakesThePickersRow(t *testing.T) {
 // Nothing comes into being on the way back in, so the ticket a worktree was made
 // for is not claimed again: the tracker is asked only what names the worktree.
 func TestSwitchClaimsNothingOnTheWayBackIn(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.openedOn("bd-1", "bd-1-do-a-thing")
 
 	r := s.run("switch", "bd-1")
@@ -122,7 +122,7 @@ func TestSwitchRefuses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s, asked := repository(t), []string(nil)
 			if tt.tracked {
-				s = tracking(t, []ticket{doable}, []ticket{doable}, "")
+				s = tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 				asked = []string{listed}
 			}
 

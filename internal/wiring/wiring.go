@@ -14,8 +14,8 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
-// Wire names every implementation the settings asked for. A system left out is
-// wired nowhere.
+// Wire names every implementation the settings asked for. A system the list
+// leaves out is wired nowhere.
 func Wire(repo, checkout string, cfg config.Config) work.Systems {
 	return work.Systems{
 		Resolvers: resolving(repo, checkout, cfg),
@@ -33,10 +33,10 @@ func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
 
 	// A bare number is a pull request and every other name is a possible ticket id,
 	// so the forge is asked ahead of the tracker.
-	if cfg.Github.Enabled {
+	if cfg.On(config.GithubSystem) {
 		chain = append(chain, github.New(repo, cfg.Branch))
 	}
-	if cfg.Beads.Enabled {
+	if cfg.On(config.BeadsSystem) {
 		chain = append(chain, resolvebeads.New(repo, checkout, cfg.Branch))
 	}
 	// Last, and never off: a worktree nothing recognises is still one to reach.
@@ -49,10 +49,10 @@ func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
 func acting(repo string, cfg config.Config) []work.Action {
 	var run []work.Action
 
-	if cfg.Beads.Enabled {
+	if cfg.On(config.BeadsSystem) {
 		run = append(run, actionbeads.New(repo))
 	}
-	if cfg.Mise.Enabled {
+	if cfg.On(config.MiseSystem) {
 		run = append(run, mise.Trust{})
 	}
 	return run
@@ -62,7 +62,7 @@ func acting(repo string, cfg config.Config) []work.Action {
 func opening(cfg config.Config) []work.Opener {
 	var on []work.Opener
 
-	if cfg.Claude.Enabled {
+	if cfg.On(config.ClaudeSystem) {
 		on = append(on, claude.New(cfg.Claude))
 	}
 	// Never off either: a worktree always has something to open on.

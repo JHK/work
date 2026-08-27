@@ -132,7 +132,7 @@ func TestACarryThatCannotFinishNamesWhereTheChangesAre(t *testing.T) {
 	// The file the restore is about to collide with, written where only an action
 	// can reach: between git making the worktree and work restoring into it.
 	s := repository(t, testenv.Stub{Name: "mise", Shell: `printf 'something else entirely' > untracked`})
-	s.settings(miseOn)
+	s.settings(on("mise"))
 	s.dirty()
 	path := s.at("carried")
 
@@ -150,7 +150,7 @@ func TestACarryThatCannotFinishNamesWhereTheChangesAre(t *testing.T) {
 func TestCarryNeverResolvesTheName(t *testing.T) {
 	for _, name := range []string{"bd-1", "7"} {
 		t.Run(name, func(t *testing.T) {
-			s := tracking(t, []ticket{doable}, []ticket{doable}, forgeOn)
+			s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"github"}, "")
 			s.dirty()
 
 			r := s.run("carry", name)

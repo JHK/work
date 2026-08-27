@@ -30,6 +30,11 @@ func spelling(f reflect.StructField) string {
 func TestEveryDeclaredSettingIsDumped(t *testing.T) {
 	var want []string
 	for table := range reflect.TypeFor[Config]().Fields() {
+		// A field that is no table is a key of its own, standing above them all.
+		if table.Type.Kind() != reflect.Struct {
+			want = append(want, spelling(table))
+			continue
+		}
 		for field := range table.Type.Fields() {
 			want = append(want, strings.ToLower(table.Name)+"."+spelling(field))
 		}

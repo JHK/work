@@ -35,7 +35,7 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
 			if tt.forge {
-				s.settings(forgeOn)
+				s.settings(on("github"))
 			}
 			path := s.Repo
 			if tt.dir != "" {
@@ -63,7 +63,7 @@ func TestTheBareFormReachesWhatGoReaches(t *testing.T) {
 // A ticket with no worktree is vetted, made, claimed and handed over, in that
 // order: one run, one line per question the tracker was put.
 func TestGoMakesTheWorktreeATicketHasNone(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.at("bd-1")
 
 	r := s.run("go", "bd-1")
@@ -104,7 +104,7 @@ func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 		{
 			// Wired or not, no system reads a path into a place, and none may: the name is
 			// about to become a directory of its own, so add is not offered.
-			"a name no worktree could carry, the forge wired", forgeOn, "a/b",
+			"a name no worktree could carry, the forge wired", on("github"), "a/b",
 			`nothing answers for "a/b"`,
 		},
 		{
@@ -128,7 +128,7 @@ func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 // Where several worktrees answer for one ticket, the shortest branch takes it,
 // never git's listing order: docs/references/cli.md#identifiers.
 func TestGoTakesTheShortestOfTheBranchesATicketOwns(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	// The longer branch is made first, so git reports it ahead of the one wanted.
 	s.openedOn("a", "bd-1-do-a-thing-again")
 	shortest := s.openedOn("z", "bd-1-do")
@@ -154,7 +154,7 @@ func TestGoTakesTheBranchAheadOfADetachedWorktreeOfThatName(t *testing.T) {
 // run, and what it was put is what the refusal carries: R5 of docs/rules/refusals.md.
 func TestGoSaysWhatTheTrackerWouldNotAnswer(t *testing.T) {
 	s := repository(t)
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 
 	r := s.run("go", "bd-1")
 

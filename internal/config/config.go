@@ -14,13 +14,12 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Config is every setting work reads, one field per table.
+// Config is every setting work reads: the systems switched on, then one field
+// per table.
 type Config struct {
+	Systems  []string
 	Worktree Worktree
 	Branch   Branch
-	Github   Github
-	Beads    Beads
-	Mise     Mise
 	Claude   Claude
 }
 
@@ -53,8 +52,8 @@ var defaults = Branch{
 	PullRequestPattern: mustPattern(defaultPullRequest, pullRequestValues),
 }
 
-// Default is what an unset key falls back to. Every system's table is left at
-// the zero value, which is off.
+// Default is what an unset key falls back to. The systems list is left empty,
+// which is every system off.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
@@ -119,7 +118,7 @@ func userFile() string {
 
 // renamed are the names a table used to go by, so a file written before a rename
 // is told which name to write instead.
-var renamed = map[string]string{"agent": claudeSystem}
+var renamed = map[string]string{"agent": ClaudeSystem}
 
 // decode reads the file over what the defaults left, leaving every key the file
 // does not name alone.
@@ -152,6 +151,10 @@ func decode(path string, c *Config) (toml.MetaData, error) {
 // validate names the key work cannot use the value of, and why. It also ties
 // each pattern and command to the values its key has.
 func (c *Config) validate() (string, error) {
+	if err := c.validateSystems(); err != nil {
+		return systemsKey, err
+	}
+	c.Systems = c.resolved()
 	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
 		return ticketKey, err
 	}

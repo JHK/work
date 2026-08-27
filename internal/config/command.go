@@ -9,12 +9,12 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Claude is the agent's table: whether the action runs at all, which verbs open
-// a session on what they create, and the commands it runs. Each command falls
-// back to defaultClaude on its own, so an unset one is the compiled-in command
-// and a config pointing the action at another binary sets every one of them.
+// Claude is the agent's table: which verbs open a session on what they create,
+// and the commands it runs, read whether or not the systems list names the
+// agent. Each command falls back to defaultClaude on its own, so an unset one is
+// the compiled-in command and a config pointing the action at another binary
+// sets every one of them.
 type Claude struct {
-	Enabled                 bool
 	OnCreationVerbs         []string `toml:"on-creation"`
 	StartTicketCommand      Command  `toml:"start-ticket"`
 	StartPullRequestCommand Command  `toml:"start-pull-request"`

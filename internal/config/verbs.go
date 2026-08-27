@@ -9,7 +9,7 @@ import (
 // ClaudeOpener and ShellOpener are the two things a worktree opens on, under the
 // names the openers go by.
 const (
-	ClaudeOpener = claudeSystem
+	ClaudeOpener = ClaudeSystem
 	ShellOpener  = "shell"
 )
 
@@ -42,9 +42,9 @@ func (c Claude) OnCreation() []string {
 }
 
 // OpensOnCreation reports whether a worktree created under that verb opens on a
-// session.
-func (c Claude) OpensOnCreation(verb string) bool {
-	return c.Enabled && slices.Contains(c.OnCreation(), verb)
+// session, which the settings leaving the agent out says of no verb.
+func (c Config) OpensOnCreation(verb string) bool {
+	return c.On(ClaudeSystem) && slices.Contains(c.Claude.OnCreation(), verb)
 }
 
 // validate refuses a verb no worktree comes into being under, and a word no verb

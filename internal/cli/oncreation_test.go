@@ -16,11 +16,11 @@ func TestWhatAVerbsCreationOpensOn(t *testing.T) {
 		// worktree back to the shell.
 		session bool
 	}{
-		{"add, which the default names", claudeOn, "add", true},
-		{"carry, which the default leaves out", claudeOn, "carry", false},
-		{"carry, where the key names it", claudeOn + "on-creation = [\"carry\"]\n", "carry", true},
-		{"add, where the key names carry alone", claudeOn + "on-creation = [\"carry\"]\n", "add", false},
-		{"add, where the key names nothing", claudeOn + "on-creation = []\n", "add", false},
+		{"add, which the default names", on("claude"), "add", true},
+		{"carry, which the default leaves out", on("claude"), "carry", false},
+		{"carry, where the key names it", agentOn + "on-creation = [\"carry\"]\n", "carry", true},
+		{"add, where the key names carry alone", agentOn + "on-creation = [\"carry\"]\n", "add", false},
+		{"add, where the key names nothing", agentOn + "on-creation = []\n", "add", false},
 		// The key names the verb, and the table it sits in never switched the agent on.
 		{"add, with the agent off", "[claude]\non-creation = [\"add\"]\n", "add", false},
 	}
@@ -48,7 +48,7 @@ func TestWhatAVerbsCreationOpensOn(t *testing.T) {
 // still leaves it handing the worktree back.
 func TestSwitchIsHandedBackWhateverTheKeyNames(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings(claudeOn + "on-creation = [\"add\", \"carry\", \"go\"]\n")
+	s.settings(agentOn + "on-creation = [\"add\", \"carry\", \"go\"]\n")
 	path := s.opened("scratch")
 
 	r := s.run("switch", "scratch")
@@ -59,7 +59,7 @@ func TestSwitchIsHandedBackWhateverTheKeyNames(t *testing.T) {
 // The one key over both of go's moments: it opens a session on the worktree it
 // created, and hands that same worktree back on the way in again.
 func TestGoOpensASessionOnlyOnTheWorktreeItCreated(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, claudeOn, testenv.Stub{Name: "claude"})
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"}, "", testenv.Stub{Name: "claude"})
 	path := s.at("bd-1")
 
 	made := s.hands("go", "bd-1")

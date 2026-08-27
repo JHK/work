@@ -367,15 +367,17 @@ func tickets(list ...ticket) string {
 	return string(out)
 }
 
-// trackerOn, forgeOn, miseOn and claudeOn are the settings keys that put the
-// tracker, the forge, the runner and the agent in force. A body written beside
-// claudeOn lands in the [claude] table.
-const (
-	trackerOn = "[beads]\nenabled = true\n"
-	forgeOn   = "[github]\nenabled = true\n"
-	miseOn    = "[mise]\nenabled = true\n"
-	claudeOn  = "[claude]\nenabled = true\n"
-)
+// on is the settings that put those systems in force, which is the line every
+// other body a case writes follows.
+func on(systems ...string) string {
+	return "systems = [\"" + strings.Join(systems, "\", \"") + "\"]\n"
+}
+
+// claudeTable opens the agent's table, so the keys a case writes beside it land
+// in [claude]. agentOn is the agent in force with that table open.
+const claudeTable = "[claude]\n"
+
+var agentOn = on("claude") + claudeTable
 
 // sessionOn and ticketSessionOn are the compiled-in claude.start-session and
 // claude.start-ticket as they run, which are the lines a run that opened a
@@ -426,13 +428,12 @@ func tracker(all, ready string) testenv.Stub {
 }
 
 // tracking stands a shell in a repository whose tracker lists all, calls each of
-// ready unblocked, and makes the worktree work asks it for. body is written
-// beside the key that switches the tracker on, so a case asking for a system of
-// its own keeps the tracker.
-func tracking(t *testing.T, all, ready []ticket, body string, answering ...testenv.Stub) *session {
+// ready unblocked, and makes the worktree work asks it for. also are the systems
+// a case asks for besides the tracker, and body the tables it writes.
+func tracking(t *testing.T, all, ready []ticket, also []string, body string, answering ...testenv.Stub) *session {
 	t.Helper()
 	s := repository(t, append([]testenv.Stub{tracker(tickets(all...), tickets(ready...))}, answering...)...)
-	s.settings(trackerOn + body)
+	s.settings(on(append([]string{"beads"}, also...)...) + body)
 	return s
 }
 
@@ -441,17 +442,17 @@ func tracking(t *testing.T, all, ready []ticket, body string, answering ...teste
 const reviewHead = "the pull request's head"
 
 // reviewing stands a shell in a repository whose forge is on and whose origin
-// holds the head of pull request 7, which is what its worktree checks out. body
-// is written beside the key that switches the forge on, so a case asking for a
-// system of its own keeps the forge.
-func reviewing(t *testing.T, body string, answering ...testenv.Stub) *session {
+// holds the head of pull request 7, which is what its worktree checks out. also
+// are the systems a case asks for besides the forge, and body the tables it
+// writes.
+func reviewing(t *testing.T, also []string, body string, answering ...testenv.Stub) *session {
 	t.Helper()
 	s := repository(t, answering...)
 	s.Origin = testenv.InitRepo(t)
 	testenv.Git(t, s.Origin, "commit", "--allow-empty", "-m", reviewHead)
 	testenv.Git(t, s.Origin, "update-ref", "refs/pull/7/head", "HEAD")
 	testenv.Git(t, s.Repo, "remote", "add", "origin", s.Origin)
-	s.settings(forgeOn + body)
+	s.settings(on(append([]string{"github"}, also...)...) + body)
 	return s
 }
 

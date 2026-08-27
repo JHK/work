@@ -28,7 +28,7 @@ func nothingInstalled(t *testing.T) {
 // it, naming the question and the tool that is not there: internal/run.
 func TestAToolTheMachineDoesNotHaveIsRefused(t *testing.T) {
 	s := repository(t)
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 	nothingInstalled(t)
 
 	r := s.run("go", "bd-1")
@@ -40,7 +40,7 @@ func TestAToolTheMachineDoesNotHaveIsRefused(t *testing.T) {
 // naming the command as it was run so a reader sees what answered instead.
 func TestAnAnswerThatIsNotJSONNamesTheCommandThatGaveIt(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "bd", Says: "not json"})
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 
 	r := s.run("go", "bd-1")
 

@@ -23,12 +23,19 @@ func Dump() (string, error) {
 	var b strings.Builder
 	table := ""
 	for _, k := range c.keys() {
-		name, leaf, _ := strings.Cut(k.name, ".")
+		// A key with no table of its own stands above the first header, where TOML
+		// reads it as the top-level key it is.
+		name, leaf, under := strings.Cut(k.name, ".")
+		if !under {
+			name, leaf = "", name
+		}
 		if name != table {
-			if table != "" {
+			if b.Len() > 0 {
 				b.WriteString("\n")
 			}
-			fmt.Fprintf(&b, "[%s]\n", name)
+			if name != "" {
+				fmt.Fprintf(&b, "[%s]\n", name)
+			}
 			table = name
 		}
 		fmt.Fprintf(&b, "# %s\n%s = %s\n", cmp.Or(from[k.name], compiledIn), leaf, value(k.value))
@@ -36,24 +43,22 @@ func Dump() (string, error) {
 	return b.String(), nil
 }
 
-// key is one setting: the whole dotted name, which is both how a settings file
-// spells it and how its source is keyed, and the value work resolved.
+// key is one setting: the whole name, which is both how a settings file spells
+// it and how its source is keyed, and the value work resolved.
 type key struct {
 	name  string
 	value any
 }
 
 // keys is every setting work reads, in the order the reference documents them,
-// each holding the value work resolved rather than what a file wrote.
+// each holding the value work resolved rather than what a file wrote. A key
+// sitting in no table comes first, which is where TOML reads one.
 func (c Config) keys() []key {
 	return []key{
+		{systemsKey, c.Systems},
 		{dirKey, c.Worktree.Dir()},
 		{ticketKey, c.Branch.ticket().tmpl.text},
 		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
-		{systemKey(githubSystem), c.Github.Enabled},
-		{systemKey(beadsSystem), c.Beads.Enabled},
-		{systemKey(miseSystem), c.Mise.Enabled},
-		{systemKey(claudeSystem), c.Claude.Enabled},
 		{onCreationKey, c.Claude.OnCreation()},
 		{startTicketKey, argv(c.Claude.StartTicket())},
 		{startPullRequestKey, argv(c.Claude.StartPullRequest())},

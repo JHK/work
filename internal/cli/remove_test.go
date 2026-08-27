@@ -181,7 +181,7 @@ func TestRemoveWhatIsNotThere(t *testing.T) {
 			// A bare number is the forge's by its spelling alone, so the place is made
 			// without gh being asked for it.
 			"a place with no worktree open",
-			forgeOn, "7",
+			on("github"), "7",
 			"pr-7 has no worktree to remove",
 		},
 	}

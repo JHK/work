@@ -2,6 +2,7 @@ package wiring
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -14,7 +15,7 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// A system wired off a key [config.SystemNames] leaves out is one no settings
+// A system wired off a name [config.SystemNames] leaves out is one no settings
 // file reaches. Structural like R3 and R4: no command asserts an "every".
 func TestTheSettingsSpellEverySystemTheWiringHas(t *testing.T) {
 	repo := t.TempDir()
@@ -46,16 +47,12 @@ func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	}
 }
 
-// everySystem is the settings of a machine that switched every table on, read
-// the way work reads them. Nothing holds the table internal/config spells and
-// the name the implementation goes by together, so this names both.
+// everySystem is the settings of a machine that named every system, read the way
+// work reads them. Nothing holds the name internal/config spells and the name
+// the implementation goes by together, so this names both.
 func everySystem(t *testing.T) config.Config {
 	t.Helper()
-	body := ""
-	for _, name := range config.SystemNames() {
-		body += "[" + name + "]\nenabled = true\n"
-	}
-	testenv.Settings(t, body)
+	testenv.Settings(t, `systems = ["`+strings.Join(config.SystemNames(), `", "`)+"\"]\n")
 	return load(t)
 }
 

@@ -18,7 +18,7 @@ func TestTheRowsLineUpUnderTheirMarks(t *testing.T) {
 	// A ticket bd could not put a title to, whose name is the longest of the lot and
 	// sets no column all the same.
 	untitled := with(doable, func(b *ticket) { b.ID, b.Title = "bd-untitled-and-longest", "" })
-	s := tracking(t, []ticket{longer, doable, untitled}, []ticket{longer, doable, untitled}, forgeOn,
+	s := tracking(t, []ticket{longer, doable, untitled}, []ticket{longer, doable, untitled}, []string{"github"}, "",
 		put.stub(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 			// A pull request gh could not put a title to either.
 			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"},{"number":9,"title":""}]`},
@@ -149,7 +149,7 @@ func TestMoveRefusesBeforeAsking(t *testing.T) {
 			"scratch is the worktree you are standing in; run work move from outside it", true},
 		// A bare number is the forge's by its spelling alone, so the place is made
 		// without gh being asked for it.
-		{"a place with no worktree open", forgeOn, "7", "pr-7 has no worktree to move", false},
+		{"a place with no worktree open", on("github"), "7", "pr-7 has no worktree to move", false},
 		{"a name nothing answers for", "", "typo", `nothing answers for "typo"`, false},
 	}
 	for _, tt := range tests {
@@ -182,7 +182,7 @@ func TestThePickerSaysEverySystemItsListingCouldNotReach(t *testing.T) {
 	// is asked with as it stands.
 	remote := hosted + ".git"
 	testenv.Git(t, s.Repo, "remote", "add", "origin", remote)
-	s.settings(trackerOn + forgeOn)
+	s.settings(on("beads", "github"))
 	s.opened("scratch")
 
 	// fzf stands in failing, so the run ends cancelled with nothing else said: what
@@ -252,7 +252,7 @@ func TestEachVerbOffersWhatItCanActOn(t *testing.T) {
 			// The tracker offers a place with no worktree yet, which is the row add has of
 			// its own.
 			spare := with(doable, func(b *ticket) { b.ID = "spare" })
-			s := tracking(t, []ticket{spare}, []ticket{spare}, "", put.stub())
+			s := tracking(t, []ticket{spare}, []ticket{spare}, nil, "", put.stub())
 			testenv.Git(t, s.Repo, "branch", "--move", "trunk")
 			s.opened("one")
 			s.opened("two")
@@ -298,7 +298,7 @@ func TestTheWorktreeAboveTheOneStoodInIsNeitherOfferedNorRemoved(t *testing.T) {
 func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 	put := putsUp(t)
 	other := with(doable, func(b *ticket) { b.ID, b.Title = "bd-2", "Another thing" })
-	s := tracking(t, []ticket{doable, other}, []ticket{doable, other}, "", put.stub())
+	s := tracking(t, []ticket{doable, other}, []ticket{doable, other}, nil, "", put.stub())
 	// The ticket's own worktree, a worktree no system answers for, and the one the
 	// shell stands in so that the main checkout is a row.
 	s.openedOn("worked", "bd-1-do-a-thing")
@@ -326,7 +326,7 @@ func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 // may have no title for it: its own offer beside it is what completes the row.
 func TestAnOpenRowTakesTheTitleFromItsOffer(t *testing.T) {
 	put := putsUp(t)
-	s := reviewing(t, "", put.stub(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
+	s := reviewing(t, nil, "", put.stub(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 		{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"}]`},
 	}})
 	s.openedOn("review", "pr-7")
@@ -348,7 +348,7 @@ func TestAnOpenRowTakesNoTitleFromAnotherSystemsOffer(t *testing.T) {
 	alike := with(doable, func(b *ticket) { b.ID, b.Title = "pr-7", "Another place spelled alike" })
 	// No origin, so the forge names the worktree off its branch and has nothing to
 	// offer, as gh that is absent or unauthenticated has nothing to offer.
-	s := tracking(t, []ticket{alike}, []ticket{alike}, forgeOn, put.stub())
+	s := tracking(t, []ticket{alike}, []ticket{alike}, []string{"github"}, "", put.stub())
 	s.openedOn("review", "pr-7")
 
 	r := s.run("go")
@@ -364,7 +364,7 @@ func TestAnOpenRowTakesNoTitleFromAnotherSystemsOffer(t *testing.T) {
 func TestAnOfferNoWorktreeCouldBeMadeForIsLeftOff(t *testing.T) {
 	put := putsUp(t)
 	unusable := with(doable, func(b *ticket) { b.ID = ".." })
-	s := tracking(t, []ticket{doable, unusable}, []ticket{doable, unusable}, "", put.stub())
+	s := tracking(t, []ticket{doable, unusable}, []ticket{doable, unusable}, nil, "", put.stub())
 
 	r := s.run("add")
 

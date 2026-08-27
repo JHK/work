@@ -22,7 +22,7 @@ func TestWhereEachFlagIsDeclared(t *testing.T) {
 	s := repository(t)
 	// Every system switched on, so a flag a system reached the command line with
 	// would show up here.
-	s.settings(claudeOn + trackerOn + miseOn + forgeOn)
+	s.settings(on("claude", "beads", "mise", "github"))
 
 	// The help is on every command and the level is handed down to every command;
 	// the version is the root's alone, and --force is remove's.
@@ -70,7 +70,7 @@ func (s *session) prints(args ...string) []string {
 // [TestWhereEachFlagIsDeclared].
 func TestTheFlagsThatNamedAnActionAreGone(t *testing.T) {
 	s := repository(t)
-	s.settings(claudeOn + trackerOn)
+	s.settings(on("claude", "beads"))
 
 	for _, flag := range []string{"--claude", "--shell", "--agent", "--no-claim"} {
 		t.Run(flag, func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestCommandRejects(t *testing.T) {
 	}
 	// One repository for the lot: a word the command line refuses never reaches it.
 	s := repository(t)
-	s.settings(claudeOn + trackerOn)
+	s.settings(on("claude", "beads"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := s.run(tt.args...)

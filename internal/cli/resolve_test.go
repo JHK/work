@@ -40,7 +40,7 @@ func TestATicketThatCannotBeWorkedIsRefused(t *testing.T) {
 			if tt.ready {
 				ready = []ticket{tt.bead}
 			}
-			s := tracking(t, []ticket{tt.bead}, ready, "")
+			s := tracking(t, []ticket{tt.bead}, ready, nil, "")
 			path := s.at("bd-1")
 			asked := []string{listed}
 			if tt.asks {
@@ -68,7 +68,7 @@ func TestATrackerThatWillNotSayWhetherATicketIsReady(t *testing.T) {
 		{To: []string{"list"}, Says: tickets(doable)},
 		{To: []string{"ready"}, Grumbles: "the database is not there", Exits: 1},
 	}})
-	s.settings(trackerOn)
+	s.settings(on("beads"))
 
 	r := s.run("go", "bd-1")
 
@@ -87,7 +87,7 @@ func TestTheBranchATicketsWorktreeChecksOut(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bead := with(doable, func(b *ticket) { b.Title = tt.title })
-			s := tracking(t, []ticket{bead}, []ticket{bead}, "")
+			s := tracking(t, []ticket{bead}, []ticket{bead}, nil, "")
 			path := s.at("bd-1")
 
 			r := s.run("add", "bd-1")
@@ -103,7 +103,7 @@ func TestTheBranchATicketsWorktreeChecksOut(t *testing.T) {
 const patterned = "[branch]\nticket = \"feature/{{.ID}}-{{.Slug}}\"\n"
 
 func TestAConfiguredPatternNamesATicketsBranch(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, patterned)
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, patterned)
 	path := s.at("bd-1")
 
 	r := s.run("add", "bd-1")
@@ -115,7 +115,7 @@ func TestAConfiguredPatternNamesATicketsBranch(t *testing.T) {
 // A worktree made under that pattern is its ticket's whatever the title said
 // when it was made, the id alone being what the pattern recognises.
 func TestAConfiguredPatternFindsATicketsWorktreeAgain(t *testing.T) {
-	s := tracking(t, []ticket{doable}, nil, patterned)
+	s := tracking(t, []ticket{doable}, nil, nil, patterned)
 	older := s.openedOn("older", "feature/bd-1-an-older-title")
 
 	r := s.run("switch", "bd-1")
@@ -141,7 +141,7 @@ func TestWhichWorktreeATicketReaches(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := tracking(t, known, nil, "")
+			s := tracking(t, known, nil, nil, "")
 			path := s.openedOn("wt", tt.branch)
 
 			r := s.run("switch", tt.id)
@@ -158,7 +158,7 @@ func TestWhichWorktreeATicketReaches(t *testing.T) {
 // A ticket's branch forks from the checkout the shell stands in rather than from
 // the main checkout, the tracker taking no fork point of its own.
 func TestATicketsBranchForksFromTheCheckoutTheShellStandsIn(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.Dir = s.opened("scratch")
 	testenv.Git(t, s.Dir, "commit", "--allow-empty", "-m", "not on main")
 	path := s.at("bd-1")
@@ -197,7 +197,7 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
-			s.settings(forgeOn)
+			s.settings(on("github"))
 			path := s.openedOn("wt", cmp.Or(tt.branch, "pr-7"))
 
 			r := s.run("switch", tt.id)
@@ -216,7 +216,7 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 func TestTheForgeIsAskedAheadOfTheTracker(t *testing.T) {
 	// A ticket the tracker calls 7, which is the spelling the forge reads as its own.
 	numbered := with(doable, func(b *ticket) { b.ID = "7" })
-	s := reviewing(t, trackerOn, tracker(tickets(numbered), "[]"))
+	s := reviewing(t, []string{"beads"}, "", tracker(tickets(numbered), "[]"))
 
 	r := s.run("add", "7")
 
@@ -230,7 +230,7 @@ func TestTheForgeIsAskedAheadOfTheTracker(t *testing.T) {
 func TestTheLastResolverMarksTheWorktreeNoSystemRecognises(t *testing.T) {
 	put := putsUp(t)
 	// The tracker and the forge are both wired, so both decline before it is asked.
-	s := tracking(t, nil, nil, forgeOn, put.stub())
+	s := tracking(t, nil, nil, []string{"github"}, "", put.stub())
 	s.openedOn("held", "a-branch-no-system-names")
 
 	r := s.run("switch")
@@ -243,7 +243,7 @@ func TestTheLastResolverMarksTheWorktreeNoSystemRecognises(t *testing.T) {
 // A pull request's worktree checks out the head git fetches for it, which is the
 // one question about it the forge is not asked.
 func TestAPullRequestsWorktreeChecksOutTheHeadItFetches(t *testing.T) {
-	s := reviewing(t, "")
+	s := reviewing(t, nil, "")
 
 	r := s.run("add", "https://github.com/o/r/pull/7")
 
@@ -256,7 +256,7 @@ func TestAPullRequestsWorktreeChecksOutTheHeadItFetches(t *testing.T) {
 // the fetch is made regardless and that branch taken only where none can be.
 func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 	s := repository(t)
-	s.settings(forgeOn)
+	s.settings(on("github"))
 	// No origin to fetch from, so this is the fallback and nothing else.
 	testenv.Git(t, s.Repo, "branch", "pr-7")
 
@@ -270,7 +270,7 @@ func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 // out, and the refusal is git's own.
 func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 	s := repository(t)
-	s.settings(forgeOn)
+	s.settings(on("github"))
 
 	r := s.run("add", "7")
 
@@ -281,7 +281,7 @@ func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 // A configured pattern names the branch a pull request's worktree checks out,
 // which is also the name that pull request is retyped as.
 func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
-	s := reviewing(t, "[branch]\npull-request = \"review-{{.Number}}\"\n")
+	s := reviewing(t, nil, "[branch]\npull-request = \"review-{{.Number}}\"\n")
 
 	made := s.run("add", "7")
 
@@ -296,7 +296,7 @@ func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
 // The command a fresh worktree opens on is rendered from what the resolver that
 // answered supplied, which for a pull request is its number.
 func TestAClaudeSessionIsOpenedOnThePullRequestNumber(t *testing.T) {
-	s := reviewing(t, claudeOn, testenv.Stub{Name: "claude"})
+	s := reviewing(t, []string{"claude"}, "", testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "7")
 
@@ -310,7 +310,7 @@ func TestANameNoSystemAnswersForIsTakenAtItsWord(t *testing.T) {
 	// A name a ticket id could have been read into, the tracker being what settles
 	// that it is not one.
 	const name = "one-two"
-	s := tracking(t, nil, nil, "")
+	s := tracking(t, nil, nil, nil, "")
 
 	r := s.run("add", name)
 
@@ -321,7 +321,7 @@ func TestANameNoSystemAnswersForIsTakenAtItsWord(t *testing.T) {
 // A detached worktree has no branch for a ticket to own, so it stands for
 // nothing but itself and is reached under the directory it sits in.
 func TestADetachedWorktreeIsReachedByItsDirectory(t *testing.T) {
-	s := tracking(t, []ticket{doable}, nil, "")
+	s := tracking(t, []ticket{doable}, nil, nil, "")
 	path := s.detached("spike")
 
 	r := s.run("go", "spike")
@@ -345,7 +345,7 @@ func TestAWorktreeOutsideTheConfiguredDirectoryIsReachedWhereItSits(t *testing.T
 // run asks each system for its listing once however many rows come back.
 func TestThePickersRowsAreWhatEachSystemOffers(t *testing.T) {
 	put := putsUp(t)
-	s := tracking(t, []ticket{doable}, []ticket{doable}, forgeOn,
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"github"}, "",
 		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"}]`},
 		}},
@@ -373,7 +373,7 @@ func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 		testenv.Stub{Name: "bd", Grumbles: "the database is not there", Exits: 1},
 		testenv.Stub{Name: "gh", Grumbles: "not authenticated", Exits: 1},
 		testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
-	s.settings(trackerOn + forgeOn)
+	s.settings(on("beads", "github"))
 	testenv.Git(t, s.Repo, "remote", "add", "origin", hosted)
 	path := s.opened("scratch")
 
@@ -388,7 +388,7 @@ func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 // could not make, and a name of your own is typed rather than offered.
 func TestWhatNoSystemOffersIsNotPutUp(t *testing.T) {
 	s := repository(t)
-	s.settings(forgeOn)
+	s.settings(on("github"))
 	s.opened("scratch")
 
 	r := s.run("add")

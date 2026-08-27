@@ -11,7 +11,7 @@ import (
 // line calls that off: docs/references/tickets.md. What else the tracker is
 // asked is work go's own case.
 func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.at("bd-1")
 
 	r := s.run("add", "bd-1")
@@ -24,7 +24,7 @@ func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 // yet: the forge put the row up, and the pull request already worked on is not
 // among the rows.
 func TestAddWithNoIdentifierTakesThePickersRow(t *testing.T) {
-	s := reviewing(t, "",
+	s := reviewing(t, nil, "",
 		testenv.Stub{Name: "fzf", Says: "0\tpr-7\n"},
 		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"},{"number":8,"title":"Already open"}]`},
@@ -72,7 +72,7 @@ func TestAddRefuses(t *testing.T) {
 			s := repository(t)
 			var asked []string
 			if tt.tracked {
-				s = tracking(t, []ticket{doable}, []ticket{doable}, "")
+				s = tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 				asked = []string{listed}
 			}
 			said := tt.set(s)
@@ -101,7 +101,7 @@ func TestAddRefusesANameNoWorktreeCouldCarry(t *testing.T) {
 // The command a fresh worktree opens on is rendered from what the resolver that
 // answered supplied, which for a ticket is its id and its title.
 func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, claudeOn, testenv.Stub{Name: "claude"})
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"}, "", testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "bd-1")
 
@@ -114,7 +114,7 @@ func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
 // trust is best effort, so the worktree is still made: internal/action/mise.
 func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	s := repository(t)
-	s.settings(miseOn)
+	s.settings(on("mise"))
 
 	r := s.run("add", "scratch")
 
@@ -131,7 +131,7 @@ func TestAKeyThatRendersNoCommandRefusesRatherThanFallingThrough(t *testing.T) {
 	// renders empty for a ticket carrying no title.
 	untitled := with(doable, func(b *ticket) { b.Title = "" })
 	s := tracking(t, []ticket{untitled}, []ticket{untitled},
-		claudeOn+"start-ticket = [\"{{.Title}}\"]\n")
+		[]string{"claude"}, claudeTable+"start-ticket = [\"{{.Title}}\"]\n")
 
 	r := s.run("add", "bd-1")
 
@@ -142,7 +142,7 @@ func TestAKeyThatRendersNoCommandRefusesRatherThanFallingThrough(t *testing.T) {
 // The claim is the tracker's own places alone: a pull request the forge answered
 // for is another system's, and bd is left out of it.
 func TestAPlaceAnotherSystemAnsweredForIsNotClaimed(t *testing.T) {
-	s := reviewing(t, trackerOn, testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
+	s := reviewing(t, []string{"beads"}, "", testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
 
 	r := s.run("add", "7")
 

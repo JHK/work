@@ -114,7 +114,7 @@ func (e Env) carry(to string) error {
 // agent where the settings send that verb's creations, and every other worktree
 // is handed back.
 func (e Env) named(c Candidate, o Options) (Opener, error) {
-	if !c.Open && e.Config.Claude.OpensOnCreation(o.Verb) {
+	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
 		return e.opener(config.ClaudeOpener)
 	}
 	return e.opener(config.ShellOpener)

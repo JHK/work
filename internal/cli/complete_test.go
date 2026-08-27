@@ -32,7 +32,7 @@ func TestNoPositionCompletesAFileName(t *testing.T) {
 // The bare position offers the verbs and nothing else: the identifier is go's
 // own completion now.
 func TestCompleteBarePosition(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.opened("scratch")
 
 	out := s.completes("")
@@ -48,7 +48,7 @@ func TestCompleteBarePosition(t *testing.T) {
 
 // The one argument is all a verb reads.
 func TestNothingCompletesPastAVerbsPosition(t *testing.T) {
-	s := tracking(t, []ticket{doable}, []ticket{doable}, "")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.opened("spare")
 
 	for _, verb := range []string{"go", "switch", "add", "remove", "move"} {
@@ -87,7 +87,7 @@ func TestEachVerbCompletesWhatItsPickerOffers(t *testing.T) {
 	put := putsUp(t)
 	// A ticket with no worktree yet, so add has a row of its own to put up.
 	spare := with(doable, func(b *ticket) { b.ID = "spare" })
-	s := tracking(t, []ticket{spare}, []ticket{spare}, "", put.stub())
+	s := tracking(t, []ticket{spare}, []ticket{spare}, nil, "", put.stub())
 	s.opened("one")
 	// Standing in a worktree, so each verb has its own reason to leave a row out.
 	s.Dir = s.opened("stood-in")
