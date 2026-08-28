@@ -18,14 +18,12 @@ type Claude struct {
 	OnCreationVerbs         []string `toml:"on-creation"`
 	StartTicketCommand      Command  `toml:"start-ticket"`
 	StartPullRequestCommand Command  `toml:"start-pull-request"`
-	StartSessionCommand     Command  `toml:"start-session"`
 }
 
 const (
 	onCreationKey       = "claude.on-creation"
 	startTicketKey      = "claude.start-ticket"
 	startPullRequestKey = "claude.start-pull-request"
-	startSessionKey     = "claude.start-session"
 )
 
 // StartTicket is the command a fresh ticket worktree opens on.
@@ -36,12 +34,6 @@ func (c Claude) StartTicket() Command {
 // StartPullRequest is the command a fresh pull request worktree opens on.
 func (c Claude) StartPullRequest() Command {
 	return c.StartPullRequestCommand.or(defaultClaude.StartPullRequestCommand)
-}
-
-// StartSession is the command a worktree opens on where nothing names a ticket
-// or a pull request.
-func (c Claude) StartSession() Command {
-	return c.StartSessionCommand.or(defaultClaude.StartSessionCommand)
 }
 
 // validate judges each command against the values its key renders with, and
@@ -56,9 +48,6 @@ func (c *Claude) validate() (string, error) {
 	if err := c.StartPullRequestCommand.bind(startPullRequestValues); err != nil {
 		return startPullRequestKey, err
 	}
-	if err := c.StartSessionCommand.bind(startSessionValues); err != nil {
-		return startSessionKey, err
-	}
 	return "", nil
 }
 
@@ -69,11 +58,6 @@ var defaultClaude = Claude{
 		"/start {{.ID}}",
 	),
 	StartPullRequestCommand: mustCommand(startPullRequestValues, "claude", "--name=PR #{{.Number}}"),
-	// Named after the worktree, so a conversation started here is that worktree in
-	// every later list.
-	StartSessionCommand: mustCommand(startSessionValues,
-		"claude", "--permission-mode", "auto", "--name={{.Name}}",
-	),
 }
 
 // Command is a whole command line: one [text/template] per argv element,
@@ -97,7 +81,6 @@ var common = []string{"Name", "Dir"}
 var (
 	startTicketValues      = keyValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
 	startPullRequestValues = keyValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
-	startSessionValues     = keyValues{startSessionKey, common}
 )
 
 // ErrUnsupplied is a value the key places that nothing in the wiring supplied. It

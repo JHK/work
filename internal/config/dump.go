@@ -53,7 +53,6 @@ func (c Config) keys() []key {
 		{onCreationKey, c.Claude.OnCreation()},
 		{startTicketKey, argv(c.Claude.StartTicket())},
 		{startPullRequestKey, argv(c.Claude.StartPullRequest())},
-		{startSessionKey, argv(c.Claude.StartSession())},
 	}
 }
 

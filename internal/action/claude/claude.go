@@ -1,5 +1,5 @@
 // Package claude hands a worktree to Claude Code: a session opened on whatever
-// that worktree was made for.
+// that worktree was made for, and the worktree itself where nothing was.
 package claude
 
 import (
@@ -22,29 +22,19 @@ func New(commands config.Claude) Opener { return Opener{commands: commands} }
 
 func (o Opener) Name() string { return Name }
 
-// Open renders the command work replaces itself with: a session started on
-// whatever the worktree was made for.
+// Open renders the command work replaces itself with: a session on whatever the
+// worktree was made for, or the worktree itself where nothing answered for it.
 func (o Opener) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error) {
-	run, err := first(vals, o.commands.StartTicket(), o.commands.StartPullRequest(), o.commands.StartSession())
-	if err != nil {
-		return worktree.Handoff{}, err
-	}
-	return worktree.Handoff{Dir: t.Path, Run: run}, nil
-}
-
-// first renders the earliest command every value of which was supplied. Only
-// [config.ErrUnsupplied] moves to the next key; any other refusal is a
-// misconfigured key, and stops.
-func first(vals worktree.Values, commands ...config.Command) ([]string, error) {
-	var err error
-	for _, c := range commands {
-		var run []string
-		if run, err = c.Render(vals); err == nil {
-			return run, nil
+	for _, c := range []config.Command{o.commands.StartTicket(), o.commands.StartPullRequest()} {
+		run, err := c.Render(vals)
+		if err == nil {
+			return worktree.Handoff{Dir: t.Path, Run: run}, nil
 		}
+		// Only a value nothing supplied moves to the next key; any other refusal is a
+		// misconfigured key.
 		if !errors.Is(err, config.ErrUnsupplied) {
-			return nil, err
+			return worktree.Handoff{}, err
 		}
 	}
-	return nil, err
+	return worktree.Handoff{Dir: t.Path}, nil
 }

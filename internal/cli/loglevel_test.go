@@ -170,13 +170,13 @@ func TestTheLogLevelReadsLikeTheRootFlagsBesideIt(t *testing.T) {
 // The command a worktree opens on is the last thing work reaches for, and work
 // replaces itself with it, so only a run watched from outside sees the line.
 func TestInfoNamesTheCommandTheWorktreeOpensOn(t *testing.T) {
-	s := repository(t)
 	// One nothing else in the run spawns, so only the handoff can have said it.
-	s.settings(agentOn + "start-session = [\"git\", \"--version\"]\n")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
+		claudeTable+"start-ticket = [\"git\", \"--version\"]\n")
 
-	r := s.hands("--log-level", "info", "add", "scratch")
+	r := s.hands("--log-level", "info", "add", "bd-1")
 
-	r.came(t, result{}, apart, besides("Out"))
+	r.came(t, result{Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, apart, besides("Out"))
 	require.Equal(t, "git --version", r.Informed[len(r.Informed)-1],
 		"the command the terminal went to was not the last line on stderr")
 }

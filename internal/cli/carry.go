@@ -24,8 +24,8 @@ stay put.
 A name that already has a worktree is refused, and so is a checkout carrying
 nothing: work add is what only creates.
 
-The worktree is handed back unless claude.on-creation names carry, which it does
-not by default.`,
+The worktree is handed back whatever claude.on-creation names: a name of your
+own opens on no session.`,
 		Args: cobra.ExactArgs(1),
 	}, verb)
 }

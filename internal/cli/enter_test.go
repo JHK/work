@@ -48,12 +48,13 @@ func TestAFileTheShellNamedThatCannotBeWrittenIsRefused(t *testing.T) {
 // A worktree that opens on a command the machine does not have is refused, and
 // the shell is left standing where it typed: internal/worktree.
 func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
-	s := repository(t)
-	s.settings(agentOn + "start-session = [\"no-such-binary-xyz\"]\n")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
+		claudeTable+"start-ticket = [\"no-such-binary-xyz\"]\n")
 
-	r := s.run("add", "scratch")
+	r := s.run("add", "bd-1")
 
-	r.refused(t, "no-such-binary-xyz")
+	r.came(t, result{Code: 1, Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, apart)
+	r.saying(t, "no-such-binary-xyz")
 	here, err := os.Getwd()
 	require.NoError(t, err)
 	require.Equal(t, s.Dir, here, "the refused handoff left the process elsewhere")
@@ -62,23 +63,25 @@ func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 // A worktree that opens on a command hands the terminal to it, running inside
 // that worktree, and work says nothing of its own on the way past.
 func TestAWorktreeThatOpensOnACommandHandsItTheTerminal(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude", Shell: "git rev-parse --show-toplevel"})
-	s.settings(on("claude"))
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"}, "",
+		testenv.Stub{Name: "claude", Shell: "git rev-parse --show-toplevel"})
 
-	r := s.hands("add", "scratch")
+	r := s.hands("add", "bd-1")
 
-	r.came(t, result{Out: s.at("scratch") + "\n", Asked: []string{sessionOn("scratch")}})
+	r.came(t, result{Out: s.at("bd-1") + "\n", Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"),
+		ticketSessionOn("bd-1", "Do a thing"))})
 }
 
 // The file names one invocation, so what the terminal goes to must not inherit
 // it: a work run inside that command would answer into a shell done waiting.
 func TestTheCommandTheTerminalGoesToDoesNotInheritTheShellsFile(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$WORK_CD_FILE"`})
-	s.settings(on("claude"))
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"}, "",
+		testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$WORK_CD_FILE"`})
 
-	r := s.hands("add", "scratch")
+	r := s.hands("add", "bd-1")
 
-	r.came(t, result{Out: "[]", Asked: []string{sessionOn("scratch")}})
+	r.came(t, result{Out: "[]", Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"),
+		ticketSessionOn("bd-1", "Do a thing"))})
 }
 
 // With no identifier the picker stands in for one, over the worktrees open less

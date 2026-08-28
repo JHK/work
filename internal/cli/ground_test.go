@@ -379,12 +379,10 @@ const claudeTable = "[claude]\n"
 
 var agentOn = on("claude") + claudeTable
 
-// sessionOn and ticketSessionOn are the compiled-in claude.start-session and
-// claude.start-ticket as they run, which are the lines a run that opened a
-// conversation asked for.
-func sessionOn(name string) string { return "claude --permission-mode auto --name=" + name }
-
-func ticketSessionOn(id, title string) string { return sessionOn(id+": "+title) + " /start " + id }
+// ticketSessionOn is the compiled-in claude.start-ticket as a stand-in records it.
+func ticketSessionOn(id, title string) string {
+	return "claude --permission-mode auto --name=" + id + ": " + title + " /start " + id
+}
 
 // putUp is the picker as a stand-in records being put up, which is one screen
 // however many rows it carries. The prompt carries a trailing space of its own.

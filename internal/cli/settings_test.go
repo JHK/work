@@ -29,7 +29,6 @@ var documented = []string{
 	"claude.on-creation",
 	"claude.start-ticket",
 	"claude.start-pull-request",
-	"claude.start-session",
 }
 
 // dumped is a printed configuration read back: the keys in the order they were
@@ -81,7 +80,7 @@ func TestConfigDumpNamesEverySetting(t *testing.T) {
 func TestConfigDumpLoadsBack(t *testing.T) {
 	s := repository(t)
 	// A quote and a tab survive the printing, being written as TOML escapes.
-	s.settings(agentOn + "on-creation = [\"carry\"]\nstart-session = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
+	s.settings(agentOn + "on-creation = [\"carry\"]\nstart-ticket = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
 		directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n")
 
 	first := dumping(t, s)
@@ -142,9 +141,8 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		// Every [claude] key is judged, whichever of them a file names.
 		{"a ticket command naming nothing", "[claude]\nstart-ticket = []\n", "claude.start-ticket: names no command"},
 		{"a pull request command naming nothing", "[claude]\nstart-pull-request = []\n", "claude.start-pull-request: names no command"},
-		{"a session command naming nothing", "[claude]\nstart-session = []\n", "claude.start-session: names no command"},
 		{"a value the key does not have", "[claude]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[claude]\nstart-session = [\"claude\", \"{{.Branch}}\"]\n", "claude.start-session"},
+		{"a value no key has", "[claude]\nstart-pull-request = [\"claude\", \"{{.Branch}}\"]\n", "claude.start-pull-request"},
 		// Only the arm a ticket carrying a title reaches names it.
 		{"a value named inside a branch", "[claude]\nstart-ticket = [\"claude\", \"{{with .Title}}{{$.Branch}}{{end}}\"]\n", "claude.start-ticket"},
 	}
@@ -278,24 +276,25 @@ func TestWhereAWorktreeLands(t *testing.T) {
 // present but empty moves nothing, and the keys it left out still name the
 // directory, the verbs and the command.
 func TestAFileNamingOneKeyLeavesTheRestToTheDefaults(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude"})
-	s.settings(agentOn + "[worktree]\n")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"}, "[worktree]\n",
+		testenv.Stub{Name: "claude"})
 
-	r := s.hands("add", "scratch")
+	r := s.hands("add", "bd-1")
 
-	r.came(t, result{Asked: []string{sessionOn("scratch")}})
-	require.DirExists(t, s.at("scratch"), "the worktree did not land where the compiled-in directory names")
+	r.came(t, result{Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"),
+		ticketSessionOn("bd-1", "Do a thing"))})
+	require.DirExists(t, s.at("bd-1"), "the worktree did not land where the compiled-in directory names")
 }
 
 // A command the file names replaces the compiled-in one whole rather than
 // element by element, and is what the worktree opens on.
 func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
-	s := repository(t, testenv.Stub{Name: "claude"})
 	// Shorter than the default, so one replaced element by element would leave the
 	// default's tail behind.
-	s.settings(agentOn + "start-session = [\"claude\", \"{{.Name}}\"]\n")
+	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
+		claudeTable+"start-ticket = [\"claude\", \"{{.Name}}\"]\n", testenv.Stub{Name: "claude"})
 
-	r := s.hands("add", "scratch")
+	r := s.hands("add", "bd-1")
 
-	r.came(t, result{Asked: []string{"claude scratch"}})
+	r.came(t, result{Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"), "claude bd-1")})
 }

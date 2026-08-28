@@ -23,7 +23,6 @@ Values are validated once the file is read, before anything is created.
 | [`claude.on-creation`](../../internal/config/verbs.go) | the verbs whose creations [open a session](#opening-on-a-session) |
 | [`claude.start-ticket`](../../internal/config/command.go) | the [command](#commands) a ticket's new worktree opens on |
 | [`claude.start-pull-request`](../../internal/config/command.go) | the [command](#commands) a pull request's new worktree opens on |
-| [`claude.start-session`](../../internal/config/command.go) | the [command](#commands) a worktree opens on where nothing names a ticket or a pull request |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
@@ -58,7 +57,7 @@ Refused at load:
 
 ## Opening on a session
 
-`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff).
+`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff). So is one created under a name of your own, whatever the key names.
 
 It falls to `add` and `go` where nothing names it.
 
