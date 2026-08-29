@@ -569,10 +569,16 @@ func contains(root, path string) bool {
 	return err == nil && rel != "." && filepath.IsLocal(rel)
 }
 
-// values are what a command for this worktree renders with: the worktree itself,
-// then the resolver that answered for it.
+// values are what a command for this worktree renders with: the place the core
+// holds, then the subject the resolver that answered spells out.
 func (e Env) values(t worktree.Tree) worktree.Values {
-	vals := worktree.Values{"Name": t.Name, "Dir": t.Path}
+	vals := worktree.Values{
+		"Source": t.Source,
+		"ID":     t.ID,
+		"Title":  t.Label,
+		"Name":   t.Name,
+		"Dir":    t.Path,
+	}
 	if s, ok := t.By.(worktree.Source); ok {
 		if supplied, err := s.Supply(t); err == nil {
 			vals.Merge(supplied)

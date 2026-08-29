@@ -128,10 +128,13 @@ func (r *Resolver) Create(p worktree.Place, path string) error {
 	return beads.CreateWorktree(r.from, path, p.Branch)
 }
 
-// Supply is what this resolver tells a command about the worktree it resolved:
-// the ticket's id and title.
+// Supply spells out the ticket a worktree was made for.
 func (r *Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
-	return worktree.Values{"ID": t.ID, "Title": t.Label}, nil
+	subject := t.ID
+	if t.Label != "" {
+		subject += ": " + t.Label
+	}
+	return worktree.Values{"Subject": subject}, nil
 }
 
 // vet reports why the bead cannot be worked. Only the last rule asks bd anything.

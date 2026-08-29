@@ -51,8 +51,7 @@ func (c Config) keys() []key {
 		{ticketKey, c.Branch.ticket().tmpl.text},
 		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
 		{onCreationKey, c.Claude.OnCreation()},
-		{startTicketKey, argv(c.Claude.StartTicket())},
-		{startPullRequestKey, argv(c.Claude.StartPullRequest())},
+		{commandKey, argv(c.Claude.Command())},
 	}
 }
 

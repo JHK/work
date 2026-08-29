@@ -24,9 +24,9 @@ changes along.
 With no identifier, choose among the repository's ready tickets and open pull
 requests that have no worktree yet. That form needs fzf.
 
-A ticket's or a pull request's worktree opens on a Claude session where
-claude.on-creation names add, which it does by default. One under a name of your
-own is handed back.`,
+The worktree opens on a Claude session where claude.on-creation names add, which
+it does by default. One under a name of your own is handed back, the default
+claude.command naming nothing to run for it.`,
 	}, verb)
 }
 

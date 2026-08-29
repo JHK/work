@@ -111,10 +111,13 @@ func (r Resolver) Create(p worktree.Place, path string) error {
 	return git.AddWorktree(r.repo, path, p.Branch)
 }
 
-// Supply is what this resolver tells a command about the worktree it resolved:
-// the pull request's number.
+// Supply spells out the pull request a worktree was made for.
 func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
-	return worktree.Values{"Number": t.ID}, nil
+	subject := "PR #" + t.ID
+	if t.Label != "" {
+		subject += ": " + t.Label
+	}
+	return worktree.Values{"Subject": subject}, nil
 }
 
 // place names a pull request by the branch its worktree checks out.

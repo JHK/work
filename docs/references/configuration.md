@@ -21,8 +21,7 @@ Values are validated once the file is read, before anything is created.
 | [`branch.ticket`](../../internal/config/config.go) | the branch a ticket's worktree checks out |
 | [`branch.pull-request`](../../internal/config/config.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
 | [`claude.on-creation`](../../internal/config/verbs.go) | the verbs whose creations [open a session](#opening-on-a-session) |
-| [`claude.start-ticket`](../../internal/config/command.go) | the [command](#commands) a ticket's new worktree opens on |
-| [`claude.start-pull-request`](../../internal/config/command.go) | the [command](#commands) a pull request's new worktree opens on |
+| [`claude.command`](../../internal/config/command.go) | the [command](#commands) a new worktree opens on |
 
 Only creating a worktree reads `worktree.directory`. An existing one is entered [where git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 
@@ -57,7 +56,7 @@ Refused at load:
 
 ## Opening on a session
 
-`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff). So is one created under a name of your own, whatever the key names.
+`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff), and so is one the command renders nothing for.
 
 It falls to `add` and `go` where nothing names it.
 
@@ -65,20 +64,13 @@ Refused at load: a word no verb goes by, and a verb no worktree comes into being
 
 ## Commands
 
-A `[claude]` value is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element. An element rendering to nothing is dropped from the argv.
-
-| Value | Rendered by | Is |
-|---|---|---|
-| `.Name` | every command | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |
-| `.Dir` | every command | the worktree, which the process has already changed into |
-| `.ID`, `.Title` | `claude.start-ticket` | the ticket id and its title |
-| `.Number` | `claude.start-pull-request` | the pull request number |
+`claude.command` is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element, over [the values a worktree carries](claude.md#values). An element rendering to nothing is dropped from the argv.
 
 Refused at load:
 
 - an empty list
-- a value the key does not have
+- a value the command may not place
 
-A command whose first element renders to nothing is refused at the handoff instead, once the worktree is created and the ticket claimed.
+A first element rendering to nothing leaves no command to run: the worktree is [handed back](cli.md#handoff), once it is created and the ticket claimed.
 
-The defaults are in [internal/config/command.go](../../internal/config/command.go), and [what they open](claude.md) is `claude`.
+The default is in [internal/config/command.go](../../internal/config/command.go), and [what it opens](claude.md) is `claude`.

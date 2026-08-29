@@ -137,8 +137,8 @@ func decode(path string, c *Config) error {
 	return nil
 }
 
-// validate names the key work cannot use the value of, and why. It also ties
-// each pattern and command to the values its key has.
+// validate names the key work cannot use the value of, and why. It also binds
+// each pattern to the values its key has.
 func (c *Config) validate() (string, error) {
 	if err := c.validateSystems(); err != nil {
 		return systemsKey, err

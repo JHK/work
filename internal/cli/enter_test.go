@@ -49,7 +49,7 @@ func TestAFileTheShellNamedThatCannotBeWrittenIsRefused(t *testing.T) {
 // the shell is left standing where it typed: internal/worktree.
 func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
-		claudeTable+"start-ticket = [\"no-such-binary-xyz\"]\n")
+		claudeTable+"command = [\"no-such-binary-xyz\"]\n")
 
 	r := s.run("add", "bd-1")
 

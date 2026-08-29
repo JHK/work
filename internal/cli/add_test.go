@@ -124,19 +124,18 @@ func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	require.True(t, s.hasBranch("scratch"), "the worktree was refused over a grant that only means the session prompts")
 }
 
-// Falling through is for a key whose values nothing supplied. A key that renders
-// nothing to run is a misconfiguration, refused rather than fallen past.
-func TestAKeyThatRendersNoCommandRefusesRatherThanFallingThrough(t *testing.T) {
-	// Every value the key has is supplied, and the one element it holds still
-	// renders empty for a ticket carrying no title.
+// The command renders the whole handoff: a first element rendering to nothing
+// leaves no command at all, and the worktree is handed back the way one nothing
+// opens on is.
+func TestACommandWhoseFirstElementRendersToNothingHandsTheWorktreeBack(t *testing.T) {
+	// The one element the command holds renders empty for a ticket carrying no title.
 	untitled := with(doable, func(b *ticket) { b.Title = "" })
 	s := tracking(t, []ticket{untitled}, []ticket{untitled},
-		[]string{"claude"}, claudeTable+"start-ticket = [\"{{.Title}}\"]\n")
+		[]string{"claude"}, claudeTable+"command = [\"{{.Title}}\"]\n")
 
 	r := s.run("add", "bd-1")
 
-	r.came(t, result{Code: 1, Asked: worked("bd-1", s.at("bd-1"), "bd-1")}, apart)
-	require.Contains(t, r.Errored[0], "claude.start-ticket", "the refusal does not name the key work could not render")
+	r.came(t, result{Answered: s.at("bd-1"), Asked: worked("bd-1", s.at("bd-1"), "bd-1")})
 }
 
 // The claim is the tracker's own places alone: a pull request the forge answered

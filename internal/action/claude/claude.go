@@ -3,38 +3,28 @@
 package claude
 
 import (
-	"errors"
-
 	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this action goes by, and what its own table of commands spells.
+// Name is what this action goes by, and the table its settings sit in.
 const Name = "claude"
 
 // Opener renders the command a worktree opens on.
 type Opener struct {
-	commands config.Claude
+	command config.Command
 }
 
-// New reads the commands from the settings.
-func New(commands config.Claude) Opener { return Opener{commands: commands} }
+func New(table config.Claude) Opener { return Opener{command: table.Command()} }
 
 func (o Opener) Name() string { return Name }
 
-// Open renders the command work replaces itself with: a session on whatever the
-// worktree was made for, or the worktree itself where nothing answered for it.
+// Open renders the command work replaces itself with, or the worktree itself
+// where that command renders to nothing.
 func (o Opener) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error) {
-	for _, c := range []config.Command{o.commands.StartTicket(), o.commands.StartPullRequest()} {
-		run, err := c.Render(vals)
-		if err == nil {
-			return worktree.Handoff{Dir: t.Path, Run: run}, nil
-		}
-		// Only a value nothing supplied moves to the next key; any other refusal is a
-		// misconfigured key.
-		if !errors.Is(err, config.ErrUnsupplied) {
-			return worktree.Handoff{}, err
-		}
+	run, err := o.command.Render(vals)
+	if err != nil {
+		return worktree.Handoff{}, err
 	}
-	return worktree.Handoff{Dir: t.Path}, nil
+	return worktree.Handoff{Dir: t.Path, Run: run}, nil
 }

@@ -379,9 +379,10 @@ const claudeTable = "[claude]\n"
 
 var agentOn = on("claude") + claudeTable
 
-// ticketSessionOn is the compiled-in claude.start-ticket as a stand-in records it.
+// ticketSessionOn is the compiled-in claude.command as a stand-in records it for
+// a ticket.
 func ticketSessionOn(id, title string) string {
-	return "claude --permission-mode auto --name=" + id + ": " + title + " /start " + id
+	return "claude --permission-mode=auto --name=" + id + ": " + title + " /start " + id
 }
 
 // putUp is the picker as a stand-in records being put up, which is one screen

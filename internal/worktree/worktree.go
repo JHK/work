@@ -58,8 +58,8 @@ type System interface {
 }
 
 // Values are what a command renders with, keyed by the name a template places
-// rather than by a field. A name nothing supplied is a command that cannot run;
-// one supplied empty is a command element that drops out.
+// rather than by a field. A name nothing supplied renders empty, which is a
+// command element that drops out.
 type Values map[string]string
 
 // Merge takes in another set of values, leaving every name already set alone: the
@@ -72,8 +72,8 @@ func (v Values) Merge(other Values) {
 	}
 }
 
-// Source is a system that knows values a command may need. It is asked once, of a
-// worktree that exists.
+// Source is a system that knows values the core does not hold, the core's own
+// names winning where both name one. It is asked once, of a worktree that exists.
 type Source interface {
 	System
 

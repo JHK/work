@@ -27,8 +27,7 @@ var documented = []string{
 	"branch.ticket",
 	"branch.pull-request",
 	"claude.on-creation",
-	"claude.start-ticket",
-	"claude.start-pull-request",
+	"claude.command",
 }
 
 // dumped is a printed configuration read back: the keys in the order they were
@@ -80,7 +79,7 @@ func TestConfigDumpNamesEverySetting(t *testing.T) {
 func TestConfigDumpLoadsBack(t *testing.T) {
 	s := repository(t)
 	// A quote and a tab survive the printing, being written as TOML escapes.
-	s.settings(agentOn + "on-creation = [\"carry\"]\nstart-ticket = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
+	s.settings(agentOn + "on-creation = [\"carry\"]\ncommand = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
 		directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n")
 
 	first := dumping(t, s)
@@ -124,7 +123,7 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a system that is not a string", "systems = [3]\n", "systems"},
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
-		{"a table under the name it used to go by", "[agent]\nstart-ticket = [\"claude\"]\n", "the [agent] table is now [claude]"},
+		{"a table under the name it used to go by", "[agent]\ncommand = [\"claude\"]\n", "the [agent] table is now [claude]"},
 		// claude.on-creation names verbs a worktree can come into being under:
 		// docs/references/configuration.md#opening-on-a-session.
 		{"a verb that creates no worktree", agentOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
@@ -135,16 +134,17 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"verbs that are not a list", agentOn + "on-creation = \"add\"\n", "claude.on-creation"},
 		{"a verb that is not a string", agentOn + "on-creation = [3]\n", "claude.on-creation"},
 		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
-		{"a command that is not a list", "[claude]\nstart-ticket = \"claude\"\n", "list of command line arguments"},
-		{"a list of something other than strings", "[claude]\nstart-ticket = [1, 2]\n", "list of command line arguments"},
-		{"a template that does not parse", "[claude]\nstart-ticket = [\"claude\", \"{{.ID\"]\n", "claude.start-ticket"},
-		// Every [claude] key is judged, whichever of them a file names.
-		{"a ticket command naming nothing", "[claude]\nstart-ticket = []\n", "claude.start-ticket: names no command"},
-		{"a pull request command naming nothing", "[claude]\nstart-pull-request = []\n", "claude.start-pull-request: names no command"},
-		{"a value the key does not have", "[claude]\nstart-ticket = [\"claude\", \"{{.Number}}\"]\n", "{{.Title}}"},
-		{"a value no key has", "[claude]\nstart-pull-request = [\"claude\", \"{{.Branch}}\"]\n", "claude.start-pull-request"},
+		// The two keys one command replaced are unknown, no rename standing behind them.
+		{"a key the one command replaced", "[claude]\nstart-ticket = [\"claude\"]\n", "unknown setting"},
+		{"a command that is not a list", "[claude]\ncommand = \"claude\"\n", "list of command line arguments"},
+		{"a list of something other than strings", "[claude]\ncommand = [1, 2]\n", "list of command line arguments"},
+		{"a template that does not parse", "[claude]\ncommand = [\"claude\", \"{{.ID\"]\n", "claude.command"},
+		{"a command naming nothing", "[claude]\ncommand = []\n", "claude.command: names no command"},
+		{"a value the command does not have", "[claude]\ncommand = [\"claude\", \"{{.Number}}\"]\n", "{{.Subject}}"},
 		// Only the arm a ticket carrying a title reaches names it.
-		{"a value named inside a branch", "[claude]\nstart-ticket = [\"claude\", \"{{with .Title}}{{$.Branch}}{{end}}\"]\n", "claude.start-ticket"},
+		{"a value named inside a branch", "[claude]\ncommand = [\"claude\", \"{{with .Title}}{{$.Number}}{{end}}\"]\n", "claude.command"},
+		// Only the arm a worktree the tracker answered for reaches names it.
+		{"a value named inside a source arm", "[claude]\ncommand = [\"claude\", \"{{if eq .Source \\\"beads\\\"}}{{.Number}}{{end}}\"]\n", "claude.command"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
 	// Shorter than the default, so one replaced element by element would leave the
 	// default's tail behind.
 	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
-		claudeTable+"start-ticket = [\"claude\", \"{{.Name}}\"]\n", testenv.Stub{Name: "claude"})
+		claudeTable+"command = [\"claude\", \"{{.Name}}\"]\n", testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "bd-1")
 

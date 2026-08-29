@@ -59,7 +59,7 @@ func TestTheZeroConfigNamesWhatWorkNeeds(t *testing.T) {
 	require.Equal(t, "bd-42", c.Branch.Ticket("bd-42", ""), "the zero Config names no ticket branch")
 	require.Equal(t, "pr-7", c.Branch.PullRequest("7"), "the zero Config names no pull request branch")
 
-	got, err := c.Claude.StartPullRequest().Render(worktree.Values{"Name": "pr-7", "Dir": "/wt", "Number": "7"})
+	got, err := c.Claude.Command().Render(worktree.Values{"Source": "github", "ID": "7", "Name": "pr-7", "Dir": "/wt", "Subject": "PR #7"})
 	require.NoError(t, err)
 	testenv.Equal(t, []string{"claude", "--name=PR #7"}, got, "the zero Config names no command")
 }

@@ -294,8 +294,24 @@ func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
 }
 
 // The command a fresh worktree opens on is rendered from what the resolver that
-// answered supplied, which for a pull request is its number.
-func TestAClaudeSessionIsOpenedOnThePullRequestNumber(t *testing.T) {
+// answered supplied, which for a pull request is its number and title. Nothing
+// of the tracker's own reaches it: the arms naming beads all render to nothing.
+func TestAClaudeSessionIsOpenedOnThePullRequestItWasMadeFor(t *testing.T) {
+	put := putsUp(t)
+	s := reviewing(t, []string{"claude"}, "",
+		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
+			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"}]`},
+		}},
+		put.answers("0\tpr-7\n"), testenv.Stub{Name: "claude"})
+
+	r := s.hands("add")
+
+	r.came(t, result{Asked: []string{pullRequests(s.Origin), putUp, "claude --name=PR #7: Review this"}})
+}
+
+// A pull request the forge was never asked to list carries no title, and the
+// session is named by its number alone.
+func TestAPullRequestWithNoTitleIsNamedByItsNumber(t *testing.T) {
 	s := reviewing(t, []string{"claude"}, "", testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "7")

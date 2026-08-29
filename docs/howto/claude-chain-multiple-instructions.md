@@ -4,18 +4,20 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
 ## Prerequisites
 
-- A ticket title carrying no `$` or `"`: `{{.Title}}` is interpolated into a shell string.
+- A ticket title carrying no `$` or `"`: `{{.Subject}}` is interpolated into a shell string.
 - A decision on failure: `&&` skips the second instruction when the first exits non-zero, `;` in its place runs it either way.
+- A pull request's worktree handed back: the one key carries every worktree, and every element below is guarded on `beads`.
 
 ## Steps
 
-1. Set [`claude.start-ticket`](../references/configuration.md#keys) to the chain, wrapped in `sh -c`:
+1. Set [`claude.command`](../references/configuration.md#keys) to the chain, wrapped in `sh -c`:
 
    ```toml
    [claude]
-   start-ticket = [
-     "sh", "-c",
-     '''claude -p --permission-mode auto "/start {{.ID}}" && claude --permission-mode auto --continue -n "{{.ID}}: {{.Title}}" /simplify''',
+   command = [
+     '{{if eq .Source "beads"}}sh{{end}}',
+     '{{if eq .Source "beads"}}-c{{end}}',
+     '''{{if eq .Source "beads"}}claude -p --permission-mode auto "/start {{.ID}}" && claude --permission-mode auto --continue -n "{{.Subject}}" /simplify{{end}}''',
    ]
    ```
 
@@ -25,5 +27,6 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
 ## See also
 
-- [Configuration](../references/configuration.md#commands) — what each key renders with
+- [`claude`](../references/claude.md#values) — what the command renders with
+- [Configuration](../references/configuration.md#commands) — how the key is written
 - [Command line](../references/cli.md#handoff) — how `work` reaches the command

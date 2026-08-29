@@ -3,131 +3,96 @@ package config
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // Claude is the agent's table: which verbs open a session on what they create,
-// and the commands it runs, read whether or not the systems list names the
-// agent. Each command falls back to defaultClaude on its own, so an unset one is
-// the compiled-in command and a config pointing the action at another binary
-// sets every one of them.
+// and the command it runs, read whether or not the systems list names the agent.
 type Claude struct {
-	OnCreationVerbs         []string `toml:"on-creation"`
-	StartTicketCommand      Command  `toml:"start-ticket"`
-	StartPullRequestCommand Command  `toml:"start-pull-request"`
+	OnCreationVerbs []string `toml:"on-creation"`
+	CommandLine     Command  `toml:"command"`
 }
 
 const (
-	onCreationKey       = "claude.on-creation"
-	startTicketKey      = "claude.start-ticket"
-	startPullRequestKey = "claude.start-pull-request"
+	onCreationKey = "claude.on-creation"
+	commandKey    = "claude.command"
 )
 
-// StartTicket is the command a fresh ticket worktree opens on.
-func (c Claude) StartTicket() Command {
-	return c.StartTicketCommand.or(defaultClaude.StartTicketCommand)
-}
+// Command is the command a fresh worktree opens on.
+func (c Claude) Command() Command { return c.CommandLine.or(defaultClaude.CommandLine) }
 
-// StartPullRequest is the command a fresh pull request worktree opens on.
-func (c Claude) StartPullRequest() Command {
-	return c.StartPullRequestCommand.or(defaultClaude.StartPullRequestCommand)
-}
-
-// validate judges each command against the values its key renders with, and
-// names the key work cannot use the value of.
+// validate names the key work cannot use the value of.
 func (c *Claude) validate() (string, error) {
 	if err := c.validateOnCreation(); err != nil {
 		return onCreationKey, err
 	}
-	if err := c.StartTicketCommand.bind(startTicketValues); err != nil {
-		return startTicketKey, err
-	}
-	if err := c.StartPullRequestCommand.bind(startPullRequestValues); err != nil {
-		return startPullRequestKey, err
+	if err := c.CommandLine.validate(); err != nil {
+		return commandKey, err
 	}
 	return "", nil
 }
 
 var defaultClaude = Claude{
-	StartTicketCommand: mustCommand(startTicketValues,
-		"claude", "--permission-mode", "auto",
-		"--name={{.ID}}: {{.Title}}",
-		"/start {{.ID}}",
+	CommandLine: mustCommand(
+		`{{if .Subject}}claude{{end}}`,
+		`{{if eq .Source "beads"}}--permission-mode=auto{{end}}`,
+		`--name={{.Subject}}`,
+		`{{if eq .Source "beads"}}/start {{.ID}}{{end}}`,
 	),
-	StartPullRequestCommand: mustCommand(startPullRequestValues, "claude", "--name=PR #{{.Number}}"),
 }
 
 // Command is a whole command line: one [text/template] per argv element,
-// rendered with the values its key has. Which values those are is settled by
-// bind, once the key the command was read from says.
+// rendered with [commandValues].
 type Command struct {
-	parts  []tmpl
-	values keyValues
+	parts []tmpl
 }
 
-// keyValues are the value names one key's command may place, and the key it
-// is named by.
-type keyValues struct {
-	key   string
-	names []string
-}
+// commandValues are always supplied, empty where nothing behind the worktree
+// has one.
+var commandValues = []string{"Source", "ID", "Title", "Name", "Dir", "Subject"}
 
-// common are the values every command has; a key's own follow them.
-var common = []string{"Name", "Dir"}
-
-var (
-	startTicketValues      = keyValues{startTicketKey, slices.Concat(common, []string{"ID", "Title"})}
-	startPullRequestValues = keyValues{startPullRequestKey, slices.Concat(common, []string{"Number"})}
-)
-
-// ErrUnsupplied is a value the key places that nothing in the wiring supplied. It
-// is the one refusal a caller choosing between keys may pass over: it says this
-// worktree is not the one that key is for.
-var ErrUnsupplied = errors.New("nothing here supplies")
-
-// data is what one render is given: the values the key has and no others, so a
-// template naming another fails rather than quietly rendering nothing. A name the
-// key has that nothing supplied is refused here as [ErrUnsupplied].
-func (v keyValues) data(vals worktree.Values) (map[string]any, error) {
-	data := make(map[string]any, len(v.names))
-	for _, name := range v.names {
-		value, supplied := vals[name]
-		if !supplied {
-			return nil, fmt.Errorf("%s: %w {{.%s}}", v.key, ErrUnsupplied, name)
-		}
-		data[name] = value
+// A name outside [commandValues] fails the render rather than rendering empty.
+func knownValues(vals worktree.Values) map[string]any {
+	d := make(map[string]any, len(commandValues))
+	for _, name := range commandValues {
+		d[name] = vals[name]
 	}
-	return data, nil
+	return d
 }
 
-// mark is the filled arm of a binding probe: the shortest any real value is, so a
-// command rendering with it renders with anything.
+var valueList = "{{." + strings.Join(commandValues, "}}, {{.") + "}}"
+
+// mark is the shortest any real value is, so a command rendering with it renders
+// with anything.
 const mark = "x"
 
-// fill is every value the key has, set alike: binding probes an empty arm and a
-// filled one.
-func (v keyValues) fill(value string) worktree.Values {
-	vals := make(worktree.Values, len(v.names))
-	for _, name := range v.names {
-		vals[name] = value
+// Crossing the sources in is what reaches an arm naming one, which would
+// otherwise render for the first time at the handoff.
+func probes() []map[string]any {
+	sources := sourceNames()
+	out := make([]map[string]any, 0, 2*len(sources))
+	for _, value := range []string{"", mark} {
+		for _, source := range sources {
+			d := everyValue(value)
+			d["Source"] = source
+			out = append(out, d)
+		}
 	}
-	return vals
+	return out
 }
 
-// list is how the values read in a refusal.
-func (v keyValues) list() string {
-	out := make([]string, len(v.names))
-	for i, name := range v.names {
-		out[i] = "{{." + name + "}}"
+func everyValue(value string) map[string]any {
+	d := make(map[string]any, len(commandValues))
+	for _, name := range commandValues {
+		d[name] = value
 	}
-	return strings.Join(out, ", ")
+	return d
 }
 
 // UnmarshalTOML reads a command out of a settings file, where it is written as
-// an array of strings, one per argv element. bind judges the values later.
+// an array of strings, one per argv element. validate judges the values later.
 func (c *Command) UnmarshalTOML(v any) error {
 	list, ok := v.([]any)
 	if !ok {
@@ -159,11 +124,11 @@ func parseCommand(texts []string) (Command, error) {
 	return Command{parts: parts}, nil
 }
 
-// mustCommand binds a compiled-in default, which cannot be at fault.
-func mustCommand(v keyValues, texts ...string) Command {
+// mustCommand panics: a compiled-in default cannot be at fault.
+func mustCommand(texts ...string) Command {
 	c, err := parseCommand(texts)
 	if err == nil {
-		err = c.bind(v)
+		err = c.validate()
 	}
 	if err != nil {
 		panic(fmt.Sprintf("config: default command %q %v", texts, err))
@@ -171,26 +136,19 @@ func mustCommand(v keyValues, texts ...string) Command {
 	return c
 }
 
-// bind ties the command to the values its key renders with, or reports why it
-// cannot name a command. Every value is rendered both set and unset, so a
-// template that cannot render at all is refused at load rather than at the
-// handoff.
-func (c *Command) bind(v keyValues) error {
+// validate renders every value both set and unset, so a template that cannot
+// render at all is refused at load rather than at the handoff.
+func (c Command) validate() error {
 	if len(c.parts) == 0 {
 		return errors.New("names no command to run")
 	}
-	for _, probe := range []worktree.Values{v.fill(""), v.fill(mark)} {
-		data, err := v.data(probe)
-		if err != nil {
-			return err
-		}
+	for _, d := range probes() {
 		for _, p := range c.parts {
-			if _, err := p.execute(data); err != nil {
-				return fmt.Errorf("%w; the values here are %s", err, v.list())
+			if _, err := p.execute(d); err != nil {
+				return fmt.Errorf("%w; the values here are %s", err, valueList)
 			}
 		}
 	}
-	c.values = v
 	return nil
 }
 
@@ -202,24 +160,19 @@ func (c Command) or(def Command) Command {
 	return c
 }
 
-// Render builds the argv, dropping every element that renders to nothing, so an
-// optional flag is one element rather than a pair.
+// Render drops every element that renders to nothing. A first element rendering
+// to nothing leaves no command, and the empty argv is the worktree itself.
 func (c Command) Render(vals worktree.Values) ([]string, error) {
-	data, err := c.values.data(vals)
-	if err != nil {
-		return nil, err
-	}
+	d := knownValues(vals)
 	argv := make([]string, 0, len(c.parts))
 	for i, p := range c.parts {
-		s, err := p.execute(data)
+		s, err := p.execute(d)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", c.values.key, err)
+			return nil, fmt.Errorf("%s: %w", commandKey, err)
 		}
-		// A first element rendering to nothing leaves no command at all; a later one
-		// is the optional flag it was written as.
 		if s == "" {
 			if i == 0 {
-				return nil, fmt.Errorf("%s: %q named nothing, leaving no command to run", c.values.key, p.text)
+				return nil, nil
 			}
 			continue
 		}
