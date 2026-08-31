@@ -31,23 +31,29 @@ source <(work init zsh)     # .zshrc, below compinit
 work
 ```
 
-Choose from the repository's worktrees. [The systems you name](#systems) add to the list: ready tickets, open pull requests.
+Choose from the repository's worktrees. The systems you enable add to the list: ready tickets, open pull requests.
 
 Every verb and argument: [the command line](docs/references/cli.md).
 
 ## Systems
 
-Everything `work` reaches for beyond git is a [system](docs/references/systems.md). You enable the ones you work with [in the settings](docs/references/configuration.md#systems).
+Everything `work` reaches for beyond git is a system. Name the ones you work with in `~/.config/work/config.toml`:
+
+```toml
+systems = ["beads", "claude"]
+```
 
 A resolver answers before a worktree exists, turning an identifier into the place to work.
 
-- [`beads`](docs/references/systems.md#beads): a ready ticket over `bd`, vetted before its worktree is made
-- [`github`](docs/references/systems.md#github): one of `origin`'s open pull requests, over `gh`
+- [`beads`](docs/references/systems.md#beads): a ready ticket over `bd`
+- [`github`](docs/references/systems.md#github): one open pull request
 
 An action runs on the worktree that now exists.
 
 - [`mise`](docs/references/systems.md#mise): trusts the new worktree
-- [`claude`](docs/references/systems.md#claude): hands the new worktree to the agent
+- [`claude`](docs/references/systems.md#claude): hands the worktree to the agent
+
+Every setting: [configuration](docs/references/configuration.md).
 
 ## License
 
