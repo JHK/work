@@ -14,10 +14,10 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this system goes by, and Command the CLI it goes through.
+// Name is what this system goes by, and Binary the CLI it goes through.
 const (
-	Name    = "github"
-	Command = "gh"
+	Name   = "github"
+	Binary = "gh"
 )
 
 // prURL matches an .../<owner>/<repo>/pull/<n> pull request URL.
@@ -47,15 +47,14 @@ func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return r.read(id)
 	}
-	// An identifier to confirm where the core has one, else the branch itself.
 	p, err := r.read(cmp.Or(id, o.Branch))
 	if err != nil || p.Name != o.Branch {
-		return worktree.Place{}, notOurs(o)
+		return worktree.Place{}, notMine(o)
 	}
 	return p, nil
 }
 
-func notOurs(o worktree.Open) error {
+func notMine(o worktree.Open) error {
 	return fmt.Errorf("%w: no pull request is named by branch %q", worktree.ErrUnknown, o.Branch)
 }
 
@@ -145,6 +144,6 @@ func (r Resolver) pulls() ([]pull, error) {
 	if remote == "" {
 		return nil, nil
 	}
-	return run.JSON[[]pull](r.repo, Command, "pr", "list", "--repo", remote,
+	return run.JSON[[]pull](r.repo, Binary, "pr", "list", "--repo", remote,
 		"--state", "open", "--limit", prLimit, "--json", "number,title")
 }

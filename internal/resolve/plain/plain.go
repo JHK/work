@@ -37,13 +37,8 @@ func (Resolver) Name() string { return Name }
 // Icon marks a row that stands for nothing but itself.
 func (Resolver) Icon() string { return "◇" }
 
-// Identify names the place behind what the core is holding.
-//
-// An identifier alone reaches [Named] alone, which takes it at its word and
-// spells the branch exactly as the name is; in the chain there is no such name.
-//
-// A worktree is whatever is left, named by its directory where it is detached.
-// With an identifier as well it is the directory that settles it.
+// Identify takes an identifier at its word, which only [Named] is handed one; a
+// worktree is whatever is left, the directory settling it where both are in hand.
 func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		if !r.own {
@@ -62,15 +57,15 @@ func (r Resolver) Offer() ([]worktree.Place, error) { return nil, nil }
 
 // Prepare asserts the name is free, a branch already holding it being a worktree
 // to re-enter rather than create.
-func (r Resolver) Prepare(place worktree.Place) (worktree.Place, error) {
-	if git.HasBranch(r.repo, place.Branch) {
-		return place, fmt.Errorf("branch %s already exists; enter its worktree with work %s", place.Branch, place.Name)
+func (r Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
+	if git.HasBranch(r.repo, p.Branch) {
+		return p, fmt.Errorf("branch %s already exists; enter its worktree with work %s", p.Branch, p.Name)
 	}
-	return place, nil
+	return p, nil
 }
 
 // Create forks a branch of its own from what the checkout work was invoked in
 // has at HEAD.
-func (r Resolver) Create(place worktree.Place, path string) error {
-	return git.NewWorktree(r.from, path, place.Branch)
+func (r Resolver) Create(p worktree.Place, path string) error {
+	return git.NewWorktree(r.from, path, p.Branch)
 }

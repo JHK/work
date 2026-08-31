@@ -9,8 +9,6 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// carryCommand is the verb that brings a worktree into being and takes the
-// checkout's work along.
 func carryCommand(verb opens) *cobra.Command {
 	return handing(&cobra.Command{
 		Use:   "carry <name>",

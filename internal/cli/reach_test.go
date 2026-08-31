@@ -35,7 +35,7 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
 			if tt.forge {
-				s.settings(on("github"))
+				s.settings(systemsOn("github"))
 			}
 			path := s.Repo
 			if tt.dir != "" {
@@ -49,8 +49,6 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 	}
 }
 
-// The bare form is go without the verb, so an identifier in the first position
-// reaches the same worktree.
 func TestTheBareFormReachesWhatGoReaches(t *testing.T) {
 	s := repository(t)
 	path := s.opened("scratch")
@@ -74,8 +72,8 @@ func TestGoMakesTheWorktreeATicketHasNone(t *testing.T) {
 	require.True(t, s.hasBranch("bd-1-do-a-thing"), "the worktree is not on the branch the ticket names")
 }
 
-// With no identifier the picker stands in for one, over the worktrees open and
-// whatever has none, and the row it comes back with is the one reached.
+// Over the worktrees open and whatever has none; the row it comes back with is
+// the one reached.
 func TestGoWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	// The row index is fzf's answer, and the worktree the shell stands in is not
 	// among the rows: the main checkout is where this one stands.
@@ -104,7 +102,7 @@ func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 		{
 			// Wired or not, no system reads a path into a place, and none may: the name is
 			// about to become a directory of its own, so add is not offered.
-			"a name no worktree could carry, the forge wired", on("github"), "a/b",
+			"a name no worktree could carry, the forge wired", systemsOn("github"), "a/b",
 			`nothing answers for "a/b"`,
 		},
 		{
@@ -154,7 +152,7 @@ func TestGoTakesTheBranchAheadOfADetachedWorktreeOfThatName(t *testing.T) {
 // run, and what it was put is what the refusal carries: R5 of docs/rules/refusals.md.
 func TestGoSaysWhatTheTrackerWouldNotAnswer(t *testing.T) {
 	s := repository(t)
-	s.settings(on("beads"))
+	s.settings(systemsOn("beads"))
 
 	r := s.run("go", "bd-1")
 

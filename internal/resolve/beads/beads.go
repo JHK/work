@@ -47,31 +47,38 @@ func (r *Resolver) Name() string { return Name }
 // Icon marks a row that stands for a ticket.
 func (r *Resolver) Icon() string { return "◆" }
 
-// Identify names the bead behind what the core is holding.
-//
-// An identifier is one bd lists; a bd that will not answer refuses rather than
-// naming no bead.
-//
-// A worktree is named by the longest id bd knows that owns its branch, and a bd
-// that will not list leaves it a plain one.
+// Identify names the bead behind an identifier bd lists, or behind a worktree
+// whose branch the longest id bd knows owns. A bd that will not list leaves a
+// worktree plain.
 func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
-		list, err := r.allBeads()
-		if err != nil {
-			return worktree.Place{}, err
-		}
-		b, ok := find(list, id)
-		if !ok {
-			return worktree.Place{}, fmt.Errorf("%w: bd names no bead %q", worktree.ErrUnknown, id)
-		}
-		return worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title}, nil
+		return r.byID(id)
 	}
+	return r.byBranch(id, o)
+}
+
+// byID is the bead bd lists under an identifier.
+func (r *Resolver) byID(id string) (worktree.Place, error) {
+	list, err := r.allBeads()
+	if err != nil {
+		return worktree.Place{}, err
+	}
+	b, ok := find(list, id)
+	if !ok {
+		return worktree.Place{}, fmt.Errorf("%w: bd names no bead %q", worktree.ErrUnknown, id)
+	}
+	return worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title}, nil
+}
+
+// byBranch is the bead a worktree's branch belongs to, an identifier in hand
+// being one to confirm rather than to look up.
+func (r *Resolver) byBranch(id string, o worktree.Open) (worktree.Place, error) {
 	// Ahead of the listing: confirming an identifier against a branch must not need bd.
 	if id != "" && !r.pattern.Owns(id, o.Branch) {
 		return worktree.Place{}, notMine(o)
 	}
 
-	found := r.longest(o.Branch)
+	found := r.owner(o.Branch)
 	if id != "" {
 		// A longer id bd knows owns this branch, so the branch is that ticket's.
 		if len(found) > len(id) {
@@ -82,7 +89,7 @@ func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) 
 	if found == "" {
 		return worktree.Place{}, notMine(o)
 	}
-	b, _ := r.record(found)
+	b, _ := r.listed(found)
 	return worktree.Place{ID: found, Name: found, Branch: o.Branch, Label: b.Title}, nil
 }
 
@@ -181,15 +188,15 @@ func (r *Resolver) bead(id string) (beads.Bead, error) {
 	if b, ok := r.held.Load(id); ok {
 		return b.(beads.Bead), nil
 	}
-	if b, ok := r.record(id); ok {
+	if b, ok := r.listed(id); ok {
 		return b, nil
 	}
 	return beads.Bead{}, fmt.Errorf("bd names no bead %q", id)
 }
 
-// record is the bead the full listing named, if it named one. A bd that will not
+// listed is the bead the full listing named, if it named one. A bd that will not
 // list names none.
-func (r *Resolver) record(id string) (beads.Bead, bool) {
+func (r *Resolver) listed(id string) (beads.Bead, bool) {
 	list, err := r.allBeads()
 	if err != nil {
 		return beads.Bead{}, false
@@ -197,9 +204,9 @@ func (r *Resolver) record(id string) (beads.Bead, bool) {
 	return find(list, id)
 }
 
-// longest names the bead a branch belongs to: the longest known id owning it, so
+// owner names the bead a branch belongs to: the longest known id owning it, so
 // that a branch of one-two's does not fall to one.
-func (r *Resolver) longest(branch string) string {
+func (r *Resolver) owner(branch string) string {
 	// Ahead of the listing: a detached worktree has no branch for any id to own.
 	if branch == "" {
 		return ""

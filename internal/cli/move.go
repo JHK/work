@@ -9,9 +9,8 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
-// moveCommand is the verb that moves a worktree and takes its branch with it. It
-// carries no flag, and a tab press offers what its picker offers at the name and
-// nothing at the destination, which is a name nothing holds yet.
+// move carries no flag. A tab press offers what its picker offers at the name
+// and nothing at the destination, which nothing holds yet.
 func moveCommand(verb offering[moves]) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move [<name>] [<destination>]",
@@ -40,10 +39,9 @@ checkout.`,
 	}
 }
 
-// move moves a worktree and renames its branch with it. It hands over to
-// nothing: the invocation does its work and exits.
+// move hands over to nothing: the invocation does its work and exits.
 func move(env work.Env, l listing, target, dest string) (work.Move, error) {
-	c, err := offered(env, l, target, env.Resolve)
+	c, err := targeted(env, l, target, env.Resolve)
 	if err != nil {
 		return work.Move{}, err
 	}

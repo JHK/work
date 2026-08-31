@@ -25,15 +25,21 @@ import (
 func init() {
 	standIn()
 	slog.SetDefault(slog.New(slog.DiscardHandler))
-	set := func(k, v string) {
-		if err := os.Setenv(k, v); err != nil {
-			panic(err)
-		}
-	}
 	// A child of a test binary stands where the case that spawned it left it.
 	if dir := os.Getenv(inherited); dir != "" {
 		ground = dir
 		return
+	}
+	takeGround()
+}
+
+// takeGround makes the settings home, the home directory and the git this
+// process's tests run against, and holds the process to them.
+func takeGround() {
+	set := func(k, v string) {
+		if err := os.Setenv(k, v); err != nil {
+			panic(err)
+		}
 	}
 	dir, err := os.MkdirTemp("", "work-testenv")
 	if err != nil {
@@ -107,9 +113,9 @@ var template = sync.OnceValues(func() (string, error) {
 	return dir, nil
 })
 
-// Home hands back a settings home the test owns, for the tests that put a
-// configuration in one rather than only needing the user's kept out.
-func Home(t *testing.T) string {
+// SettingsHome hands back a settings home the test owns, for the tests that put
+// a configuration in one rather than only needing the user's kept out.
+func SettingsHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
@@ -120,7 +126,7 @@ func Home(t *testing.T) string {
 // back the file it was written to. Each call takes a home of its own.
 func Settings(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(Home(t), "work", "config.toml")
+	path := filepath.Join(SettingsHome(t), "work", "config.toml")
 	Write(t, path, body)
 	return path
 }

@@ -21,13 +21,34 @@ func (m Move) Renamed() bool { return m.Was != m.Now }
 // Movable is why a worktree cannot be moved at all, which is known from the
 // candidate alone: a front end asks it ahead of the destination rather than
 // after.
-func (e Env) Movable(c Candidate) error { return e.actOn(c, "move") }
+func (e Env) Movable(c Candidate) error { return e.actionable(c, "move") }
 
 // Move moves a worktree's directory and renames its branch to the destination's
 // last element. No ticket is touched, no tracker asked and no action run. Both
 // halves land or neither does. A candidate [Env.Movable] refuses is refused here
 // too, a front end asking ahead of the destination being what that is for.
 func (e Env) Move(c Candidate, dest string) (Move, error) {
+	m, err := e.plan(c, dest)
+	if err != nil {
+		return Move{}, err
+	}
+	if err := git.MoveWorktree(e.Repo, c.path, m.To); err != nil {
+		return Move{}, err
+	}
+	if !m.Renamed() {
+		return m, nil
+	}
+	if err := git.RenameBranch(e.Repo, m.Was, m.Now); err != nil {
+		if back := git.MoveWorktree(e.Repo, m.To, c.path); back != nil {
+			return Move{}, fmt.Errorf("moved worktree to %s, but %w, and it would not move back: %w", m.To, err, back)
+		}
+		return Move{}, err
+	}
+	return m, nil
+}
+
+// plan is what the move would come to, and every refusal that costs nothing.
+func (e Env) plan(c Candidate, dest string) (Move, error) {
 	if err := e.Movable(c); err != nil {
 		return Move{}, err
 	}
@@ -47,20 +68,6 @@ func (e Env) Move(c Candidate, dest string) (Move, error) {
 	// the worktree moved and its branch behind.
 	if m.Renamed() && git.HasBranch(e.Repo, m.Now) {
 		return Move{}, fmt.Errorf("branch %s already exists", m.Now)
-	}
-
-	if err := git.MoveWorktree(e.Repo, c.path, to); err != nil {
-		return Move{}, err
-	}
-	if !m.Renamed() {
-		return m, nil
-	}
-	if err := git.RenameBranch(e.Repo, m.Was, m.Now); err != nil {
-		// Neither half lands: the worktree goes back where it stood.
-		if back := git.MoveWorktree(e.Repo, to, c.path); back != nil {
-			return Move{}, fmt.Errorf("moved worktree to %s, but %w, and it would not move back: %w", to, err, back)
-		}
-		return Move{}, err
 	}
 	return m, nil
 }

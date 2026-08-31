@@ -7,9 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The ticket a worktree was just made for is claimed, and nothing on the command
-// line calls that off: docs/references/systems.md#claiming. What else the tracker is
-// asked is work go's own case.
+// Nothing on the command line calls the claim off: docs/references/systems.md#claiming.
+// What else the tracker is asked is work go's own case.
 func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.at("bd-1")
@@ -20,9 +19,8 @@ func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 	require.True(t, s.hasBranch("bd-1-do-a-thing"), "the worktree is not on the branch the ticket names")
 }
 
-// With no identifier the picker stands in for one, over what has no worktree
-// yet: the forge put the row up, and the pull request already worked on is not
-// among the rows.
+// Over what has no worktree yet: the forge put the row up, and the pull request
+// already worked on is not among the rows.
 func TestAddWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	s := reviewing(t, nil, "",
 		testenv.Stub{Name: "fzf", Says: "0\tpr-7\n"},
@@ -47,8 +45,8 @@ func TestAddRefuses(t *testing.T) {
 		// tracked wires the tracker, for a row whose identifier is a ticket.
 		tracked bool
 		id      string
-		// set prepares the repository and says what the refusal reads.
-		set func(s *session) string
+		// blocks puts the thing in the way and says what the refusal reads.
+		blocks func(s *session) string
 	}{
 		{"an identifier that already has a worktree", true, "bd-1", func(s *session) string {
 			s.openedOn("bd-1", "bd-1-do-a-thing")
@@ -75,7 +73,7 @@ func TestAddRefuses(t *testing.T) {
 				s = tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 				asked = []string{listed}
 			}
-			said := tt.set(s)
+			said := tt.blocks(s)
 
 			r := s.run("add", tt.id)
 
@@ -114,7 +112,7 @@ func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
 // trust is best effort, so the worktree is still made: internal/action/mise.
 func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	s := repository(t)
-	s.settings(on("mise"))
+	s.settings(systemsOn("mise"))
 
 	r := s.run("add", "scratch")
 

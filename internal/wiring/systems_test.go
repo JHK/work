@@ -31,8 +31,7 @@ func TestTheSettingsSpellEverySystemTheWiringHas(t *testing.T) {
 		"a system the wiring has is one no settings file spells")
 }
 
-// No two resolvers mark their rows alike, and each mark is the one column the
-// picker pads for. Structural for the same reason: a command draws one row.
+// Structural like the case above: a command draws one row, never the set.
 func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	repo := t.TempDir()
 
@@ -70,7 +69,6 @@ func wired(systems work.Systems) []string {
 	return slices.Concat(names(systems.Resolvers), names(systems.Actions), names(systems.Openers))
 }
 
-// names are the systems under the names they go by.
 func names[T worktree.System](systems []T) []string {
 	var under []string
 	for _, s := range systems {

@@ -53,7 +53,7 @@ func TestAWorktreeOpeningOnACommandThatIsNotThereIsRefused(t *testing.T) {
 
 	r := s.run("add", "bd-1")
 
-	r.came(t, result{Code: 1, Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, apart)
+	r.came(t, result{Code: 1, Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, saidApart)
 	r.saying(t, "no-such-binary-xyz")
 	here, err := os.Getwd()
 	require.NoError(t, err)
@@ -84,8 +84,7 @@ func TestTheCommandTheTerminalGoesToDoesNotInheritTheShellsFile(t *testing.T) {
 		ticketSessionOn("bd-1", "Do a thing"))})
 }
 
-// With no identifier the picker stands in for one, over the worktrees open less
-// the one the shell stands in.
+// Over the worktrees open, less the one the shell stands in.
 func TestSwitchWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
 	path := s.opened("scratch")
@@ -95,8 +94,7 @@ func TestSwitchWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	r.came(t, result{Answered: path, Asked: []string{putUp}})
 }
 
-// Nothing comes into being on the way back in, so the ticket a worktree was made
-// for is not claimed again: the tracker is asked only what names the worktree.
+// The tracker is asked only what names the worktree.
 func TestSwitchClaimsNothingOnTheWayBackIn(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.openedOn("bd-1", "bd-1-do-a-thing")

@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These are the only cases that read a rendered line. Everywhere else a case
-// reads what work said, so a spelling that changes moves here and nowhere else.
-// What tint does with a record is tint's to test; these hold the options work
-// hands it.
-
 // A line is the level at a glance and the sentence work said, with the time
 // dropped and nothing wrapped around either.
 func TestALineIsTheLevelTagAndTheMessage(t *testing.T) {

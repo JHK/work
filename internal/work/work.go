@@ -113,11 +113,11 @@ func Open(dir string, cfg config.Config, wire Wiring) (Env, error) {
 	if err != nil {
 		return Env{}, err
 	}
-	logDebugEnvironment(repo, here, cfg)
+	sayWhatWorkRead(repo, here, cfg)
 	return Env{Repo: repo, Dir: here, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
 }
 
-func logDebugEnvironment(repo, here string, cfg config.Config) {
+func sayWhatWorkRead(repo, here string, cfg config.Config) {
 	ctx := context.Background()
 	if !slog.Default().Enabled(ctx, slog.LevelDebug) {
 		return
@@ -135,7 +135,6 @@ func logDebugEnvironment(repo, here string, cfg config.Config) {
 // traverse, and may not open with a dash.
 var worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
-// checkName holds a name to the worktree-name rule.
 func checkName(name string) error {
 	if !worktreeName.MatchString(name) {
 		return fmt.Errorf("%q is not a usable worktree name", name)
@@ -164,11 +163,11 @@ func (c Candidate) Dir() string {
 	return filepath.Base(c.path)
 }
 
-// actOn is why a verb may not act on the worktree a candidate has: there is
+// actionable is why a verb may not act on the worktree a candidate has: there is
 // none, it is the repository itself, or the process stands inside the one git is
 // about to move or take away, which would leave the shell in a directory that is
 // gone.
-func (e Env) actOn(c Candidate, verb string) error {
+func (e Env) actionable(c Candidate, verb string) error {
 	if !c.Open {
 		return fmt.Errorf("%s has no worktree to %s", c.Name, verb)
 	}
@@ -181,7 +180,6 @@ func (e Env) actOn(c Candidate, verb string) error {
 	return nil
 }
 
-// mainCheckout reports whether a candidate is where the repository itself sits.
 func (e Env) mainCheckout(c Candidate) bool { return git.SameDir(c.path, e.Repo) }
 
 // holds reports whether [Env.Dir] sits within the worktree a candidate has, a
@@ -237,7 +235,7 @@ func (e Env) place(id string, open []Candidate) (Candidate, error) {
 	// A worktree listed under the name is that worktree, whatever a resolver would
 	// make of it.
 	if named := byName(open, id); len(named) > 0 {
-		return shortest(named), nil
+		return preferred(named), nil
 	}
 	r, p, err := e.identify(id, worktree.Open{})
 	if err != nil {
@@ -250,7 +248,6 @@ func (e Env) place(id string, open []Candidate) (Candidate, error) {
 	return e.locate(r, p, open)
 }
 
-// byName is the worktrees listed under an identifier.
 func byName(open []Candidate, name string) []Candidate {
 	var found []Candidate
 	for _, c := range open {
@@ -383,13 +380,13 @@ func (e Env) Enterable() ([]Candidate, error) {
 }
 
 // Removable is what removing and moving offer: every worktree open that
-// [Env.actOn] does not refuse, so the listing and the refusal are one rule.
+// [Env.actionable] does not refuse, so the listing and the refusal are one rule.
 func (e Env) Removable() ([]Candidate, error) {
 	open, err := e.Worktrees()
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(open, func(c Candidate) bool { return e.actOn(c, "remove") != nil }), nil
+	return slices.DeleteFunc(open, func(c Candidate) bool { return e.actionable(c, "remove") != nil }), nil
 }
 
 // listing is the worktrees git reports, less the row a bare repository lists for
@@ -451,14 +448,14 @@ func (e Env) locate(r Resolver, p worktree.Place, open []Candidate) (Candidate, 
 	if len(found) == 0 {
 		return answered(r, Candidate{Place: p}), nil
 	}
-	return shortest(found), nil
+	return preferred(found), nil
 }
 
-// shortest settles several worktrees answering for one place: a branch takes it
+// preferred settles several worktrees answering for one place: a branch takes it
 // from a detached worktree, which goes by its directory rather than by an
 // address of its own, then the shortest branch, its spelling breaking a tie,
 // never git's listing order.
-func shortest(found []Candidate) Candidate {
+func preferred(found []Candidate) Candidate {
 	return slices.MinFunc(found, func(a, b Candidate) int {
 		return cmp.Or(
 			cmp.Compare(detached(a), detached(b)),
@@ -484,33 +481,46 @@ func (e Env) Candidates() ([]Candidate, []error, error) {
 	var (
 		open    []Candidate
 		err     error
-		offers  = make([][]worktree.Place, len(e.Systems.Resolvers))
+		offers  = make([]offered, len(e.Systems.Resolvers))
 		refused = make([]error, len(e.Systems.Resolvers))
 	)
 	// No resolver reads another's answer.
 	var wg sync.WaitGroup
 	wg.Go(func() { open, err = e.Worktrees() })
 	for i, r := range e.Systems.Resolvers {
-		wg.Go(func() { offers[i], refused[i] = r.Offer() })
+		offers[i].by = r
+		wg.Go(func() { offers[i].places, refused[i] = r.Offer() })
 	}
 	wg.Wait()
 	if err != nil {
 		return nil, nil, err
 	}
+	// Dropped after the merge, or a resolver offering the place the shell stands in
+	// puts it back as a row with no worktree.
+	out := lessStoodIn(openWithOffers(open, offers), e.stoodIn(open))
+	return out, slices.DeleteFunc(refused, func(err error) bool { return err == nil }), nil
+}
 
-	// Keyed on the name, which is what a place of any source is retyped as.
+// offered is what one resolver has to offer, beside the resolver itself.
+type offered struct {
+	by     Resolver
+	places []worktree.Place
+}
+
+// openWithOffers is the worktrees open with each resolver's offers behind them,
+// keyed on the name, which is what a place of any source is retyped as.
+func openWithOffers(open []Candidate, offers []offered) []Candidate {
 	out := slices.Clone(open)
 	seen := make(map[string]int, len(out))
 	for i, c := range out {
 		seen[c.Name] = i
 	}
-	for i, places := range offers {
-		r := e.Systems.Resolvers[i]
-		for _, p := range places {
+	for _, o := range offers {
+		for _, p := range o.places {
 			if at, already := seen[p.Name]; already {
 				// A resolver that read a branch alone may have no title; its own offer
 				// completes one. Another's is another place spelled alike.
-				if out[at].Source == r.Name() && out[at].Label == "" {
+				if out[at].Source == o.by.Name() && out[at].Label == "" {
 					out[at].Label = p.Label
 				}
 				continue
@@ -521,13 +531,10 @@ func (e Env) Candidates() ([]Candidate, []error, error) {
 				continue
 			}
 			seen[p.Name] = len(out)
-			out = append(out, answered(r, Candidate{Place: p}))
+			out = append(out, answered(o.by, Candidate{Place: p}))
 		}
 	}
-	// After the merge, or a resolver offering that place puts it back as a row with
-	// no worktree.
-	out = lessStoodIn(out, e.stoodIn(open))
-	return out, slices.DeleteFunc(refused, func(err error) bool { return err == nil }), nil
+	return out
 }
 
 // Addable is what a worktree can be made for: the places the resolvers offer

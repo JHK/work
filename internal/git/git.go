@@ -48,18 +48,18 @@ func Root(dir string) (string, error) {
 
 // SameDir reports whether two paths name the same directory.
 func SameDir(a, b string) bool {
-	return resolve(a) == resolve(b)
+	return realPath(a) == realPath(b)
 }
 
 // Inside reports whether path is dir or sits below it.
 func Inside(path, dir string) bool {
-	rel, err := filepath.Rel(resolve(dir), resolve(path))
+	rel, err := filepath.Rel(realPath(dir), realPath(path))
 	return err == nil && filepath.IsLocal(rel)
 }
 
-// resolve normalises a path for comparison; git reports worktrees with symlinks
-// already resolved.
-func resolve(path string) string {
+// git reports worktrees with symlinks already resolved, so a path is compared by
+// the real one.
+func realPath(path string) string {
 	if p, err := filepath.EvalSymlinks(path); err == nil {
 		return p
 	}
@@ -234,7 +234,6 @@ func add(dir, path string, args ...string) error {
 	return err
 }
 
-// mkParent makes the directory a worktree is about to sit in.
 func mkParent(path string) error {
 	return os.MkdirAll(filepath.Dir(path), 0o755)
 }

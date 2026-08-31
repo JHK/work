@@ -50,32 +50,31 @@ func (b Branch) pullRequest() Pattern { return b.PullRequestPattern.or(defaults.
 type Pattern struct {
 	tmpl tmpl
 
-	// What the pattern matches as: one alternative per state of the optional value,
-	// every literal quoted and the identifier left as a mark. numbers is that
-	// matcher compiled for the keys whose identifier reads back out of a branch.
-	matcher string
-	numbers *regexp.Regexp
+	// matcher is the rendered pattern, every literal quoted, the identifier a mark,
+	// one alternative per state of the optional value; numberIn compiles it for digits.
+	matcher  string
+	numberIn *regexp.Regexp
 }
 
 // values are what one key's pattern renders with: the value naming the target,
 // which the pattern has to place, and the one a target may not have.
 type values struct {
-	id       string
-	optional string // empty where the key has none
-	numbered bool   // the identifier is digits, and reads back out of a branch
-	list     string // how the values read in a refusal
+	idName       string
+	optionalName string // empty where the key has none
+	numbered     bool   // the identifier is digits, and reads back out of a branch
+	list         string // how the values read in a refusal
 }
 
 var (
-	ticketValues      = values{id: "ID", optional: "Slug", list: "{{.ID}} and {{.Slug}}"}
-	pullRequestValues = values{id: "Number", numbered: true, list: "{{.Number}}"}
+	ticketValues      = values{idName: "ID", optionalName: "Slug", list: "{{.ID}} and {{.Slug}}"}
+	pullRequestValues = values{idName: "Number", numbered: true, list: "{{.Number}}"}
 )
 
 // with is the data one render is given.
 func (v values) with(id, optional string) map[string]any {
-	data := map[string]any{v.id: id}
-	if v.optional != "" {
-		data[v.optional] = optional
+	data := map[string]any{v.idName: id}
+	if v.optionalName != "" {
+		data[v.optionalName] = optional
 	}
 	return data
 }
@@ -109,34 +108,11 @@ func parsePattern(text string) (Pattern, error) {
 }
 
 // bind ties the pattern to the values its key renders with and settles what it
-// matches as, or reports why it cannot name a branch. The marks it renders with
-// are one byte each, the shortest any real value is, so a pattern surviving this
-// renders every target the key has.
+// matches as, or reports why it cannot name a branch.
 func (p *Pattern) bind(v values) error {
-	// A target without the optional value renders a branch of its own.
-	states := []string{""}
-	if v.optional != "" {
-		states = []string{anyMark, ""}
-	}
-
-	var alts []string
-	for _, optional := range states {
-		arm, err := p.tmpl.execute(v.with(idMark, optional))
-		if err != nil {
-			return fmt.Errorf("%w; the values here are %s", err, v.list)
-		}
-		// A branch is found again by matching it against the pattern with the
-		// identifier filled in, so an arm without one would stand for every target.
-		if !strings.Contains(arm, idMark) {
-			return fmt.Errorf("places no {{.%s}}, so no worktree could be found by it", v.id)
-		}
-		if strings.HasPrefix(arm, "-") {
-			return errors.New("names a branch opening with a dash, which git reads as a flag")
-		}
-		// A pattern placing no optional value renders the same arm either way.
-		if alt := strings.ReplaceAll(regexp.QuoteMeta(arm), anyMark, ".+"); !slices.Contains(alts, alt) {
-			alts = append(alts, alt)
-		}
+	alts, err := p.alternatives(v)
+	if err != nil {
+		return err
 	}
 	p.matcher = `\A(?:` + strings.Join(alts, "|") + `)\z`
 
@@ -147,9 +123,40 @@ func (p *Pattern) bind(v values) error {
 		return err
 	}
 	if v.numbered {
-		p.numbers = numbers
+		p.numberIn = numbers
 	}
 	return nil
+}
+
+// alternatives is one arm per state of the optional value, every literal quoted
+// and each value left as its mark, or why the pattern names no branch at all.
+func (p Pattern) alternatives(v values) ([]string, error) {
+	// A target without the optional value renders a branch of its own.
+	states := []string{""}
+	if v.optionalName != "" {
+		states = []string{anyMark, ""}
+	}
+
+	var alts []string
+	for _, optional := range states {
+		arm, err := p.tmpl.execute(v.with(idMark, optional))
+		if err != nil {
+			return nil, fmt.Errorf("%w; the values here are %s", err, v.list)
+		}
+		// A branch is found again by matching it against the pattern with the
+		// identifier filled in, so an arm without one would stand for every target.
+		if !strings.Contains(arm, idMark) {
+			return nil, fmt.Errorf("places no {{.%s}}, so no worktree could be found by it", v.idName)
+		}
+		if strings.HasPrefix(arm, "-") {
+			return nil, errors.New("names a branch opening with a dash, which git reads as a flag")
+		}
+		// A pattern placing no optional value renders the same arm either way.
+		if alt := strings.ReplaceAll(regexp.QuoteMeta(arm), anyMark, ".+"); !slices.Contains(alts, alt) {
+			alts = append(alts, alt)
+		}
+	}
+	return alts, nil
 }
 
 // or is the pattern itself, or def where no file named one.
@@ -160,7 +167,6 @@ func (p Pattern) or(def Pattern) Pattern {
 	return p
 }
 
-// render names one branch.
 func (p Pattern) render(data map[string]any) string {
 	branch, err := p.tmpl.execute(data)
 	if err != nil {
@@ -169,7 +175,6 @@ func (p Pattern) render(data map[string]any) string {
 	return branch
 }
 
-// owns reports whether a branch is one this pattern names for id.
 func (p Pattern) owns(id, branch string) bool {
 	// Every branch the pattern names for id spells it out, so most of them are
 	// ruled out without a regexp at all.
@@ -180,12 +185,11 @@ func (p Pattern) owns(id, branch string) bool {
 	return err == nil && re.MatchString(branch)
 }
 
-// capture reads the identifier a branch carries back out of it.
 func (p Pattern) capture(branch string) (string, bool) {
-	if p.numbers == nil {
+	if p.numberIn == nil {
 		return "", false
 	}
-	m := p.numbers.FindStringSubmatch(branch)
+	m := p.numberIn.FindStringSubmatch(branch)
 	if m == nil {
 		return "", false
 	}

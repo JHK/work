@@ -21,12 +21,8 @@ func spelling(f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-// The settings a dump names are the settings the tables declare, key for key and
-// under the spelling a settings file loads back.
-//
-// No command reaches it. A key the tables declare and [Config.keys] leaves out
-// is one no dump ever prints, so nothing outside this package can see it go
-// missing.
+// The settings a dump names are the settings the tables declare, under the
+// spelling a settings file loads back. No command reaches [Config.keys].
 func TestEveryDeclaredSettingIsDumped(t *testing.T) {
 	var want []string
 	for table := range reflect.TypeFor[Config]().Fields() {
@@ -47,11 +43,8 @@ func TestEveryDeclaredSettingIsDumped(t *testing.T) {
 	testenv.Equal(t, want, got, "the dump and the tables name different settings")
 }
 
-// Every key unset is the compiled-in one, so a Config that never reached Load
-// still names a worktree directory, a branch and a command rather than nothing.
-//
-// No command reaches it. Every verb opens the repository, and that is what reads
-// the settings, so a zero Config is one only the compiler can hand over.
+// A Config that never reached Load still names a directory, a branch and a
+// command. No command reaches a zero Config; only the compiler hands one over.
 func TestTheZeroConfigNamesWhatWorkNeeds(t *testing.T) {
 	var c Config
 

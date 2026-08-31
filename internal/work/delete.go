@@ -18,7 +18,7 @@ type Deletion struct {
 // refused without force, and where the removal is not refused the branch goes
 // with it.
 func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
-	if err := e.actOn(c, "remove"); err != nil {
+	if err := e.actionable(c, "remove"); err != nil {
 		return Deletion{}, err
 	}
 	if !force && git.Dirty(c.path) {

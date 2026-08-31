@@ -41,7 +41,7 @@ func TestWhatAVerbsCreationOpensOn(t *testing.T) {
 // handed back whatever claude.on-creation names.
 func TestACreationNothingAnsweredForIsHandedBack(t *testing.T) {
 	tests := []struct{ name, body, verb string }{
-		{"add, which the key names by default", on("claude"), "add"},
+		{"add, which the key names by default", systemsOn("claude"), "add"},
 		{"carry, where the key names it", agentOn + "on-creation = [\"carry\"]\n", "carry"},
 	}
 	for _, tt := range tests {

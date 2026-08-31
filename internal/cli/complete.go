@@ -91,17 +91,25 @@ into the worktree, and completes the commands and each verb's argument.`,
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: valid,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			out := cmd.OutOrStdout()
-			for _, in := range integrations {
-				if in.shell != args[0] {
-					continue
-				}
-				if _, err := io.WriteString(out, in.function); err != nil {
-					return err
-				}
-				return in.completion(cmd.Root(), out, true)
+			in, ok := integrationFor(args[0])
+			if !ok {
+				return fmt.Errorf("no %s integration", args[0])
 			}
-			return fmt.Errorf("no %s integration", args[0])
+			out := cmd.OutOrStdout()
+			if _, err := io.WriteString(out, in.function); err != nil {
+				return err
+			}
+			return in.completion(cmd.Root(), out, true)
 		},
 	}
+}
+
+// integrationFor is what work prints for a shell, and whether it prints for one.
+func integrationFor(shell string) (integration, bool) {
+	for _, in := range integrations {
+		if in.shell == shell {
+			return in, true
+		}
+	}
+	return integration{}, false
 }

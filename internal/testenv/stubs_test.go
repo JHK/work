@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// answered is what one question put to a stand-in came back with.
-type answered struct {
+// answer is what one question put to a stand-in came back with.
+type answer struct {
 	Code int
 	Out  string
 	Err  string
@@ -19,7 +19,7 @@ type answered struct {
 
 // asks puts one question to the stand-in on PATH, standing where the test says,
 // and hands back what came back on each stream and in the exit status.
-func asks(t *testing.T, dir, name string, args ...string) answered {
+func asks(t *testing.T, dir, name string, args ...string) answer {
 	t.Helper()
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
@@ -31,7 +31,7 @@ func asks(t *testing.T, dir, name string, args ...string) answered {
 		require.ErrorAs(t, err, &exit, "%s %s", name, strings.Join(args, " "))
 		code = exit.ExitCode()
 	}
-	return answered{Out: out.String(), Err: said.String(), Code: code}
+	return answer{Out: out.String(), Err: said.String(), Code: code}
 }
 
 // Each reply is taken for the question carrying the words it names, and nothing
@@ -47,11 +47,11 @@ func TestAStandInAnswersByWhatItWasAsked(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		args []string
-		want answered
+		want answer
 	}{
-		{"a listing", []string{"list", "--all", "--json"}, answered{Out: "[]\n"}},
-		{"a claim", []string{"update", "one", "--claim"}, answered{}},
-		{"a bead nothing knows", []string{"show", "one"}, answered{Err: "bead not found\n", Code: 1}},
+		{"a listing", []string{"list", "--all", "--json"}, answer{Out: "[]\n"}},
+		{"a claim", []string{"update", "one", "--claim"}, answer{}},
+		{"a bead nothing knows", []string{"show", "one"}, answer{Err: "bead not found\n", Code: 1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			testenv.Equal(t, tt.want, asks(t, here, "bd", tt.args...), "the stand-in answered the wrong reply")
@@ -111,6 +111,6 @@ func TestAStandInWithNoRepliesAnswersEverythingTheSameWay(t *testing.T) {
 	here := t.TempDir()
 
 	for _, args := range [][]string{{"pr", "view", "7"}, {"auth", "status"}} {
-		testenv.Equal(t, answered{Out: "{}\n", Code: 3}, asks(t, here, "gh", args...), "gh "+strings.Join(args, " ")+" was answered differently")
+		testenv.Equal(t, answer{Out: "{}\n", Code: 3}, asks(t, here, "gh", args...), "gh "+strings.Join(args, " ")+" was answered differently")
 	}
 }

@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestInitRepoHandsBackWhatGitWouldHaveBuilt establishes that a copied
-// repository reads as the one git init and an empty commit build in place.
 func TestInitRepoHandsBackWhatGitWouldHaveBuilt(t *testing.T) {
 	got := testenv.InitRepo(t)
 	want := t.TempDir()
@@ -29,9 +27,8 @@ func TestInitRepoHandsBackWhatGitWouldHaveBuilt(t *testing.T) {
 	}
 }
 
-// TestEachRepositoryIsTheCallersOwn establishes that a copy carries nothing of
-// where it was built: it takes a worktree of its own, and the next caller gets
-// none of it.
+// A copy carries nothing of where it was built: it takes a worktree of its own,
+// and the next caller gets none of it.
 func TestEachRepositoryIsTheCallersOwn(t *testing.T) {
 	first, second := testenv.InitRepo(t), testenv.InitRepo(t)
 	testenv.Git(t, first, "worktree", "add", "-b", "one", filepath.Join(t.TempDir(), "one"))

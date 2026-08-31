@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// userRelPath is where the settings file sits under a settings home, as a user
+// settingsRelativePath is where the settings file sits under a settings home, as a user
 // spells it out and no case derives it from the code.
-const userRelPath = "work/config.toml"
+const settingsRelativePath = "work/config.toml"
 
 // editing stands a shell in a repository whose editors all stand in, in a
 // settings home of the case's own, and hands back where the file belongs.
@@ -22,7 +22,7 @@ func editing(t *testing.T, editors ...string) (*session, string) {
 		stubs[i] = testenv.Stub{Name: name}
 	}
 	s := repository(t, stubs...)
-	return s, filepath.Join(testenv.Home(t), userRelPath)
+	return s, filepath.Join(testenv.SettingsHome(t), settingsRelativePath)
 }
 
 // The editor is handed the settings file itself, and the file and the directory
@@ -61,10 +61,9 @@ func TestConfigEditReadsTheEditorOutOfTheEnvironment(t *testing.T) {
 	}
 }
 
-// Bringing the file into being leaves what it already holds alone.
 func TestConfigEditKeepsAFileThatIsThere(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "gvim"})
-	body := "[action]\nenter = \"shell\"\n"
+	body := directory("trees")
 	path := s.settings(body)
 	t.Setenv("VISUAL", "gvim")
 
@@ -114,7 +113,7 @@ func TestConfigEditHandsTheTerminalToTheEditorInTheSettingsDirectory(t *testing.
 	// pwd -P rather than pwd, which the stand-in's shell answers out of a $PWD
 	// work's own chdir left stale.
 	s := repository(t, testenv.Stub{Name: "gvim", Shell: "pwd -P"})
-	path := filepath.Join(testenv.Home(t), userRelPath)
+	path := filepath.Join(testenv.SettingsHome(t), settingsRelativePath)
 	t.Setenv("VISUAL", "gvim")
 
 	r := s.hands("config", "edit")

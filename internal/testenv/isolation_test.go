@@ -24,13 +24,11 @@ var doors = []string{
 	testenv.Module + "/internal/action/claude",
 }
 
-// TestEveryTestPackageReachingGitOrTheSettingsIsIsolated guards R6 of
-// docs/rules/test-isolation.md: every package whose test binary reaches a door
-// pulls in testenv, whose initialisation isolates the process.
+// Every package whose test binary reaches a door pulls in testenv, whose
+// initialisation isolates the process: R6 of docs/rules/test-isolation.md.
 func TestEveryTestPackageReachingGitOrTheSettingsIsIsolated(t *testing.T) {
-	// A test binary is what go list writes under .Name main, and its dependencies are
-	// the whole closure, so a package reaching a door through what it imports is
-	// judged like one importing the door itself.
+	// A test binary is what go list writes under .Name main, and .Deps the whole
+	// closure, so a door reached through an import is judged like one imported.
 	for _, line := range testenv.Listed(t, root, "-test",
 		"-f", `{{if eq .Name "main"}}{{.ImportPath}}{{range .Deps}} {{.}}{{end}}{{end}}`, "./...") {
 		linked := strings.Fields(line)

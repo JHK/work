@@ -30,7 +30,7 @@ func (c Config) Dump() string {
 			}
 			table = name
 		}
-		fmt.Fprintf(&b, "%s = %s\n", leaf, value(k.value))
+		fmt.Fprintf(&b, "%s = %s\n", leaf, spelled(k.value))
 	}
 	return b.String()
 }
@@ -59,9 +59,9 @@ func (c Config) keys() []key {
 // block is a value a settings file writes as a multiline literal string.
 type block string
 
-// value is one setting as a settings file spells it, quoted by the package that
+// spelled is one setting as a settings file spells it, quoted by the package that
 // reads it back.
-func value(v any) string {
+func spelled(v any) string {
 	if b, ok := v.(block); ok {
 		if s := string(b); fitsLiteral(s) {
 			// TOML drops the newline after the opening quotes, so the text reads back as written.

@@ -24,36 +24,11 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		return worktree.Handoff{}, errors.New("no system answers for this place")
 	}
 
-	// Only a worktree about to be made is prepared, which is where a ticket that
-	// cannot be worked is refused.
-	t := worktree.Tree{Place: c.Place, Path: c.path, By: c.by}
-	carrying := false
-	if !c.Open {
-		var err error
-		if t.Place, err = c.by.Prepare(c.Place); err != nil {
-			return worktree.Handoff{}, err
-		}
-		// Preparing is the last moment a resolver may change the name, which is about
-		// to become a directory.
-		if err := checkName(t.Name); err != nil {
-			return worktree.Handoff{}, err
-		}
-		if err := e.inside(); err != nil {
-			return worktree.Handoff{}, err
-		}
-		t.Path, t.Created = e.path(t.Name), true
-		if err := git.Vacant(t.Path); err != nil {
-			return worktree.Handoff{}, err
-		}
-		// Asked before the worktree is made: the directory about to appear under the
-		// checkout would itself read as work in hand.
-		carrying = o.Carry && e.carries()
-		if err := c.by.Create(t.Place, t.Path); err != nil {
-			return worktree.Handoff{}, err
-		}
+	t, carrying, err := e.create(c, o.Carry)
+	if err != nil {
+		return worktree.Handoff{}, err
 	}
 
-	// A worktree that was already there runs none of them.
 	if t.Created {
 		for _, a := range e.Systems.Actions {
 			if err := a.Run(t); err != nil {
@@ -72,11 +47,43 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 
 	// Past the creation and the actions, so the resolver is asked of a worktree that
 	// exists.
-	opener, err := e.named(c, o)
+	opener, err := e.openerFor(c, o)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
 	return opener.Open(t, e.values(t))
+}
+
+// create is the worktree a candidate has, made where it has none, and whether
+// the checkout's working state is still to move into it.
+func (e Env) create(c Candidate, carry bool) (worktree.Tree, bool, error) {
+	t := worktree.Tree{Place: c.Place, Path: c.path, By: c.by}
+	if c.Open {
+		return t, false, nil
+	}
+	var err error
+	if t.Place, err = c.by.Prepare(c.Place); err != nil {
+		return worktree.Tree{}, false, err
+	}
+	// Preparing is the last moment a resolver may change the name, which is about
+	// to become a directory.
+	if err := checkName(t.Name); err != nil {
+		return worktree.Tree{}, false, err
+	}
+	if err := e.inside(); err != nil {
+		return worktree.Tree{}, false, err
+	}
+	t.Path, t.Created = e.path(t.Name), true
+	if err := git.Vacant(t.Path); err != nil {
+		return worktree.Tree{}, false, err
+	}
+	// Asked before the worktree is made: the directory about to appear under the
+	// checkout would itself read as work in hand.
+	carrying := carry && e.carries()
+	if err := c.by.Create(t.Place, t.Path); err != nil {
+		return worktree.Tree{}, false, err
+	}
+	return t, carrying, nil
 }
 
 // Carryable is why the checkout work was invoked in has nothing to hand over: it
@@ -110,17 +117,16 @@ func (e Env) carry(to string) error {
 	return nil
 }
 
-// named is what the moment opens on: a worktree this run created goes to the
+// openerFor is what the moment opens on: a worktree this run created goes to the
 // agent where the settings send that verb's creations, and every other worktree
 // is handed back.
-func (e Env) named(c Candidate, o Options) (Opener, error) {
+func (e Env) openerFor(c Candidate, o Options) (Opener, error) {
 	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
 		return e.opener(config.ClaudeOpener)
 	}
 	return e.opener(config.ShellOpener)
 }
 
-// opener is the action that goes by a name.
 func (e Env) opener(name string) (Opener, error) {
 	for _, op := range e.Systems.Openers {
 		if op.Name() == name {

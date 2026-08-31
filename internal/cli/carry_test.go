@@ -49,8 +49,7 @@ func TestCarryLeavesIgnoredFilesWhereTheyAre(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(r.Answered, "ignored"), "the ignored file travelled into the worktree")
 }
 
-// A checkout with nothing in hand is refused, and the refusal names the verb
-// that only creates.
+// The refusal names the verb that only creates.
 func TestCarryRefusesACleanCheckout(t *testing.T) {
 	s := repository(t)
 
@@ -60,8 +59,7 @@ func TestCarryRefusesACleanCheckout(t *testing.T) {
 		"this checkout carries no changes; work add carried makes the worktree and carries nothing"}})
 }
 
-// A name that has a worktree already is nowhere to carry to, and the refusal
-// costs the checkout nothing.
+// The refusal costs the checkout nothing.
 func TestCarryRefusesANameThatAlreadyHasAWorktree(t *testing.T) {
 	s := repository(t)
 	s.dirty()
@@ -75,16 +73,15 @@ func TestCarryRefusesANameThatAlreadyHasAWorktree(t *testing.T) {
 	require.Empty(t, carrying(t, path), "something was carried into the worktree that was already there")
 }
 
-// The name is given on the command line: no picker stands in for it, and a tab
-// press after the verb offers nothing either.
+// The name is given on the command line: no picker stands in for it.
 func TestCarryPutsUpNoListing(t *testing.T) {
 	put := putsUp(t)
-	s := repository(t, put.stub())
+	s := repository(t, put.dismisses())
 	s.dirty()
 
 	r := s.run("carry")
 
-	r.came(t, result{Code: 1}, apart)
+	r.came(t, result{Code: 1}, saidApart)
 	require.Empty(t, rows(s.completes("carry", "")), "a tab press after carry offered rows")
 }
 
@@ -132,13 +129,13 @@ func TestACarryThatCannotFinishNamesWhereTheChangesAre(t *testing.T) {
 	// The file the restore is about to collide with, written where only an action
 	// can reach: between git making the worktree and work restoring into it.
 	s := repository(t, testenv.Stub{Name: "mise", Shell: `printf 'something else entirely' > untracked`})
-	s.settings(on("mise"))
+	s.settings(systemsOn("mise"))
 	s.dirty()
 	path := s.at("carried")
 
 	r := s.run("carry", "carried")
 
-	r.came(t, result{Code: 1, Asked: []string{"mise trust"}}, apart)
+	r.came(t, result{Code: 1, Asked: []string{"mise trust"}}, saidApart)
 	r.saying(t, "stashed", path)
 	require.Contains(t, testenv.Git(t, s.Repo, "stash", "list"), "stash@{0}", "the entry was not kept")
 	require.NotEmpty(t, carrying(t, path),

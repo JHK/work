@@ -47,8 +47,8 @@ func (c Config) OpensOnCreation(verb string) bool {
 	return c.On(ClaudeSystem) && slices.Contains(c.Claude.OnCreation(), verb)
 }
 
-// validate refuses a verb no worktree comes into being under, and a word no verb
-// goes by at all.
+// validateOnCreation refuses a verb no worktree comes into being under, and a
+// word no verb goes by at all.
 func (c Claude) validateOnCreation() error {
 	for _, verb := range c.OnCreationVerbs {
 		if slices.Contains(creating, verb) {

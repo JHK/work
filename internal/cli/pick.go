@@ -18,15 +18,14 @@ const (
 
 	openMark = "⎇"
 
-	// prompt is what the one question fzf is put reads as.
 	prompt = "work> "
 )
 
 // listing is what a verb has to offer: where its rows come from, and the words
 // it has for having none.
 type listing struct {
-	nothing string
-	rows    func(work.Env) ([]work.Candidate, []error, error)
+	saidWhenEmpty string
+	rows          func(work.Env) ([]work.Candidate, []error, error)
 }
 
 // The listing each verb offers. remove and move share the rows and not the
@@ -48,24 +47,24 @@ func rowsAlone(list func(work.Env) ([]work.Candidate, error)) func(work.Env) ([]
 	}
 }
 
-// offered is the place a verb was given, or the one its listing hands over where
+// targeted is the place a verb was given, or the one its listing hands over where
 // it was given none.
-func offered(env work.Env, l listing, id string, resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
-	if id != "" {
-		return resolve(id)
+func targeted(env work.Env, l listing, target string, resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
+	if target != "" {
+		return resolve(target)
 	}
 	rows, _, err := l.rows(env)
-	return pickFrom(l.nothing, rows, err)
+	return pickFrom(l.saidWhenEmpty, rows, err)
 }
 
 // pickFrom puts one listing in front of the picker, refusing one left with no
 // rows in the words its verb has for having none.
-func pickFrom(nothing string, candidates []work.Candidate, err error) (work.Candidate, error) {
+func pickFrom(saidWhenEmpty string, candidates []work.Candidate, err error) (work.Candidate, error) {
 	if err != nil {
 		return work.Candidate{}, err
 	}
 	if len(candidates) == 0 {
-		return work.Candidate{}, errors.New(nothing)
+		return work.Candidate{}, errors.New(saidWhenEmpty)
 	}
 	i, err := choose(labels(candidates))
 	if err != nil {
@@ -95,10 +94,9 @@ func choose(rows []string) (int, error) {
 	return i, nil
 }
 
-// putThrough runs fzf over a listing under the flags every screen work puts up
-// shares, and hands back what it printed whether or not it came back cancelled.
-// fzf exits 1 with no match and 130 when interrupted; anything else, a missing
-// binary above all, is a failure the user has to be told about.
+// putThrough runs fzf under the flags every screen shares. fzf exits 1 with no
+// match and 130 when interrupted; anything else, a missing binary above all, is
+// a failure.
 func putThrough(stdin string, args ...string) (string, error) {
 	fzf := run.Command("", "fzf", append([]string{"--height", "40%", "--reverse", "--prompt", prompt}, args...)...)
 	fzf.Stdin = strings.NewReader(stdin)
@@ -115,8 +113,7 @@ func putThrough(stdin string, args ...string) (string, error) {
 }
 
 // ask puts one question with an answer already in it, standing in for the
-// argument a verb was given only half of. It is the picker's fzf over a listing
-// of nothing, where the query is the answer.
+// argument a verb was given only half of.
 func ask(preset string) (string, error) {
 	// An answer matches none of the nothing on offer, so it comes back cancelled and
 	// is read off what was printed rather than off the status.
@@ -131,12 +128,11 @@ func ask(preset string) (string, error) {
 	return answer, nil
 }
 
-// column is where the titles line up: behind the widest name that has one. A
+// columnWidth is where the titles line up: behind the widest name that has one. A
 // worktree name is ASCII by construction, so its length is its width.
-func column(candidates []work.Candidate) int {
+func columnWidth(candidates []work.Candidate) int {
 	width := 0
 	for _, c := range candidates {
-		// An untitled row is not padded, so it does not set the column either.
 		if c.Label != "" {
 			width = max(width, len(c.Name))
 		}
@@ -144,9 +140,8 @@ func column(candidates []work.Candidate) int {
 	return width
 }
 
-// labels renders the rows the picker offers.
 func labels(candidates []work.Candidate) []string {
-	width := column(candidates)
+	width := columnWidth(candidates)
 	out := make([]string, len(candidates))
 	for i, c := range candidates {
 		out[i] = label(c, width)

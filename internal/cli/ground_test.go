@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 	// watches one types it in a child of this binary.
 	if len(os.Args) > 1 && os.Args[1] == underTest {
 		logLevel := LogLevel()
-		slog.SetDefault(logger(os.Stderr, logLevel))
+		slog.SetDefault(jsonLogger(os.Stderr, logLevel))
 		os.Exit(Execute(stubVersion, wiring.Wire, os.Args[2:], os.Stdout, logLevel))
 	}
 	testenv.Main(m)
@@ -123,8 +123,8 @@ type result struct {
 	records []record
 }
 
-// apart leaves what a run said out of the whole [result.came] compares.
-var apart = besides("Errored", "Warned", "Informed", "Debugged")
+// saidApart leaves what a run said out of the whole [result.came] compares.
+var saidApart = besides("Errored", "Warned", "Informed", "Debugged")
 
 // came fails the case unless the run came to want in every part, go-cmp's diff
 // of the two being the whole message: what the case promises is the comment
@@ -133,20 +133,19 @@ var apart = besides("Errored", "Warned", "Informed", "Debugged")
 // on its own is left out of the comparison with [besides].
 func (r result) came(t *testing.T, want result, opts ...cmp.Option) {
 	t.Helper()
-	testenv.Equal(t, want, r, "what the run came to", append(opts, rendered)...)
+	testenv.Equal(t, want, r, "what the run came to", append(opts, ignoringRecords)...)
 }
 
-// rendered leaves out the records behind what a run said, which [result.under]
-// reads and no case compares.
-var rendered = cmpopts.IgnoreUnexported(result{})
+// ignoringRecords leaves out the records behind what a run said, which
+// [result.under] reads and no case compares.
+var ignoringRecords = cmpopts.IgnoreUnexported(result{})
 
 // besides names the fields a case states on their own, which [result.came] then
 // leaves out of the whole it compares.
 func besides(fields ...string) cmp.Option { return cmpopts.IgnoreFields(result{}, fields...) }
 
-// atOnce compares what the stand-ins were asked as a set: the listings one run
-// gathers are asked for at once and settle no order between them. The order a
-// run puts its questions in is a case of its own, asserted without this.
+// atOnce compares .Asked as a set: the listings one run gathers are asked for at
+// once and settle no order between them.
 var atOnce = cmp.FilterPath(
 	func(p cmp.Path) bool { return p.Last().String() == ".Asked" },
 	cmpopts.SortSlices(func(a, b string) bool { return a < b }),
@@ -183,22 +182,27 @@ func (s *session) reads(out io.Writer, args ...string) result {
 	t := s.t
 	t.Helper()
 	t.Chdir(s.Dir)
-	s.names()
+	s.namesTheShimFile()
 
 	var printed bytes.Buffer
 	if out == nil {
 		out = &printed
 	}
-	// The process log for the length of this run.
 	logLevel := LogLevel()
 	var stream bytes.Buffer
-	was := slog.Default()
-	slog.SetDefault(logger(&stream, logLevel))
-	defer slog.SetDefault(was)
+	defer sayingInto(&stream, logLevel)()
 
 	code := Execute(stubVersion, wiring.Wire, args, out, logLevel)
 
 	return s.outcome(code, printed.String(), decoded(t, stream.String()))
+}
+
+// sayingInto stands the process log on stream for the length of one run, and
+// hands back what puts it where it was.
+func sayingInto(stream *bytes.Buffer, level *slog.LevelVar) func() {
+	was := slog.Default()
+	slog.SetDefault(jsonLogger(stream, level))
+	return func() { slog.SetDefault(was) }
 }
 
 // outcome is what a run came to, its diagnostics split by level.
@@ -228,9 +232,9 @@ type record struct {
 	Values  map[string]string
 }
 
-// logger is the log a run writes, whichever way the command was typed, and so
-// what [decoded] reads back.
-func logger(w io.Writer, from slog.Leveler) *slog.Logger {
+// jsonLogger is the log a run writes, whichever way the command was typed, and
+// so what [decoded] reads back.
+func jsonLogger(w io.Writer, from slog.Leveler) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: from}))
 }
 
@@ -238,25 +242,30 @@ func logger(w io.Writer, from slog.Leveler) *slog.Logger {
 func decoded(t *testing.T, stream string) []record {
 	t.Helper()
 	var records []record
-	for raw := range strings.SplitSeq(strings.TrimSpace(stream), "\n") {
-		if raw == "" {
-			continue
+	for line := range strings.SplitSeq(strings.TrimSpace(stream), "\n") {
+		if line != "" {
+			records = append(records, recorded(t, line))
 		}
-		var said struct {
-			Level   slog.Level `json:"level"`
-			Message string     `json:"msg"`
-		}
-		var fields map[string]json.RawMessage
-		line := []byte(raw)
-		if err := errors.Join(json.Unmarshal(line, &said), json.Unmarshal(line, &fields)); err != nil {
-			t.Fatalf("read what a run said: %v", err)
-		}
-		for _, own := range []string{slog.TimeKey, slog.LevelKey, slog.MessageKey} {
-			delete(fields, own)
-		}
-		records = append(records, record{Level: said.Level, Message: said.Message, Values: keyed(fields)})
 	}
 	return records
+}
+
+// recorded is one line of the log read back.
+func recorded(t *testing.T, line string) record {
+	t.Helper()
+	var said struct {
+		Level   slog.Level `json:"level"`
+		Message string     `json:"msg"`
+	}
+	var fields map[string]json.RawMessage
+	raw := []byte(line)
+	if err := errors.Join(json.Unmarshal(raw, &said), json.Unmarshal(raw, &fields)); err != nil {
+		t.Fatalf("read what a run said: %v", err)
+	}
+	for _, own := range []string{slog.TimeKey, slog.LevelKey, slog.MessageKey} {
+		delete(fields, own)
+	}
+	return record{Level: said.Level, Message: said.Message, Values: keyed(fields)}
 }
 
 // keyed is the values one record carried, each spelled as work keyed it: a
@@ -273,10 +282,10 @@ func keyed(fields map[string]json.RawMessage) map[string]string {
 	return out
 }
 
-// names puts the file the shell function named in the environment and takes what
+// namesTheShimFile puts the file the shell function named in the environment and takes what
 // an earlier command wrote into it away, so what is read back is this one's own
 // answer.
-func (s *session) names() {
+func (s *session) namesTheShimFile() {
 	t := s.t
 	t.Helper()
 	t.Setenv(shim.CDFile, s.Shim)
@@ -315,7 +324,7 @@ func (s *session) answered() string {
 func (s *session) hands(args ...string) result {
 	t := s.t
 	t.Helper()
-	s.names()
+	s.namesTheShimFile()
 	// Resolved rather than taken from os.Args[0], which a child given a directory of
 	// its own would read a relative path against.
 	binary, err := os.Executable()
@@ -367,9 +376,9 @@ func tickets(list ...ticket) string {
 	return string(out)
 }
 
-// on is the settings that put those systems in force, which is the line every
+// systemsOn is the settings that put those systems in force, which is the line every
 // other body a case writes follows.
-func on(systems ...string) string {
+func systemsOn(systems ...string) string {
 	return "systems = [\"" + strings.Join(systems, "\", \"") + "\"]\n"
 }
 
@@ -377,7 +386,7 @@ func on(systems ...string) string {
 // in [claude]. agentOn is the agent in force with that table open.
 const claudeTable = "[claude]\n"
 
-var agentOn = on("claude") + claudeTable
+var agentOn = systemsOn("claude") + claudeTable
 
 // quotes open and close the TOML multiline literal string a command is written
 // as, and commandBlock is one, the lines given as they stand between them.
@@ -405,11 +414,12 @@ const (
 )
 
 // creates and claims are what work asks the tracker for a ticket's worktree
-// coming into being, and worked every question a ticket worked from scratch is
-// put in the order they are put.
+// coming into being.
 func creates(path, branch string) string { return "bd worktree create " + path + " --branch " + branch }
 func claims(id string) string            { return "bd update " + id + " --claim" }
 
+// worked is every question a ticket worked from scratch is put, in the order
+// they are put.
 func worked(id, path, branch string) []string {
 	return []string{listed, vetted, creates(path, branch), claims(id)}
 }
@@ -440,7 +450,7 @@ func tracker(all, ready string) testenv.Stub {
 func tracking(t *testing.T, all, ready []ticket, also []string, body string, answering ...testenv.Stub) *session {
 	t.Helper()
 	s := repository(t, append([]testenv.Stub{tracker(tickets(all...), tickets(ready...))}, answering...)...)
-	s.settings(on(append([]string{"beads"}, also...)...) + body)
+	s.settings(systemsOn(append([]string{"beads"}, also...)...) + body)
 	return s
 }
 
@@ -459,7 +469,7 @@ func reviewing(t *testing.T, also []string, body string, answering ...testenv.St
 	testenv.Git(t, s.Origin, "commit", "--allow-empty", "-m", reviewHead)
 	testenv.Git(t, s.Origin, "update-ref", "refs/pull/7/head", "HEAD")
 	testenv.Git(t, s.Repo, "remote", "add", "origin", s.Origin)
-	s.settings(on(append([]string{"github"}, also...)...) + body)
+	s.settings(systemsOn(append([]string{"github"}, also...)...) + body)
 	return s
 }
 
@@ -514,13 +524,11 @@ func (s *session) dirty() {
 	testenv.Write(s.t, filepath.Join(s.Dir, "ignored"), "ignored")
 }
 
-// hasBranch reports whether the repository still has that branch.
 func (s *session) hasBranch(name string) bool {
 	s.t.Helper()
 	return git.HasBranch(s.Repo, name)
 }
 
-// hasWorktree reports whether git still reports a worktree at path.
 func (s *session) hasWorktree(path string) bool {
 	s.t.Helper()
 	list, err := git.Worktrees(s.Repo)
@@ -544,15 +552,15 @@ func putsUp(t *testing.T) *screen {
 	return &screen{t: t, file: filepath.Join(t.TempDir(), "screen")}
 }
 
-// stub is the stand-in a session is handed to put its screens up through.
-func (s *screen) stub() testenv.Stub {
+// dismisses is the stand-in a session is handed to put its screens up through.
+func (s *screen) dismisses() testenv.Stub {
 	return testenv.Stub{Name: "fzf", Shell: "cat > " + s.file, Exits: 1}
 }
 
 // answers is the same handing that row back, for a case whose verb goes on to
 // act on what was chosen rather than dismissing the screen.
 func (s *screen) answers(row string) testenv.Stub {
-	put := s.stub()
+	put := s.dismisses()
 	put.Says, put.Exits = row, 0
 	return put
 }

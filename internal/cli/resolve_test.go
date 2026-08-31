@@ -68,7 +68,7 @@ func TestATrackerThatWillNotSayWhetherATicketIsReady(t *testing.T) {
 		{To: []string{"list"}, Says: tickets(doable)},
 		{To: []string{"ready"}, Grumbles: "the database is not there", Exits: 1},
 	}})
-	s.settings(on("beads"))
+	s.settings(systemsOn("beads"))
 
 	r := s.run("go", "bd-1")
 
@@ -197,7 +197,7 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
-			s.settings(on("github"))
+			s.settings(systemsOn("github"))
 			path := s.openedOn("wt", cmp.Or(tt.branch, "pr-7"))
 
 			r := s.run("switch", tt.id)
@@ -230,7 +230,7 @@ func TestTheForgeIsAskedAheadOfTheTracker(t *testing.T) {
 func TestTheLastResolverMarksTheWorktreeNoSystemRecognises(t *testing.T) {
 	put := putsUp(t)
 	// The tracker and the forge are both wired, so both decline before it is asked.
-	s := tracking(t, nil, nil, []string{"github"}, "", put.stub())
+	s := tracking(t, nil, nil, []string{"github"}, "", put.dismisses())
 	s.openedOn("held", "a-branch-no-system-names")
 
 	r := s.run("switch")
@@ -256,7 +256,7 @@ func TestAPullRequestsWorktreeChecksOutTheHeadItFetches(t *testing.T) {
 // the fetch is made regardless and that branch taken only where none can be.
 func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 	s := repository(t)
-	s.settings(on("github"))
+	s.settings(systemsOn("github"))
 	// No origin to fetch from, so this is the fallback and nothing else.
 	testenv.Git(t, s.Repo, "branch", "pr-7")
 
@@ -270,7 +270,7 @@ func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 // out, and the refusal is git's own.
 func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 	s := repository(t)
-	s.settings(on("github"))
+	s.settings(systemsOn("github"))
 
 	r := s.run("add", "7")
 
@@ -389,7 +389,7 @@ func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 		testenv.Stub{Name: "bd", Grumbles: "the database is not there", Exits: 1},
 		testenv.Stub{Name: "gh", Grumbles: "not authenticated", Exits: 1},
 		testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
-	s.settings(on("beads", "github"))
+	s.settings(systemsOn("beads", "github"))
 	testenv.Git(t, s.Repo, "remote", "add", "origin", hosted)
 	path := s.opened("scratch")
 
@@ -404,7 +404,7 @@ func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 // could not make, and a name of your own is typed rather than offered.
 func TestWhatNoSystemOffersIsNotPutUp(t *testing.T) {
 	s := repository(t)
-	s.settings(on("github"))
+	s.settings(systemsOn("github"))
 	s.opened("scratch")
 
 	r := s.run("add")

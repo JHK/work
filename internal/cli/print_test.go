@@ -10,8 +10,7 @@ type refusing struct{}
 
 func (refusing) Write([]byte) (int, error) { return 0, errors.New("refused") }
 
-// A write that will not land fails the verb rather than being dropped: what a
-// verb did is said or the invocation reports that it could not be.
+// What a verb did is said, or the invocation reports that it could not be.
 func TestARefusedWriteFailsTheVerb(t *testing.T) {
 	for _, args := range [][]string{{"move", "scratch", "settled"}, {"remove", "scratch"}} {
 		t.Run(args[0], func(t *testing.T) {

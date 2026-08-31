@@ -49,6 +49,7 @@ func output(dir string, english bool, bin string, args ...string) (string, error
 
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
+			gone.Store(bin, true)
 			return "", absent(what, bin)
 		}
 		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
@@ -93,10 +94,8 @@ func CommandLine(bin string, args ...string) string {
 	return bin + " " + strings.Join(args, " ")
 }
 
-// absent is a tool work reached for and the machine does not have. The refusal
-// is the answer to every question put to that tool for the rest of the run.
+// absent is what a tool the machine does not have refuses with.
 func absent(what, bin string) error {
-	gone.Store(bin, true)
 	return fmt.Errorf("%s: %s is not on PATH", what, bin)
 }
 

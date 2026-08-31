@@ -22,7 +22,7 @@ func TestWhereEachFlagIsDeclared(t *testing.T) {
 	s := repository(t)
 	// Every system switched on, so a flag a system reached the command line with
 	// would show up here.
-	s.settings(on("claude", "beads", "mise", "github"))
+	s.settings(systemsOn("claude", "beads", "mise", "github"))
 
 	// The help is on every command and the level is handed down to every command;
 	// the version is the root's alone, and --force is remove's.
@@ -48,9 +48,9 @@ func TestWhereEachFlagIsDeclared(t *testing.T) {
 	testenv.Equal(t, want, got, "a command offers other flags than R2 leaves it")
 }
 
-// written is how --help writes a flag, which is the one place a reader is given
+// flagLine is how --help writes a flag, which is the one place a reader is given
 // the set: a flag declared and hidden is written nowhere.
-var written = regexp.MustCompile(`(?m)^\s+(?:-\w, )?--([\w-]+)`)
+var flagLine = regexp.MustCompile(`(?m)^\s+(?:-\w, )?--([\w-]+)`)
 
 // prints is the flags a command offers a reader, which is what --help lists.
 func (s *session) prints(args ...string) []string {
@@ -58,7 +58,7 @@ func (s *session) prints(args ...string) []string {
 	r := s.run(append(args, "--help")...)
 	r.came(s.t, result{}, besides("Out"))
 	var flags []string
-	for _, m := range written.FindAllStringSubmatch(r.Out, -1) {
+	for _, m := range flagLine.FindAllStringSubmatch(r.Out, -1) {
 		flags = append(flags, m[1])
 	}
 	return flags
@@ -141,12 +141,12 @@ func TestCommandRejects(t *testing.T) {
 	}
 	// One repository for the lot: a word the command line refuses never reaches it.
 	s := repository(t)
-	s.settings(on("claude", "beads"))
+	s.settings(systemsOn("claude", "beads"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := s.run(tt.args...)
 
-			r.came(t, result{Code: 1}, apart)
+			r.came(t, result{Code: 1}, saidApart)
 		})
 	}
 }

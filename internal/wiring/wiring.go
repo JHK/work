@@ -58,7 +58,6 @@ func acting(repo string, cfg config.Config) []work.Action {
 	return run
 }
 
-// opening is what a worktree opens on.
 func opening(cfg config.Config) []work.Opener {
 	var on []work.Opener
 
@@ -66,5 +65,5 @@ func opening(cfg config.Config) []work.Opener {
 		on = append(on, claude.New(cfg.Claude))
 	}
 	// Never off either: a worktree always has something to open on.
-	return append(on, shell.Action{})
+	return append(on, shell.Opener{})
 }

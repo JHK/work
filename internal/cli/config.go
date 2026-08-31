@@ -10,7 +10,7 @@ import (
 
 // configCommand is the verb that answers for the settings. It runs nothing
 // itself: what it carries is dump and edit.
-func configCommand(dumping func(out io.Writer) error, open func(out io.Writer) error) *cobra.Command {
+func configCommand(dumping func(out io.Writer) error, editing func(out io.Writer) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Answer for the settings work reads",
@@ -23,12 +23,11 @@ defaults.`,
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(dumpCommand(dumping), editCommand(open))
+	cmd.AddCommand(dumpCommand(dumping), editCommand(editing))
 
 	return cmd
 }
 
-// dumpCommand prints the configuration work resolved.
 func dumpCommand(run func(out io.Writer) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "dump",
@@ -45,16 +44,14 @@ The settings are the same wherever the shell stands, so this verb runs anywhere.
 	}
 }
 
-// dumping prints the settings work resolved.
 func (v verbs) dumping(out io.Writer) error {
-	if v.read != nil {
-		return v.read
+	if v.refusal != nil {
+		return v.refusal
 	}
 	_, err := io.WriteString(out, v.cfg.Dump())
 	return err
 }
 
-// editCommand opens the settings file.
 func editCommand(run func(out io.Writer) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit",

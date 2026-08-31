@@ -9,9 +9,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// goCommand is the verb that reaches a place whatever state it is in: it enters
-// the worktree an identifier already has and creates the one it does not find.
-// It is what the bare form is a shortcut for.
+// go is what the bare form is a shortcut for.
 func goCommand(verb offering[opens]) *cobra.Command {
 	return opening(&cobra.Command{
 		Use:   "go [<name>|<id>|<pr>|<url>]",
@@ -35,7 +33,7 @@ work <identifier> is work go <identifier>: work go add reaches the worktree add.
 // reach resolves the target and asks work to bring its worktree into being, and
 // is the one verb whose refusal names add.
 func reach(env work.Env, l listing, verb, target string) (worktree.Handoff, error) {
-	c, err := offered(env, l, target, env.Resolve)
+	c, err := targeted(env, l, target, env.Resolve)
 	// A spelling add would refuse too is advice that goes nowhere.
 	if work.Unanswered(err) && work.Nameable(target) {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes a worktree of it", err, target)

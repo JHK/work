@@ -11,13 +11,10 @@ import (
 	"github.com/JHK/work-cli/internal/testenv"
 )
 
-// This case sources the function work init prints, which no command reaches:
-// work init only prints it. What the binary answers it with is internal/cli's.
-
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// The function reaches the binary with the words that were typed, and stands the
-// shell in the worktree the binary wrote back. bash and zsh read the one file.
+// No command reaches the function work init prints; work init only prints it. It
+// reaches the binary with the words typed and stands the shell where it answered.
 func TestTheFunctionStandsTheShellWhereTheBinaryAnswered(t *testing.T) {
 	for _, f := range []struct{ shell, function string }{
 		{"fish", Fish},
@@ -28,7 +25,7 @@ func TestTheFunctionStandsTheShellWhereTheBinaryAnswered(t *testing.T) {
 			worktree := t.TempDir()
 			ran := testenv.Stubs(t, testenv.Stub{Name: "work", Shell: "echo " + worktree + " >\"$" + CDFile + "\"\n"})
 
-			got := through(t, f.shell, f.function, "work bd-1\npwd")
+			got := runSourced(t, f.shell, f.function, "work bd-1\npwd")
 
 			require.Equal(t, worktree+"\n", got, "the shell stands somewhere else")
 			testenv.Equal(t, []string{"work bd-1"}, ran(), "the binary was asked the wrong thing")
@@ -36,9 +33,9 @@ func TestTheFunctionStandsTheShellWhereTheBinaryAnswered(t *testing.T) {
 	}
 }
 
-// through runs script in the shell with the function sourced, and hands back
+// runSourced runs script in the shell with the function sourced, and hands back
 // what the shell printed, having found nothing left in the temporary directory.
-func through(t *testing.T, shell, function, script string) string {
+func runSourced(t *testing.T, shell, function, script string) string {
 	t.Helper()
 	path, err := exec.LookPath(shell)
 	require.NoErrorf(t, err, "%s is not on PATH", shell)

@@ -40,6 +40,6 @@ Assert a scalar or a refusal with testify's `require`, guarding [docs/rules/refu
 
 Cases that differ only in their input are one function over a table, each row a `t.Run` named for what it is. Cases that establish different properties stay apart, however alike their setup, and none only re-walks a path another already holds. Coverage is read, not defended: no package carries a floor of its own.
 
-A test file is named for the surface it covers. What two or more of a package's test files read lives in `ground_test.go` with `TestMain`; what one file reads stays in it, and no two stand-ins answer the same question. A test's name should carry what the case establishes; a comment above it only where the name cannot, in two lines at most.
+A test file is named for the surface it covers. What two or more of a package's test files read lives in `ground_test.go` with `TestMain`; what one file reads stays in it, and no two stand-ins answer the same question. A test's name should carry what the case establishes; a comment above it only where the name cannot, in two lines at most. Both state the behaviour that ships, never the change between two commits: nothing names a rename, a replacement, or a spelling a past commit held.
 
 [internal/cli/](internal/cli/) is the worked example of a command's tests, [internal/config/](internal/config/) of a package's own.

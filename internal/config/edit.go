@@ -9,10 +9,9 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Edit hands the settings file to an editor, bringing the file and the directory
-// it sits in into being where neither is there yet. The editor is $VISUAL else
-// $EDITOR, never a setting: this is the file such a setting would be written in.
-// Everything that can refuse does so before anything is created.
+// Edit hands the settings file to an editor, $VISUAL else $EDITOR, bringing the
+// file and the directory it sits in into being. Everything that can refuse does
+// so first.
 func Edit() (worktree.Handoff, error) {
 	editor := strings.Fields(os.Getenv("VISUAL"))
 	if len(editor) == 0 {

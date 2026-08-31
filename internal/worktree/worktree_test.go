@@ -8,11 +8,8 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// What a handoff comes to is covered through the commands that hand over, in
-// internal/cli. Only the merge below has no command that reaches it.
-
-// The first to set a name owns it, which keeps the core's account of the worktree
-// ahead of the resolver's. No resolver supplies a name the core already set.
+// No command reaches Merge. The first to set a name owns it, which keeps the
+// core's account of the worktree ahead of the resolver's.
 func TestValuesMergeKeepsTheFirstAnswer(t *testing.T) {
 	// A value supplied empty is a value all the same.
 	vals := Values{"Name": "bd-1", "Editor": ""}

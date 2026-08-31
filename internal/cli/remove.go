@@ -9,8 +9,8 @@ import (
 	"github.com/JHK/work-cli/internal/work"
 )
 
-// removeCommand is the verb that takes a worktree away. It carries --force and
-// nothing else, and a tab press after it offers what its picker offers.
+// remove carries --force and nothing else. A tab press after it offers what its
+// picker offers.
 func removeCommand(verb offering[removes]) *cobra.Command {
 	var force bool
 
@@ -39,10 +39,10 @@ standing in and the main checkout. That form needs fzf.`,
 	return cmd
 }
 
-// remove takes a worktree away and returns what went. It hands over to nothing:
-// the invocation does its work and exits.
+// remove returns what went. It hands over to nothing: the invocation does its
+// work and exits.
 func remove(env work.Env, l listing, force bool, target string) (work.Deletion, error) {
-	c, err := offered(env, l, target, env.Resolve)
+	c, err := targeted(env, l, target, env.Resolve)
 	if err != nil {
 		return work.Deletion{}, err
 	}

@@ -40,13 +40,12 @@ func SystemNames() []string {
 // fills.
 func (c Config) On(name string) bool { return slices.Contains(c.Systems, name) }
 
-// resolved are the systems that switched on, in the compiled-in order and each
+// switchedOn are the systems that switched on, in the compiled-in order and each
 // named once, which is what a loaded Config holds.
-func (c Config) resolved() []string {
+func (c Config) switchedOn() []string {
 	return slices.DeleteFunc(SystemNames(), func(name string) bool { return !c.On(name) })
 }
 
-// validateSystems refuses a name no system goes by.
 func (c Config) validateSystems() error {
 	names := SystemNames()
 	for _, name := range c.Systems {

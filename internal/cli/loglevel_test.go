@@ -17,7 +17,7 @@ func picking(t *testing.T) *session {
 	t.Helper()
 	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"},
 		testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
-	s.settings(on("beads"))
+	s.settings(systemsOn("beads"))
 	s.opened("scratch")
 	return s
 }
@@ -52,7 +52,7 @@ func TestTheLogLevelLetsThrough(t *testing.T) {
 
 			r := s.run(slices.Concat(tt.flag, []string{"go"})...)
 
-			r.came(t, result{Answered: s.at("scratch"), Asked: []string{listed, vetted, putUp}}, apart, atOnce)
+			r.came(t, result{Answered: s.at("scratch"), Asked: []string{listed, vetted, putUp}}, saidApart, atOnce)
 			testenv.Equal(t, tt.want, r.levels(), "the levels a reader was given")
 		})
 	}
@@ -74,12 +74,12 @@ func (r result) levels() []slog.Level {
 // naming the tool and the arguments work put to it, the tool itself unchanged.
 func TestInfoSaysEveryCommandWorkSpawned(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "bd", Says: "[]"})
-	s.settings(on("beads"))
+	s.settings(systemsOn("beads"))
 	wt := s.at("scratch")
 
 	r := s.run("--log-level", "info", "add", "scratch")
 
-	r.came(t, result{Answered: wt, Asked: []string{listed}}, apart)
+	r.came(t, result{Answered: wt, Asked: []string{listed}}, saidApart)
 	// The tools in the order they ran, a run of one counted once: how many questions
 	// work puts to git is internal/git's business, not the flag's.
 	testenv.Equal(t, []string{"git", "bd", "git"}, slices.Compact(tools(r.Informed)),
@@ -161,7 +161,7 @@ func TestTheLogLevelReadsLikeTheRootFlagsBesideIt(t *testing.T) {
 	require.Regexp(t, `--log-level warn\|info\|debug\s+say what work reached for \(default warn\)`,
 		r.Out, "the line a reader is given for the flag")
 	for line := range strings.SplitSeq(r.Out, "\n") {
-		if written.MatchString(line) {
+		if flagLine.MatchString(line) {
 			require.LessOrEqual(t, len(line), 80, "a root flag wraps at eighty columns: %q", line)
 		}
 	}
@@ -176,7 +176,7 @@ func TestInfoNamesTheCommandTheWorktreeOpensOn(t *testing.T) {
 
 	r := s.hands("--log-level", "info", "add", "bd-1")
 
-	r.came(t, result{Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, apart, besides("Out"))
+	r.came(t, result{Asked: worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing")}, saidApart, besides("Out"))
 	require.Equal(t, "git --version", r.Informed[len(r.Informed)-1],
 		"the command the terminal went to was not the last line on stderr")
 }

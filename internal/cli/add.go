@@ -7,8 +7,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// addCommand is the verb that brings a worktree into being. A tab press after it
-// offers the places with no worktree yet.
+// A tab press after add offers the places with no worktree yet.
 func addCommand(verb offering[opens]) *cobra.Command {
 	return opening(&cobra.Command{
 		Use:   "add [<name>|<id>|<pr>|<url>]",
@@ -31,8 +30,8 @@ claude.command naming nothing to run for it.`,
 }
 
 // add makes the worktree the identifier asks for and says what it opens on.
-func add(env work.Env, l listing, verb, id string) (worktree.Handoff, error) {
-	c, err := offered(env, l, id, env.Add)
+func add(env work.Env, l listing, verb, target string) (worktree.Handoff, error) {
+	c, err := targeted(env, l, target, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

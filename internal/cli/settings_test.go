@@ -30,9 +30,8 @@ var documented = []string{
 	"claude.command",
 }
 
-// dumped is a printed configuration read back: what it printed and the keys in
-// the order they were printed. A key is held by the whole name a settings file
-// spells, which is the table it sits in and its own where it sits in one.
+// dumped is a printed configuration read back: the text, and the keys in the
+// order printed, each under the whole name a settings file spells.
 type dumped struct {
 	text string
 	keys []string
@@ -44,9 +43,14 @@ func dumping(t *testing.T, s *session) dumped {
 	r := s.run("config", "dump")
 	r.came(t, result{}, besides("Out"))
 
-	d := dumped{text: r.Out}
+	return dumped{text: r.Out, keys: keysIn(r.Out)}
+}
+
+// keysIn is the keys a printed configuration names, in the order printed.
+func keysIn(text string) []string {
+	var keys []string
 	table, inBlock := "", false
-	for line := range strings.SplitSeq(r.Out, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		switch {
 		// What stands between a block's quotes is one value, not keys or tables of its
 		// own.
@@ -60,11 +64,11 @@ func dumping(t *testing.T, s *session) dumped {
 			if table != "" {
 				name = table + "." + leaf
 			}
-			d.keys = append(d.keys, name)
+			keys = append(keys, name)
 			inBlock = value == quotes
 		}
 	}
-	return d
+	return keys
 }
 
 // A setting the dump leaves out is one a reader could never see, and a key
@@ -83,7 +87,7 @@ func TestConfigDumpLoadsBack(t *testing.T) {
 	tests := []struct{ name, body string }{
 		{"the compiled-in defaults", ""},
 		// A quote and a tab survive the printing, the block holding both as written.
-		{"a file naming every key", on("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
+		{"a file naming every key", systemsOn("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
 			"on-creation = [\"carry\"]\n" + directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n"},
 	}
 	for _, tt := range tests {
@@ -156,10 +160,7 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a verb naming the agent rather than a verb", agentOn + "on-creation = [\"claude\"]\n", `"claude" is not a verb`},
 		{"verbs that are not a list", agentOn + "on-creation = \"add\"\n", "claude.on-creation"},
 		{"a verb that is not a string", agentOn + "on-creation = [3]\n", "claude.on-creation"},
-		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
-		// The two keys one command replaced are unknown, no rename standing behind them.
-		{"a key the one command replaced", "[claude]\nstart-ticket = [\"claude\"]\n", "unknown setting"},
-		// The list the one block replaced, which nothing carries over.
+		{"a key the agent's table does not have", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
 		{"a command written as a list", "[claude]\ncommand = [\"claude\"]\n", "claude.command"},
 		{"a command that is not text", "[claude]\ncommand = 3\n", "claude.command"},
 		{"a template that does not parse", "[claude]\ncommand = '''\nclaude {{.ID\n'''\n", "claude.command"},
@@ -257,9 +258,9 @@ func TestEachSystemIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 		// creating what they were asked to bring a worktree of a plain name into being.
 		picking, creating []string
 	}{
-		{"the forge lists the pull requests", on("github"), []string{pullRequests(hosted), putUp}, nil},
-		{"the tracker lists the tickets", on("beads"), []string{listed, vetted, putUp}, []string{listed}},
-		{"the runner trusts a fresh worktree", on("mise"), []string{putUp}, []string{"mise trust"}},
+		{"the forge lists the pull requests", systemsOn("github"), []string{pullRequests(hosted), putUp}, nil},
+		{"the tracker lists the tickets", systemsOn("beads"), []string{listed, vetted, putUp}, []string{listed}},
+		{"the runner trusts a fresh worktree", systemsOn("mise"), []string{putUp}, []string{"mise trust"}},
 		// Told to open no creation on a session, so what the agent is asked here is what
 		// it is asked at a seam, which is nothing.
 		{"the agent fills neither seam", agentOn + "on-creation = []\n", []string{putUp}, nil},

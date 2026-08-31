@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Neither position work answers falls back to file names: the one cobra
-// answers alone, and the one work's own listing answers.
+// The one cobra answers alone, and the one work's own listing answers.
 func TestNoPositionCompletesAFileName(t *testing.T) {
 	s := repository(t)
 
@@ -29,9 +28,8 @@ func TestNoPositionCompletesAFileName(t *testing.T) {
 	}
 }
 
-// The bare position offers the verbs and nothing else: the identifier is go's
-// own completion now.
-func TestCompleteBarePosition(t *testing.T) {
+// An identifier is go's own completion.
+func TestTheBarePositionCompletesTheVerbsAlone(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.opened("scratch")
 
@@ -46,7 +44,6 @@ func TestCompleteBarePosition(t *testing.T) {
 	}
 }
 
-// The one argument is all a verb reads.
 func TestNothingCompletesPastAVerbsPosition(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.opened("spare")
@@ -71,8 +68,7 @@ func TestCompletingASilentRepository(t *testing.T) {
 	require.Empty(t, rows(out), "completing go outside a repository offered rows")
 }
 
-// A tab press after list offers nothing: it takes no argument.
-func TestCompleteList(t *testing.T) {
+func TestNothingCompletesAfterList(t *testing.T) {
 	s := repository(t)
 	s.opened("scratch")
 
@@ -81,13 +77,13 @@ func TestCompleteList(t *testing.T) {
 	require.Empty(t, rows(out), "completing list offered rows")
 }
 
-// Each verb's completion offers what its picker offers, row for row and in the
-// same order: a tab press and a screen read the one listing that verb owns.
+// Row for row and in the same order: a tab press and a screen read the one
+// listing that verb owns.
 func TestEachVerbCompletesWhatItsPickerOffers(t *testing.T) {
 	put := putsUp(t)
 	// A ticket with no worktree yet, so add has a row of its own to put up.
 	spare := with(doable, func(b *ticket) { b.ID = "spare" })
-	s := tracking(t, []ticket{spare}, []ticket{spare}, nil, "", put.stub())
+	s := tracking(t, []ticket{spare}, []ticket{spare}, nil, "", put.dismisses())
 	s.opened("one")
 	// Standing in a worktree, so each verb has its own reason to leave a row out.
 	s.Dir = s.opened("stood-in")
@@ -107,9 +103,8 @@ func TestEachVerbCompletesWhatItsPickerOffers(t *testing.T) {
 	}
 }
 
-// init prints the shell's own function and then that shell's own completions:
-// which generator a shell reaches is work's, the words it writes cobra's.
-func TestInit(t *testing.T) {
+// Which generator a shell reaches is work's, the words it writes cobra's.
+func TestInitPrintsTheFunctionThenTheShellsCompletions(t *testing.T) {
 	s := repository(t)
 	// The line each script opens with, so a failure names two lines and not two scripts.
 	heads := map[string]string{}
@@ -135,9 +130,8 @@ func TestInit(t *testing.T) {
 	}
 }
 
-// A tab press on the shell offers the ones work prints and nothing else, and a
-// word past it completes nothing: init takes the one shell.
-func TestCompleteInit(t *testing.T) {
+// A word past the shell completes nothing: init takes the one shell.
+func TestInitCompletesTheShellsWorkPrintsFor(t *testing.T) {
 	s := repository(t)
 
 	out := s.completes("init", "")
@@ -149,9 +143,8 @@ func TestCompleteInit(t *testing.T) {
 	require.Empty(t, rows(second), "completing a second shell after init offered rows")
 }
 
-// A tab press after the flag offers the levels work says at, wherever the flag
-// is typed: the root hands it down to every verb.
-func TestCompleteTheLogLevel(t *testing.T) {
+// Wherever the flag is typed: the root hands it down to every verb.
+func TestTheLogLevelCompletesTheLevelsWorkSaysAt(t *testing.T) {
 	s := repository(t)
 
 	for _, before := range [][]string{{}, {"list"}} {

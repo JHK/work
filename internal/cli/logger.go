@@ -14,7 +14,7 @@ import (
 func Logger(w io.Writer, from slog.Leveler) *slog.Logger {
 	return slog.New(tint.NewTextHandler(w, &tint.Options{
 		Level:   from,
-		NoColor: !terminal(w),
+		NoColor: !isTerminal(w),
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey && len(groups) == 0 {
 				return slog.Attr{}
@@ -24,9 +24,7 @@ func Logger(w io.Writer, from slog.Leveler) *slog.Logger {
 	}))
 }
 
-// terminal reports whether w is the terminal itself rather than a file, a pipe
-// or a device reading what work said.
-func terminal(w io.Writer) bool {
+func isTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	return ok && term.IsTerminal(int(f.Fd()))
 }

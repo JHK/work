@@ -19,7 +19,7 @@ func LogLevel() *slog.LevelVar {
 // logging declares the flag that sets logLevel, on the root and so on every verb
 // below it, and answers a tab press after it with the levels.
 func logging(cmd *cobra.Command, logLevel *slog.LevelVar) {
-	cmd.PersistentFlags().Var(level{of: logLevel}, "log-level", "say what work reached for")
+	cmd.PersistentFlags().Var(level{logLevel: logLevel}, "log-level", "say what work reached for")
 	_ = cmd.RegisterFlagCompletionFunc("log-level", cobra.FixedCompletions(levels, cobra.ShellCompDirectiveNoFileComp))
 }
 
@@ -27,7 +27,7 @@ func logging(cmd *cobra.Command, logLevel *slog.LevelVar) {
 var levels = []string{"warn", "info", "debug"}
 
 // level is --log-level's value: a word becomes a level here and nowhere else.
-type level struct{ of *slog.LevelVar }
+type level struct{ logLevel *slog.LevelVar }
 
 func (l level) Set(word string) error {
 	var at slog.Level
@@ -35,12 +35,12 @@ func (l level) Set(word string) error {
 	if at.UnmarshalText([]byte(word)) != nil || !slices.Contains(levels, word) {
 		return fmt.Errorf("work says at %s", strings.Join(levels, ", "))
 	}
-	l.of.Set(at)
+	l.logLevel.Set(at)
 	return nil
 }
 
 // String is the level the log stands at, which pflag prints as the default.
-func (l level) String() string { return strings.ToLower(l.of.Level().String()) }
+func (l level) String() string { return strings.ToLower(l.logLevel.Level().String()) }
 
 // Type is the set the flag takes, which pflag prints where a placeholder goes.
 func (l level) Type() string { return strings.Join(levels, "|") }

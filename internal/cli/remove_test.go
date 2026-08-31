@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Removing is git's two commands and nothing besides: the worktree goes, its
-// branch goes with it, and a line says each. No ticket is touched and no tracker
-// asked: a worktree going away reaches neither seam.
+// git's two commands and nothing besides, a line saying each. No ticket is
+// touched and no tracker asked: a worktree going away reaches neither seam.
 func TestRemoveTakesTheWorktreeAndItsBranch(t *testing.T) {
 	s := repository(t)
 	path := s.opened("scratch")
@@ -36,8 +35,7 @@ func TestRemoveADetachedWorktreeTakesNoBranch(t *testing.T) {
 	require.NoDirExists(t, path, "the worktree is still on disk")
 }
 
-// With no name the picker stands in for it, over the worktrees open, and --force
-// is read all the same.
+// Over the worktrees open, and --force is read all the same.
 func TestRemoveWithNoNameTakesThePickersRow(t *testing.T) {
 	tests := []struct {
 		name string
@@ -92,8 +90,8 @@ func TestRemoveRefusesAWorktreeCarryingChanges(t *testing.T) {
 	}
 }
 
-// The main checkout cannot be removed, with or without --force. Every worktree
-// sits under it, so the refusal survives being typed from inside one.
+// Every worktree sits under the main checkout, so the refusal survives being
+// typed from inside one.
 func TestRemoveRefusesTheMainCheckout(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -181,7 +179,7 @@ func TestRemoveWhatIsNotThere(t *testing.T) {
 			// A bare number is the forge's by its spelling alone, so the place is made
 			// without gh being asked for it.
 			"a place with no worktree open",
-			on("github"), "7",
+			systemsOn("github"), "7",
 			"pr-7 has no worktree to remove",
 		},
 	}

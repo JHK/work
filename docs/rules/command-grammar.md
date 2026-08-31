@@ -6,7 +6,7 @@ The invariants of the first argument position and of where a flag is declared. W
 
 A worktree whose name is a command's cannot be reached by that name; `work go <name>` reaches it. Every other first word, a name, a flag the root does not declare, or nothing at all, reaches `go`. A flag the root hands down to every verb holds no position, and neither does the word it takes its value from: the first is the one behind both.
 
-*Enforced by:* `dispatch`, `rootsOwn` and `declared` in `internal/cli/dispatch.go`, which rewrite the argv before cobra executes the tree, and `internal/cli/dispatch_test.go`.
+*Enforced by:* `dispatch`, `rootOwns`, `pastRootFlags` and `declared` in `internal/cli/dispatch.go`, which rewrite the argv before cobra executes the tree, and `internal/cli/dispatch_test.go`.
 
 ## R2 — Flags are declared on their verb
 

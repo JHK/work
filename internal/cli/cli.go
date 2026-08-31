@@ -51,15 +51,15 @@ type front struct {
 // verbs answers the front's calls against the settings and the wiring Execute
 // was handed.
 type verbs struct {
-	cfg  config.Config
-	read error // the settings would not load, which every verb that reads them refuses with
-	wire work.Wiring
+	cfg     config.Config
+	refusal error // the settings would not load, which every verb that reads them refuses with
+	wire    work.Wiring
 }
 
 // repository is the one the shell stands in, with its systems wired.
 func (v verbs) repository() (work.Env, error) {
-	if v.read != nil {
-		return work.Env{}, v.read
+	if v.refusal != nil {
+		return work.Env{}, v.refusal
 	}
 	return work.Open(".", v.cfg, v.wire)
 }
@@ -74,14 +74,14 @@ func performs[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B
 				var none R
 				return none, err
 			}
-			return verb(env, reporting(l), a, b)
+			return verb(env, warning(l), a, b)
 		},
 		list: v.offers(l),
 	}
 }
 
-// reporting is l with every system it came back short of said once.
-func reporting(l listing) listing {
+// warning is l with every system it came back short of said once.
+func warning(l listing) listing {
 	rows := l.rows
 	l.rows = func(env work.Env) ([]work.Candidate, []error, error) {
 		found, refused, err := rows(env)
@@ -105,7 +105,7 @@ func fronting(v verbs) front {
 		move:     performs(v, movable, move),
 		dump:     v.dumping,
 		edit:     edit,
-		branches: v.branchListing,
+		branches: v.branches,
 	}
 }
 
@@ -114,15 +114,15 @@ func fronting(v verbs) front {
 // process on. A settings file that will not load is carried to the verbs that
 // read it, not refused here.
 func Execute(version string, wire work.Wiring, args []string, stdout io.Writer, logLevel *slog.LevelVar) int {
-	cfg, read := config.Load()
+	cfg, refusal := config.Load()
 
-	cmd := command(version, logLevel, fronting(verbs{cfg: cfg, read: read, wire: wire}))
-	if read != nil {
+	cmd := command(version, logLevel, fronting(verbs{cfg: cfg, refusal: refusal, wire: wire}))
+	if refusal != nil {
 		// The settings are what the reader has to hear: a file that would not load is
 		// the reason a verb refuses, whatever else the words were wrong about.
-		cmd.SetFlagErrorFunc(func(*cobra.Command, error) error { return read })
+		cmd.SetFlagErrorFunc(func(*cobra.Command, error) error { return refusal })
 	}
-	if err := through(cmd, args, stdout); err != nil {
+	if err := runThrough(cmd, args, stdout); err != nil {
 		if !errors.Is(err, errCancelled) {
 			slog.Error(err.Error())
 		}
@@ -131,10 +131,10 @@ func Execute(version string, wire work.Wiring, args []string, stdout io.Writer, 
 	return 0
 }
 
-// through puts args through the tree on the stream work answers on, cobra's own
+// runThrough puts args through the tree on the stream work answers on, cobra's own
 // writes going nowhere. The tree is never executed on the words as typed:
 // [dispatch] belongs to every way in.
-func through(cmd *cobra.Command, args []string, stdout io.Writer) error {
+func runThrough(cmd *cobra.Command, args []string, stdout io.Writer) error {
 	cmd.SetOut(stdout)
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs(dispatch(cmd, args))
@@ -158,8 +158,8 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 	}
 	// One documented door to the shell integration: work init <shell>.
 	cmd.CompletionOptions.DisableDefaultCmd = true
-	// Every position cobra would otherwise answer with a file listing, the
-	// subcommands' arguments included, answers with nothing instead.
+	// Every position cobra would otherwise fill with file names, a verb's argument
+	// included.
 	cmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	cmd.AddCommand(initCommand(), goCommand(f.reach), switchCommand(f.enter), addCommand(f.add), carryCommand(f.carry), removeCommand(f.remove), moveCommand(f.move), listCommand(f.branches), configCommand(f.dump, f.edit))
 	logging(cmd, logLevel)
@@ -175,23 +175,24 @@ you pick: your shell stands in it, or a command takes the terminal.`,
 
 // opening builds a verb that reaches a worktree and hands it to something, with
 // the listing it offers behind both its picker and its completion.
-func opening(help *cobra.Command, verb offering[opens]) *cobra.Command {
-	help.Args = cobra.MaximumNArgs(1)
-	help.ValidArgsFunction = suggest(verb.list)
-	return handing(help, verb.run)
+func opening(cmd *cobra.Command, offer offering[opens]) *cobra.Command {
+	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.ValidArgsFunction = suggest(offer.list)
+	return handing(cmd, offer.run)
 }
 
 // handing wires the one handoff a verb that opens something ends on. The verb is
 // read off the command that ran, which is what a creation's opener follows from.
-func handing(help *cobra.Command, run opens) *cobra.Command {
-	help.RunE = func(cmd *cobra.Command, args []string) error {
+func handing(cmd *cobra.Command, run opens) *cobra.Command {
+	// Cobra runs RunE with the command it hangs on, so the one name serves both.
+	cmd.RunE = func(_ *cobra.Command, args []string) error {
 		h, err := run(cmd.Name(), arg(args, 0))
 		if err != nil {
 			return err
 		}
 		return hand(h, cmd.OutOrStdout())
 	}
-	return help
+	return cmd
 }
 
 // arg is the word a verb was given at a position, empty where it was left out

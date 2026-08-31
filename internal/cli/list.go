@@ -6,8 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listCommand is the verb that prints the worktrees open, asking git and no
-// system beyond it.
+// listCommand asks git and no system beyond it.
 func listCommand(branches func() ([]string, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -15,7 +14,6 @@ func listCommand(branches func() ([]string, error)) *cobra.Command {
 		Long: `Print the repository's open worktrees, one per line: the branch each has checked
 out, or its directory where it has none.`,
 		Args: cobra.NoArgs,
-		// It hands over to nothing: the invocation prints and exits.
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			list, err := branches()
 			if err != nil {
@@ -31,8 +29,7 @@ out, or its directory where it has none.`,
 	}
 }
 
-// branchListing is what list prints: the repository's worktrees as git reports them.
-func (v verbs) branchListing() ([]string, error) {
+func (v verbs) branches() ([]string, error) {
 	env, err := v.repository()
 	if err != nil {
 		return nil, err

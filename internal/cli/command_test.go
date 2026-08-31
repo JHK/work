@@ -14,7 +14,7 @@ var cutting = testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$@"`}
 // it carries and however deep it is written.
 func TestEachLineOfABlockIsOneArgument(t *testing.T) {
 	s := repository(t, cutting)
-	s.settings(on("claude") + commandBlock("claude", "  --name=one two", "\ta b c"))
+	s.settings(systemsOn("claude") + commandBlock("claude", "  --name=one two", "\ta b c"))
 
 	r := s.hands("add", "scratch")
 

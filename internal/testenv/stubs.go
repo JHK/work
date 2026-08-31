@@ -29,17 +29,13 @@ func Tools() []Stub {
 
 // Stub is a stand-in for one tool: the name it answers to, and either the one
 // answer it gives whatever it is asked or the [Reply] list it answers each
-// question with. Says, Grumbles and Exits are that one answer, on stdout, on
-// stderr and in the exit status; Shell is the way out for a stub that has to do
-// more than answer, run after it has recorded and before it answers, and a
-// command in it that fails takes the stand-in down with it. A stub that names
-// replies refuses a question none of them matches, saying what it was asked.
+// question with. One that names replies refuses a question none of them matches.
 type Stub struct {
 	Name     string
-	Says     string
-	Grumbles string
-	Exits    int
-	Shell    string
+	Says     string // on stdout
+	Grumbles string // on stderr
+	Exits    int    // the exit status
+	Shell    string // run after recording and before answering; a failure takes the stand-in down
 	Replies  []Reply
 }
 
@@ -54,12 +50,10 @@ type Reply struct {
 	Shell    string
 }
 
-// Stubs puts a stand-in for each tool on PATH ahead of whatever the machine has
-// installed, and hands back what they were asked to run: one line per
-// invocation, the tool and its arguments, in the order they ran. Where two name
-// one tool the last stands, so a set may be handed on with an answer for one of
-// them appended. A stand-in is this test binary under the tool's name, so only a
-// reply that names a Shell needs anything else on PATH.
+// Stubs puts a stand-in for each tool on PATH ahead of the machine's own, and
+// hands back what they were asked to run. Where two name one tool the last
+// stands. A stand-in is this test binary under the tool's name, so only a reply
+// naming a Shell needs anything else on PATH.
 func Stubs(t *testing.T, stubs ...Stub) func() []string {
 	t.Helper()
 	// A tool an earlier case found missing is out for the rest of the process, which
@@ -77,28 +71,32 @@ func Stubs(t *testing.T, stubs ...Stub) func() []string {
 		if err := os.Symlink(binary, at); err != nil && !os.IsExist(err) {
 			t.Fatalf("stand in for %s: %v", s.Name, err)
 		}
-		Write(t, at+ready, promised(t, s))
+		Write(t, at+repliesSuffix, promised(t, s))
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	return func() []string {
-		out, err := os.ReadFile(filepath.Join(dir, asked))
-		if err != nil && !os.IsNotExist(err) {
-			t.Fatalf("read %s: %v", asked, err)
-		}
-		var ran []string
-		for line := range strings.SplitSeq(string(out), "\n") {
-			if line = strings.TrimSpace(line); line != "" {
-				ran = append(ran, line)
-			}
-		}
-		return ran
+	return func() []string { return recorded(t, dir) }
+}
+
+// recorded is what the stand-ins of one directory were asked, one line per
+// invocation, in the order they ran.
+func recorded(t *testing.T, dir string) []string {
+	out, err := os.ReadFile(filepath.Join(dir, questionLog))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("read %s: %v", questionLog, err)
 	}
+	var ran []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			ran = append(ran, line)
+		}
+	}
+	return ran
 }
 
 const (
-	ready = ".replies" // what a stand-in's replies sit beside its name under
-	asked = "log"      // where the stand-ins of one directory record their questions
+	repliesSuffix = ".replies"
+	questionLog   = "log"
 )
 
 // promised is a stub's replies as its stand-in reads them back, the stub that
@@ -124,20 +122,16 @@ func standIn() {
 	if err != nil {
 		return
 	}
-	body, err := os.ReadFile(at + ready)
+	body, err := os.ReadFile(at + repliesSuffix)
 	if err != nil {
 		return
 	}
 	var replies []Reply
 	must(json.Unmarshal(body, &replies))
 	dir, name, args := filepath.Dir(at), filepath.Base(at), os.Args[1:]
-	log, err := os.OpenFile(filepath.Join(dir, asked), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	must(err)
-	_, err = fmt.Fprintln(log, run.CommandLine(name, args...))
-	must(err)
-	must(log.Close())
+	record(dir, name, args)
 	for _, r := range replies {
-		if r.names(args) {
+		if r.matches(args) {
 			os.Exit(r.say(name, args))
 		}
 	}
@@ -146,8 +140,16 @@ func standIn() {
 	os.Exit(2)
 }
 
-// names reports whether the question carries every word the reply names.
-func (r Reply) names(args []string) bool {
+// record writes one question down where the directory's stand-ins keep them.
+func record(dir, name string, args []string) {
+	log, err := os.OpenFile(filepath.Join(dir, questionLog), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	must(err)
+	_, err = fmt.Fprintln(log, run.CommandLine(name, args...))
+	must(err)
+	must(log.Close())
+}
+
+func (r Reply) matches(args []string) bool {
 	return !slices.ContainsFunc(r.To, func(word string) bool { return !slices.Contains(args, word) })
 }
 
@@ -170,7 +172,6 @@ func (r Reply) say(name string, args []string) int {
 	return r.Exits
 }
 
-// must takes a stand-in down where the ground under it failed.
 func must(err error) {
 	if err != nil {
 		panic(err)

@@ -20,12 +20,12 @@ func bare(t *testing.T, answering ...testenv.Stub) *session {
 	return s
 }
 
-// Outside a repository the refusal is work's own and no tool is asked anything:
-// R5 of docs/rules/refusals.md. Every verb opens one, so go stands for them all.
+// No tool is asked anything: R5 of docs/rules/refusals.md. Every verb opens a
+// repository, so go stands for them all.
 func TestOutsideARepositoryTheRefusalIsWorksOwn(t *testing.T) {
 	s := repository(t)
 	s.Dir = t.TempDir()
-	s.settings(on("beads", "github"))
+	s.settings(systemsOn("beads", "github"))
 
 	r := s.run("go")
 
@@ -44,7 +44,7 @@ func TestOutsideARepositoryTheRefusalIsWorksOwn(t *testing.T) {
 // inside its worktrees, and the row it lists for itself is no worktree to reach.
 func TestABareRepositoryIsTheRepositoryItself(t *testing.T) {
 	put := putsUp(t)
-	s := bare(t, put.stub())
+	s := bare(t, put.dismisses())
 	one := s.opened("one")
 	s.opened("two")
 

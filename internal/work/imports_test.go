@@ -19,9 +19,8 @@ var reachable = []string{
 	testenv.Module + "/internal/worktree",
 }
 
-// TestCoreReachesNothingElse guards R3 of docs/rules/package-boundaries.md: an
-// implementation the core names is a capability living in the file that should
-// be the most stable.
+// R3 of docs/rules/package-boundaries.md: an implementation the core names is a
+// capability living in the file that should be the most stable.
 func TestCoreReachesNothingElse(t *testing.T) {
 	for _, path := range testenv.Listed(t, root, "-f", `{{join .Imports "\n"}}`, "./internal/work") {
 		if standard(path) || slices.Contains(reachable, path) {
@@ -39,9 +38,9 @@ var seams = []string{
 	testenv.Module + "/internal/resolve/",
 }
 
-// TestNoSystemReachesAnother guards R4 of docs/rules/package-boundaries.md: what
-// one system does is its own, and an implementation that named another would put
-// the second one's work into the first one's answer.
+// R4 of docs/rules/package-boundaries.md: what one system does is its own, and
+// an implementation that named another would put the second one's work into the
+// first one's answer.
 func TestNoSystemReachesAnother(t *testing.T) {
 	read := map[string]bool{}
 	// Test files are held to the rule too, so all three compilations are read.

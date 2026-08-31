@@ -7,22 +7,40 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// dispatch puts the bare form behind the verb it is a shortcut for: a first
-// word naming no verb, and no word at all, are [goCommand]'s. Cobra reads its
-// own completion request off that same position, so it is left where it is;
-// every tab press is one.
+// dispatch puts the bare form behind go: a first word naming no verb, and no
+// word at all. Cobra reads its completion request off that position, so it is
+// left where it is.
 func dispatch(root *cobra.Command, args []string) []string {
-	if rootsOwn(root, args) {
+	if rootOwns(root, args) {
 		return args
 	}
 	return append([]string{"go"}, args...)
 }
 
-// rootsOwn reports whether the first word is the root's to answer: a flag of its
+// rootOwns reports whether the first word is the root's to answer: a flag of its
 // own, the completion request, or a command it carries.
-func rootsOwn(root *cobra.Command, args []string) bool {
-	// A flag the root hands down holds no position, and neither does the word it
-	// takes its value from. R2 leaves it spelled out, so no shorthand reaches here.
+func rootOwns(root *cobra.Command, args []string) bool {
+	rest := pastRootFlags(root, args)
+	if len(rest) == 0 {
+		return false
+	}
+	word := rest[0]
+	if strings.HasPrefix(word, "-") {
+		return declared(root.LocalNonPersistentFlags(), word) != nil
+	}
+	if word == cobra.ShellCompRequestCmd || word == cobra.ShellCompNoDescRequestCmd {
+		return true
+	}
+	// The one word, never the rest: Find reads a flag's value off the words after it.
+	found, _, _ := root.Find(rest[:1])
+	return found != root
+}
+
+// pastRootFlags is what is left of the words once the flags the root hands down,
+// and the words they take their values from, are stepped over. A flag the root
+// hands down holds no position, and neither does the word behind it.
+func pastRootFlags(root *cobra.Command, args []string) []string {
+	// R2 leaves the handed-down flag spelled out, so no shorthand reaches here.
 	for len(args) > 0 {
 		handed := declared(root.PersistentFlags(), args[0])
 		if handed == nil {
@@ -34,19 +52,7 @@ func rootsOwn(root *cobra.Command, args []string) bool {
 			args = args[1:]
 		}
 	}
-	if len(args) == 0 {
-		return false
-	}
-	word := args[0]
-	if strings.HasPrefix(word, "-") {
-		return declared(root.LocalNonPersistentFlags(), word) != nil
-	}
-	if word == cobra.ShellCompRequestCmd || word == cobra.ShellCompNoDescRequestCmd {
-		return true
-	}
-	// The one word, never the rest: Find reads a flag's value off the words after it.
-	found, _, _ := root.Find(args[:1])
-	return found != root
+	return args
 }
 
 // declared is the flag a set spells that word, a shorthand and a spelled-out

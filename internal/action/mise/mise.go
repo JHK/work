@@ -18,8 +18,7 @@ type Trust struct{}
 func (Trust) Name() string { return Name }
 
 // Run lets mise find the configs itself. Best effort: a grant that fails only
-// means the session prompts, so it never refuses the worktree just made. Nothing
-// else carries that refusal to the reader, so it is said here.
+// means the session prompts, never the worktree just made.
 func (Trust) Run(t worktree.Tree) error {
 	if _, err := run.Output(t.Path, "mise", "trust"); err != nil {
 		slog.Warn(err.Error())

@@ -91,8 +91,8 @@ func TestMoveRefusesTheDestination(t *testing.T) {
 	}
 }
 
-// Moving the main checkout is work's own to refuse, and the refusal has to
-// survive being asked for from inside a worktree that sits under it.
+// The refusal has to survive being asked for from inside a worktree that sits
+// under the main checkout.
 func TestMoveRefusesTheMainCheckout(t *testing.T) {
 	s := repository(t)
 	testenv.Git(t, s.Repo, "branch", "--move", "trunk")
@@ -105,7 +105,6 @@ func TestMoveRefusesTheMainCheckout(t *testing.T) {
 	require.True(t, s.hasWorktree(s.Repo), "the main checkout is no longer a worktree git reports")
 }
 
-// The directory moves alone, and what moved names none.
 func TestMoveADetachedWorktreeTakesNoBranch(t *testing.T) {
 	s := repository(t)
 	from := s.detached("adrift")

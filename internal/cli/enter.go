@@ -10,8 +10,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// switchCommand is the verb that enters a worktree already open. A tab press
-// after it offers what its picker offers, and it declines no action.
+// A tab press after switch offers what its picker offers.
 func switchCommand(verb offering[opens]) *cobra.Command {
 	return opening(&cobra.Command{
 		Use:   "switch [<name>|<id>|<pr>|<url>]",
@@ -30,7 +29,7 @@ The worktree is handed back: your shell stands in it.`,
 // enter is the worktree an identifier already has, and a refusal where it has
 // none.
 func enter(env work.Env, l listing, verb, target string) (worktree.Handoff, error) {
-	c, err := offered(env, l, target, env.Resolve)
+	c, err := targeted(env, l, target, env.Resolve)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
@@ -40,8 +39,6 @@ func enter(env work.Env, l listing, verb, target string) (worktree.Handoff, erro
 	return open(env, verb, c)
 }
 
-// open is where every verb that opens something ends: work brings the worktree
-// into being if it has to, and says what it opens on.
 func open(env work.Env, verb string, c work.Candidate) (worktree.Handoff, error) {
 	return env.Enter(c, work.Options{Verb: verb})
 }

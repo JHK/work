@@ -40,13 +40,13 @@ func TestTheFirstWordDecides(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := s.run(tt.args...)
 
-			r.came(t, tt.want, apart)
+			r.came(t, tt.want, saidApart)
 		})
 	}
 }
 
-// The help is the root's own, wherever it is asked for, and names the verbs
-// rather than running one of them.
+// The help names the verbs rather than running one of them, wherever it is asked
+// for.
 func TestTheHelpIsTheRootsOwn(t *testing.T) {
 	s := repository(t)
 

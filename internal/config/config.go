@@ -143,7 +143,7 @@ func (c *Config) validate() (string, error) {
 	if err := c.validateSystems(); err != nil {
 		return systemsKey, err
 	}
-	c.Systems = c.resolved()
+	c.Systems = c.switchedOn()
 	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
 		return ticketKey, err
 	}
@@ -155,14 +155,21 @@ func (c *Config) validate() (string, error) {
 		return key, err
 	}
 
-	dir := c.Worktree.Directory
-	// A worktree needs a directory of its own inside the repository, so that one
-	// entry can tell git to ignore every worktree at once.
-	if !filepath.IsLocal(dir) || filepath.Clean(dir) == "." {
-		return dirKey, fmt.Errorf("%q is not a directory inside the repository", dir)
-	}
-	if top, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(dir)), "/"); top == ".git" {
-		return dirKey, fmt.Errorf("%q is inside git's own directory", dir)
+	if err := c.Worktree.validate(); err != nil {
+		return dirKey, err
 	}
 	return "", nil
+}
+
+// validate refuses a directory no worktree may be made in. A worktree needs one
+// of its own inside the repository, so that a single entry ignores them all.
+func (w Worktree) validate() error {
+	dir := w.Directory
+	if !filepath.IsLocal(dir) || filepath.Clean(dir) == "." {
+		return fmt.Errorf("%q is not a directory inside the repository", dir)
+	}
+	if top, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(dir)), "/"); top == ".git" {
+		return fmt.Errorf("%q is inside git's own directory", dir)
+	}
+	return nil
 }
