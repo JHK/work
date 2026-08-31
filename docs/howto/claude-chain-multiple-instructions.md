@@ -28,6 +28,6 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
 ## See also
 
-- [`claude`](../references/claude.md#values) — what the command renders with
+- [`claude`](../references/systems.md#values) — what the command renders with
 - [Configuration](../references/configuration.md#commands) — how the key is written
 - [Command line](../references/cli.md#handoff) — how `work` reaches the command

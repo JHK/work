@@ -57,7 +57,7 @@ Refused at load:
 
 ## Opening on a session
 
-`claude.on-creation` names the verbs that hand a worktree they created to [the agent](claude.md). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff), and so is one the command renders nothing for.
+`claude.on-creation` names the verbs that hand a worktree they created to [the agent](systems.md#claude). It reaches a worktree once, as that worktree comes into being. A worktree the settings leave `claude` out of is [handed back](cli.md#handoff), and so is one the command renders nothing for.
 
 It falls to `add` and `go` where nothing names it.
 
@@ -65,7 +65,7 @@ Refused at load: a word no verb goes by, and a verb no worktree comes into being
 
 ## Commands
 
-`claude.command` is a command run without a shell, written as one [Go template](https://pkg.go.dev/text/template) over [the values a worktree carries](claude.md#values), in a TOML multiline literal string. It is rendered whole, then read a line at a time: each non-blank line is one argument, trimmed.
+`claude.command` is a command run without a shell, written as one [Go template](https://pkg.go.dev/text/template) over [the values a worktree carries](systems.md#values), in a TOML multiline literal string. It is rendered whole, then read a line at a time: each non-blank line is one argument, trimmed.
 
 A line that is itself a shell script may pipe a value through `squote`, the one filter there is: the value as one word of that shell, in single quotes.
 
@@ -78,4 +78,4 @@ Refused at load:
 
 A block that renders to nothing leaves no command to run: the worktree is [handed back](cli.md#handoff), once it is created and the ticket claimed.
 
-The default is in [internal/config/command.go](../../internal/config/command.go), and [what it opens](claude.md) is `claude`.
+The default is in [internal/config/command.go](../../internal/config/command.go), and [what it opens](systems.md#claude) is `claude`.

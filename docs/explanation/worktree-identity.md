@@ -24,7 +24,7 @@ A directory key would lose every worktree made by hand or moved since, and a los
 
 ## A worktree with no ticket is first-class
 
-Ask for a name of your own and you get a branch of your own, with [nothing to vet and nothing to claim](../references/tickets.md). Not everything worth a checkout is worth a ticket, and a tool that only opened the worktrees a tracker had blessed would be that tracker's front end rather than a switcher.
+Ask for a name of your own and you get a branch of your own, with [nothing to vet and nothing to claim](../references/systems.md#beads). Not everything worth a checkout is worth a ticket, and a tool that only opened the worktrees a tracker had blessed would be that tracker's front end rather than a switcher.
 
 That also keeps the tracker off the path that finds worktrees at all. When it will not answer, what goes is [the judgement of which work is ready](work-loop.md#workability-is-the-trackers-judgement), not the worktrees.
 

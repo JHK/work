@@ -11,7 +11,7 @@ import (
 )
 
 // A ticket that cannot be worked is refused in work's own words, and nothing the
-// verdict cannot turn on is asked: docs/references/tickets.md#vetting.
+// verdict cannot turn on is asked: docs/references/systems.md#vetting.
 func TestATicketThatCannotBeWorkedIsRefused(t *testing.T) {
 	epic := with(doable, func(b *ticket) { b.Type = "epic" })
 	tests := []struct {

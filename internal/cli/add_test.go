@@ -8,7 +8,7 @@ import (
 )
 
 // The ticket a worktree was just made for is claimed, and nothing on the command
-// line calls that off: docs/references/tickets.md. What else the tracker is
+// line calls that off: docs/references/systems.md#claiming. What else the tracker is
 // asked is work go's own case.
 func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")

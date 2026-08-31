@@ -1,6 +1,6 @@
 # Package boundaries
 
-What the core may reach, and what a system may not. What each system is and where it lives is [the systems](../references/systems.md).
+What the core may reach, and what a system may not. What each system does is [the systems](../references/systems.md).
 
 ## R3 — The core reaches the vocabulary, git and the settings
 

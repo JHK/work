@@ -16,6 +16,10 @@
 | [`work config edit`](#config) | opens the [settings file](configuration.md) in `$VISUAL`, else `$EDITOR` |
 | `work [<identifier>]` | dispatched to [`go`](#go) |
 
+An argument in brackets may be left out: [the picker](#the-picker) stands in for it, and [the prompt](#the-prompt) for [`move`](#move)'s destination.
+
+A worktree is created forked from the `HEAD` of the directory the shell is standing in.
+
 `--help`, `--log-level` and `--version` are the root's own:
 
 | Flag | Description |
@@ -26,25 +30,19 @@
 
 ### go
 
-`work go <identifier>` enters the worktree the [identifier](#identifiers) names, creating it where there is none, forked from the `HEAD` of the directory the shell is standing in.
-
-With no identifier, [the picker](#the-picker) stands in for one.
+`work go [<identifier>]` enters the worktree the [identifier](#identifiers) names, creating it where there is none.
 
 A [system](systems.md) can add to either form.
 
 ### switch
 
-`work switch <identifier>` enters the worktree the [identifier](#identifiers) already has. One with no worktree open is refused.
-
-With no identifier, [the picker](#the-picker) stands in for one.
+`work switch [<identifier>]` enters the worktree the [identifier](#identifiers) already has. One with no worktree open is refused.
 
 ### add
 
-`work add <identifier>` creates the worktree the [identifier](#identifiers) has none of, forked from the `HEAD` of the directory the shell is standing in, and [opens it](#handoff).
+`work add [<identifier>]` creates the worktree the [identifier](#identifiers) has none of, and [opens it](#handoff).
 
 The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
-
-With no identifier, [the picker](#the-picker) stands in for one.
 
 ### carry
 
@@ -54,19 +52,17 @@ A checkout carrying nothing is refused, in words naming `add`. Changes that do n
 
 ### remove
 
-`work remove <name>` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
-
-With no name, [the picker](#the-picker) stands in for one.
+`work remove [<name>]` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
 
 Only a clean worktree can be removed, an unclean one with `--force`. The main checkout cannot be removed, and neither can the worktree the shell is standing in.
 
 ### move
 
-`work move <name> <destination>` moves the worktree git reports for that [identifier](#identifiers) and renames the branch it has checked out to the destination's last element. Both land or neither does. An identifier with no worktree open is refused, and so are a destination already there and a branch name already taken, each before anything moves.
+`work move [<name>] [<destination>]` moves the worktree git reports for that [identifier](#identifiers) and renames the branch it has checked out to the destination's last element. Both land or neither does. An identifier with no worktree open is refused, and so are a destination already there and a branch name already taken, each before anything moves.
 
 A destination spelled as a bare name lands the worktree beside where it sits; one carrying a path separator is a path, absolute or read from the directory work was invoked in. The last element is held to the [naming rule](#identifiers) either way.
 
-With no destination, [the prompt](#the-prompt) asks for one. With no name either, [the picker](#the-picker) stands in for the name first.
+Left out together, the name is picked before the destination is asked for.
 
 The main checkout cannot be moved, and neither can the worktree the shell is standing in.
 

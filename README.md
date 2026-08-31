@@ -23,7 +23,7 @@ work init fish | source     # config.fish
 source <(work init zsh)     # .zshrc, below compinit
 ```
 
-`git` is the only dependency. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
+`git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
 
 ## Use
 
@@ -31,24 +31,23 @@ source <(work init zsh)     # .zshrc, below compinit
 work
 ```
 
-Choose from the repository's worktrees, its ready tickets and its open pull requests.
+Choose from the repository's worktrees. [The systems you name](#systems) add to the list: ready tickets, open pull requests.
 
-- **With a worktree:** your shell stands in it.
-- **Without one:** the worktree is created first, then opens on what you set for creations.
+Every verb and argument: [the command line](docs/references/cli.md).
 
-```
-work <name>
-```
+## Systems
 
-A worktree name, a ticket id or a pull request skips the chooser. See also [the command line](docs/references/cli.md).
+Everything `work` reaches for beyond git is a [system](docs/references/systems.md). You enable the ones you work with [in the settings](docs/references/configuration.md#systems).
 
-## Still in development
+A resolver answers before a worktree exists, turning an identifier into the place to work.
 
-What ships is locked to the integrations named below, and [a missing one](docs/references/systems.md) fails its path rather than degrading it.
+- [`beads`](docs/references/systems.md#beads): a ready ticket over `bd`, vetted before its worktree is made
+- [`github`](docs/references/systems.md#github): one of `origin`'s open pull requests, over `gh`
 
-- **The resolvers are `beads` and `github`.** A ticket is a bead over `bd`; a pull request one of `origin`'s, fetched in that one forge's ref layout.
-- **The agent opener is `claude`.**
-- **The picker is `fzf`.** The no-argument form needs it.
+An action runs on the worktree that now exists.
+
+- [`mise`](docs/references/systems.md#mise): trusts the new worktree
+- [`claude`](docs/references/systems.md#claude): hands the new worktree to the agent
 
 ## License
 
