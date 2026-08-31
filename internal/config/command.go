@@ -29,26 +29,25 @@ func (c *Claude) validate() (string, error) {
 	if err := c.validateOnCreation(); err != nil {
 		return onCreationKey, err
 	}
-	if err := c.CommandLine.validate(); err != nil {
+	if err := c.Command().validate(); err != nil {
 		return commandKey, err
 	}
 	return "", nil
 }
 
-var defaultClaude = Claude{
-	CommandLine: mustCommand(
-		`{{if .Subject}}claude{{end}}`,
-		`{{if eq .Source "beads"}}--permission-mode=auto{{end}}`,
-		`--name={{.Subject}}`,
-		`{{if eq .Source "beads"}}/start {{.ID}}{{end}}`,
-	),
-}
+const defaultCommand = `{{if .Subject}}
+claude
+{{if eq .Source "beads"}}--permission-mode=auto{{end}}
+--name={{.Subject}}
+{{if eq .Source "beads"}}/start {{.ID}}{{end}}
+{{end}}
+`
 
-// Command is a whole command line: one [text/template] per argv element,
-// rendered with [worktree.ValueNames].
-type Command struct {
-	parts []tmpl
-}
+var defaultClaude = Claude{CommandLine: mustCommand(defaultCommand)}
+
+// Command is a whole command line: one [text/template] rendered over
+// [worktree.ValueNames], then read a line at a time.
+type Command struct{ tmpl }
 
 var valueNames = worktree.ValueNames()
 
@@ -92,103 +91,86 @@ func everyValue(value string) map[string]any {
 	return d
 }
 
-// UnmarshalTOML reads a command out of a settings file, where it is written as
-// an array of strings, one per argv element. validate judges the values later.
+// UnmarshalTOML reads the block a settings file writes the command as. validate
+// judges the value later.
 func (c *Command) UnmarshalTOML(v any) error {
-	list, ok := v.([]any)
+	text, ok := v.(string)
 	if !ok {
-		return errors.New("is not a list of command line arguments")
+		return errors.New("is not text")
 	}
-	texts := make([]string, len(list))
-	for i, e := range list {
-		text, ok := e.(string)
-		if !ok {
-			return errors.New("is not a list of command line arguments")
-		}
-		texts[i] = text
-	}
-	q, err := parseCommand(texts)
-	*c = q
+	parsed, err := parseCommand(text)
+	*c = parsed
 	return err
 }
 
-// commandFuncs are the filters a command element may pipe a value through, named
-// as sprig names them.
+// commandFuncs are the filters a command may pipe a value through, named as
+// sprig names them.
 var commandFuncs = template.FuncMap{"squote": shellQuote}
 
-// shellQuote is the value as one word of a POSIX shell, for an element that is
-// itself a shell script. Single quotes hold every other character, and a single
-// quote closes them, escapes and reopens.
+// shellQuote is the value as one word of a POSIX shell. Single quotes hold every
+// other character, and a single quote closes them, escapes and reopens.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func parseCommand(texts []string) (Command, error) {
-	// Non-nil even when empty, so that a key set to no command reads as set.
-	parts := make([]tmpl, 0, len(texts))
-	for _, text := range texts {
-		t, err := parseTmpl("command", text, commandFuncs)
-		if err != nil {
-			return Command{}, err
-		}
-		parts = append(parts, t)
-	}
-	return Command{parts: parts}, nil
+func parseCommand(text string) (Command, error) {
+	t, err := parseTmpl("command", text, commandFuncs)
+	return Command{tmpl: t}, err
 }
 
-// mustCommand panics: a compiled-in default cannot be at fault.
-func mustCommand(texts ...string) Command {
-	c, err := parseCommand(texts)
+func mustCommand(text string) Command {
+	c, err := parseCommand(text)
 	if err == nil {
 		err = c.validate()
 	}
 	if err != nil {
-		panic(fmt.Sprintf("config: default command %q %v", texts, err))
+		panic(fmt.Sprintf("config: default command %q %v", text, err))
 	}
 	return c
 }
 
-// validate renders every value both set and unset, so a template that cannot
-// render at all is refused at load rather than at the handoff.
+// validate renders the block over every value both set and unset, so one that
+// cannot render, or that names no command for any of them, is refused at load.
 func (c Command) validate() error {
-	if len(c.parts) == 0 {
-		return errors.New("names no command to run")
-	}
+	namesCommand := false
 	for _, d := range probes() {
-		for _, p := range c.parts {
-			if _, err := p.execute(d); err != nil {
-				return fmt.Errorf("%w; the values here are %s", err, valueList)
-			}
+		out, err := c.execute(d)
+		if err != nil {
+			return fmt.Errorf("%w; the values here are %s", err, valueList)
 		}
+		namesCommand = namesCommand || len(arguments(out)) > 0
+	}
+	if !namesCommand {
+		return errors.New("names no command to run")
 	}
 	return nil
 }
 
 // or is the command itself, or def where no file named one.
 func (c Command) or(def Command) Command {
-	if c.parts == nil {
+	if c.t == nil {
 		return def
 	}
 	return c
 }
 
-// Render drops every element that renders to nothing. A first element rendering
-// to nothing leaves no command, and the empty argv is the worktree itself.
+// Render is the block rendered over a worktree's values and cut into argv, empty
+// where the block rendered nothing.
 func (c Command) Render(vals worktree.Values) ([]string, error) {
-	d := knownValues(vals)
-	argv := make([]string, 0, len(c.parts))
-	for i, p := range c.parts {
-		s, err := p.execute(d)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", commandKey, err)
-		}
-		if s == "" {
-			if i == 0 {
-				return nil, nil
-			}
-			continue
-		}
-		argv = append(argv, s)
+	out, err := c.execute(knownValues(vals))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", commandKey, err)
 	}
-	return argv, nil
+	return arguments(out), nil
+}
+
+// arguments are the non-blank lines of a rendered block, one each, trimmed.
+func arguments(rendered string) []string {
+	var argv []string
+	for line := range strings.SplitSeq(rendered, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			argv = append(argv, line)
+		}
+	}
+	return argv
 }

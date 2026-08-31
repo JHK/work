@@ -379,6 +379,14 @@ const claudeTable = "[claude]\n"
 
 var agentOn = on("claude") + claudeTable
 
+// quotes open and close the TOML multiline literal string a command is written
+// as, and commandBlock is one, the lines given as they stand between them.
+const quotes = "'''"
+
+func commandBlock(lines ...string) string {
+	return claudeTable + "command = " + quotes + "\n" + strings.Join(lines, "\n") + "\n" + quotes + "\n"
+}
+
 // ticketSessionOn is the compiled-in claude.command as a stand-in records it for
 // a ticket.
 func ticketSessionOn(id, title string) string {

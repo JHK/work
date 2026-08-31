@@ -172,7 +172,7 @@ func TestTheLogLevelReadsLikeTheRootFlagsBesideIt(t *testing.T) {
 func TestInfoNamesTheCommandTheWorktreeOpensOn(t *testing.T) {
 	// One nothing else in the run spawns, so only the handoff can have said it.
 	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
-		claudeTable+"command = [\"git\", \"--version\"]\n")
+		commandBlock("git", "--version"))
 
 	r := s.hands("--log-level", "info", "add", "bd-1")
 

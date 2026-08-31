@@ -30,13 +30,12 @@ var documented = []string{
 	"claude.command",
 }
 
-// dumped is a printed configuration read back: the keys in the order they were
-// printed and the value under each. A key is held by the whole name a settings
-// file spells, which is the table it sits in and its own where it sits in one.
+// dumped is a printed configuration read back: what it printed and the keys in
+// the order they were printed. A key is held by the whole name a settings file
+// spells, which is the table it sits in and its own where it sits in one.
 type dumped struct {
-	text  string
-	keys  []string
-	value map[string]string
+	text string
+	keys []string
 }
 
 // dumping types work config dump in that session and reads back what it printed.
@@ -45,10 +44,14 @@ func dumping(t *testing.T, s *session) dumped {
 	r := s.run("config", "dump")
 	r.came(t, result{}, besides("Out"))
 
-	d := dumped{text: r.Out, value: map[string]string{}}
-	table := ""
+	d := dumped{text: r.Out}
+	table, inBlock := "", false
 	for line := range strings.SplitSeq(r.Out, "\n") {
 		switch {
+		// What stands between a block's quotes is one value, not keys or tables of its
+		// own.
+		case inBlock:
+			inBlock = line != quotes
 		case strings.HasPrefix(line, "["):
 			table = strings.TrimSuffix(strings.TrimPrefix(line, "["), "]")
 		case strings.Contains(line, " = "):
@@ -58,7 +61,7 @@ func dumping(t *testing.T, s *session) dumped {
 				name = table + "." + leaf
 			}
 			d.keys = append(d.keys, name)
-			d.value[name] = value
+			inBlock = value == quotes
 		}
 	}
 	return d
@@ -77,16 +80,36 @@ func TestConfigDumpNamesEverySetting(t *testing.T) {
 // is that text names the same settings, whether a key came from the file or from
 // the defaults.
 func TestConfigDumpLoadsBack(t *testing.T) {
+	tests := []struct{ name, body string }{
+		{"the compiled-in defaults", ""},
+		// A quote and a tab survive the printing, the block holding both as written.
+		{"a file naming every key", on("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
+			"on-creation = [\"carry\"]\n" + directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := repository(t)
+			s.settings(tt.body)
+
+			first := dumping(t, s)
+			// A machine whose whole configuration is what the first dump printed.
+			s.settings(first.text)
+
+			require.Equal(t, first.text, dumping(t, s).text, "the dump loads back as another configuration")
+		})
+	}
+}
+
+// A command is printed as the block it is written as, the compiled-in one
+// included, which is the one form a settings file holds it in.
+func TestConfigDumpPrintsTheCommandAsABlock(t *testing.T) {
 	s := repository(t)
-	// A quote and a tab survive the printing, being written as TOML escapes.
-	s.settings(agentOn + "on-creation = [\"carry\"]\ncommand = [\"claude\", \"--name=\\\"{{.Name}}\\\"\", \"a\\tb\"]\n" +
-		directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n")
 
-	first := dumping(t, s)
-	// A machine whose whole configuration is what the first dump printed.
-	s.settings(first.text)
+	got := dumping(t, s).text
 
-	testenv.Equal(t, first.value, dumping(t, s).value, "the dump loads back as another configuration")
+	require.Contains(t, got, "\ncommand = "+quotes+"\n", "the compiled-in command was printed as something other than a block")
+	require.Contains(t, got, "\nclaude\n", "the block the dump printed names no command to run")
+	require.True(t, strings.HasSuffix(got, "\n"+quotes+"\n"), "the block the dump printed is never closed: %q", got)
 }
 
 // A value a settings file may not hold stops the command that read it, naming
@@ -136,16 +159,19 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"an unknown command key", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
 		// The two keys one command replaced are unknown, no rename standing behind them.
 		{"a key the one command replaced", "[claude]\nstart-ticket = [\"claude\"]\n", "unknown setting"},
-		{"a command that is not a list", "[claude]\ncommand = \"claude\"\n", "list of command line arguments"},
-		{"a list of something other than strings", "[claude]\ncommand = [1, 2]\n", "list of command line arguments"},
-		{"a template that does not parse", "[claude]\ncommand = [\"claude\", \"{{.ID\"]\n", "claude.command"},
-		{"a command naming nothing", "[claude]\ncommand = []\n", "claude.command: names no command"},
-		{"a value the command does not have", "[claude]\ncommand = [\"claude\", \"{{.Number}}\"]\n", "{{.Subject}}"},
+		// The list the one block replaced, which nothing carries over.
+		{"a command written as a list", "[claude]\ncommand = [\"claude\"]\n", "claude.command"},
+		{"a command that is not text", "[claude]\ncommand = 3\n", "claude.command"},
+		{"a template that does not parse", "[claude]\ncommand = '''\nclaude {{.ID\n'''\n", "claude.command"},
+		{"a command naming nothing", "[claude]\ncommand = '''\n'''\n", "claude.command: names no command"},
+		// A guard no source reaches leaves a block that renders for nothing at all.
+		{"a command no value renders", "[claude]\ncommand = '''\n{{if eq .Source \"gitlab\"}}claude{{end}}\n'''\n", "claude.command: names no command"},
+		{"a value the command does not have", "[claude]\ncommand = '''\nclaude {{.Number}}\n'''\n", "{{.Subject}}"},
 		// Only the arm a ticket carrying a title reaches names it.
-		{"a value named inside a branch", "[claude]\ncommand = [\"claude\", \"{{with .Title}}{{$.Number}}{{end}}\"]\n", "claude.command"},
+		{"a value named inside a branch", "[claude]\ncommand = '''\nclaude {{with .Title}}{{$.Number}}{{end}}\n'''\n", "claude.command"},
 		// Only the arm a worktree the tracker answered for reaches names it.
-		{"a value named inside a source arm", "[claude]\ncommand = [\"claude\", \"{{if eq .Source \\\"beads\\\"}}{{.Number}}{{end}}\"]\n", "claude.command"},
-		{"a command naming a filter that does not exist", "[claude]\ncommand = [\"claude\", \"{{.Subject | shout}}\"]\n", "claude.command"},
+		{"a value named inside a source arm", "[claude]\ncommand = '''\nclaude {{if eq .Source \"beads\"}}{{.Number}}{{end}}\n'''\n", "claude.command"},
+		{"a command naming a filter that does not exist", "[claude]\ncommand = '''\nclaude {{.Subject | shout}}\n'''\n", "claude.command"},
 		{"a branch pattern naming squote", "[branch]\nticket = \"{{.ID | squote}}\"\n", "branch.ticket"},
 	}
 	for _, tt := range tests {
@@ -288,44 +314,15 @@ func TestAFileNamingOneKeyLeavesTheRestToTheDefaults(t *testing.T) {
 	require.DirExists(t, s.at("bd-1"), "the worktree did not land where the compiled-in directory names")
 }
 
-// A command the file names replaces the compiled-in one whole rather than
-// element by element, and is what the worktree opens on.
+// A command the file names replaces the compiled-in one whole rather than line
+// by line, and is what the worktree opens on.
 func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
-	// Shorter than the default, so one replaced element by element would leave the
+	// Shorter than the default, so one replaced line by line would leave the
 	// default's tail behind.
 	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"claude"},
-		claudeTable+"command = [\"claude\", \"{{.Name}}\"]\n", testenv.Stub{Name: "claude"})
+		commandBlock("claude", "{{.Name}}"), testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "bd-1")
 
 	r.came(t, result{Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"), "claude bd-1")})
-}
-
-// An element that is itself a shell script carries a value through squote, which
-// hands the shell one word whatever that value holds.
-func TestACommandQuotesAValueIntoAShellString(t *testing.T) {
-	awkward := with(doable, func(t *ticket) { t.Title = `Do a $HOME thing it's "own" way` })
-	s := tracking(t, []ticket{awkward}, []ticket{awkward}, []string{"claude"},
-		claudeTable+"command = [\"sh\", \"-c\", \"claude {{.Subject | squote}}\"]\n",
-		// The word count is what tells one argument from the several a raw value splits into.
-		testenv.Stub{Name: "claude", Shell: `printf '%d: %s' "$#" "$1"`})
-
-	r := s.hands("add", "bd-1")
-
-	subject := "bd-1: " + awkward.Title
-	r.came(t, result{Out: "1: " + subject,
-		Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-home-thing-it-s-own-way"), "claude "+subject)})
-}
-
-// An empty value quotes to a word all the same, so an element written that way
-// is never one the argv drops.
-func TestAnEmptyValueQuotesToAnEmptyWord(t *testing.T) {
-	untitled := with(doable, func(b *ticket) { b.Title = "" })
-	s := tracking(t, []ticket{untitled}, []ticket{untitled}, []string{"claude"},
-		claudeTable+"command = [\"sh\", \"-c\", \"claude {{.Title | squote}} last\"]\n",
-		testenv.Stub{Name: "claude", Shell: `printf '%d: [%s]' "$#" "$1"`})
-
-	r := s.hands("add", "bd-1")
-
-	r.came(t, result{Out: "2: []", Asked: append(worked("bd-1", s.at("bd-1"), "bd-1"), "claude  last")})
 }

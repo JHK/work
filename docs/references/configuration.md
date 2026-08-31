@@ -65,16 +65,17 @@ Refused at load: a word no verb goes by, and a verb no worktree comes into being
 
 ## Commands
 
-`claude.command` is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element, over [the values a worktree carries](claude.md#values). An element rendering to nothing is dropped from the argv.
+`claude.command` is a command run without a shell, written as one [Go template](https://pkg.go.dev/text/template) over [the values a worktree carries](claude.md#values), in a TOML multiline literal string. It is rendered whole, then read a line at a time: each non-blank line is one argument, trimmed.
 
-An element that is itself a shell script may pipe a value through `squote`, the one filter there is: the value as one word of that shell, in single quotes.
+A line that is itself a shell script may pipe a value through `squote`, the one filter there is: the value as one word of that shell, in single quotes.
 
 Refused at load:
 
-- an empty list
+- a value that is not text
+- a block no value renders a command from
 - a value the command may not place
 - a name no filter goes by
 
-A first element rendering to nothing leaves no command to run: the worktree is [handed back](cli.md#handoff), once it is created and the ticket claimed.
+A block that renders to nothing leaves no command to run: the worktree is [handed back](cli.md#handoff), once it is created and the ticket claimed.
 
 The default is in [internal/config/command.go](../../internal/config/command.go), and [what it opens](claude.md) is `claude`.

@@ -5,7 +5,7 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 ## Prerequisites
 
 - A decision on failure: `&&` skips the second instruction when the first exits non-zero, `;` in its place runs it either way.
-- A pull request's worktree handed back: the one key carries every worktree, and every element below is guarded on `beads`.
+- A pull request's worktree handed back: the one key carries every worktree, and one guard opens the block and closes it.
 
 ## Steps
 
@@ -13,11 +13,13 @@ Run `/simplify` after `/start` in the session a ticket's new worktree opens on.
 
    ```toml
    [claude]
-   command = [
-     '{{if eq .Source "beads"}}sh{{end}}',
-     '{{if eq .Source "beads"}}-c{{end}}',
-     '''{{if eq .Source "beads"}}claude -p --permission-mode auto "/start {{.ID}}" && claude --permission-mode auto --continue -n {{.Subject | squote}} /simplify{{end}}''',
-   ]
+   command = '''
+   {{if eq .Source "beads"}}
+   sh
+   -c
+   claude -p --permission-mode auto "/start {{.ID}}" && claude --permission-mode auto --continue -n {{.Subject | squote}} /simplify
+   {{end}}
+   '''
    ```
 
 2. Check the value loads, with a name no bead has: `work nonexistent-bead`. It refuses the bead, not the file the value came from.

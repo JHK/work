@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 )
@@ -51,28 +52,35 @@ func (c Config) keys() []key {
 		{ticketKey, c.Branch.ticket().tmpl.text},
 		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
 		{onCreationKey, c.Claude.OnCreation()},
-		{commandKey, argv(c.Claude.Command())},
+		{commandKey, block(c.Claude.Command().text)},
 	}
 }
 
-// argv is a command as it was written, element by element, rather than as it
-// renders.
-func argv(c Command) []string {
-	out := make([]string, len(c.parts))
-	for i, p := range c.parts {
-		out[i] = p.text
-	}
-	return out
-}
+// block is a value a settings file writes as a multiline literal string.
+type block string
 
 // value is one setting as a settings file spells it, quoted by the package that
 // reads it back.
 func value(v any) string {
+	if b, ok := v.(block); ok {
+		if s := string(b); fitsLiteral(s) {
+			// TOML drops the newline after the opening quotes, so the text reads back as written.
+			return "'''\n" + s + "'''"
+		}
+		v = string(b)
+	}
 	out, err := toml.Marshal(v)
 	if err != nil {
 		panic(fmt.Sprintf("config: dumping %v: %v", v, err))
 	}
 	return string(out)
+}
+
+// TOML escapes nothing inside a literal string, so it holds neither the quotes
+// that close it nor a control character other than a tab.
+func fitsLiteral(s string) bool {
+	return !strings.Contains(s, "'''") &&
+		!strings.ContainsFunc(s, func(r rune) bool { return r != '\t' && r != '\n' && unicode.IsControl(r) })
 }
 
 // Settings is every key work read and the value it resolved to, in the order

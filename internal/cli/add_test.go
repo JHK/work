@@ -124,20 +124,6 @@ func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	require.True(t, s.hasBranch("scratch"), "the worktree was refused over a grant that only means the session prompts")
 }
 
-// The command renders the whole handoff: a first element rendering to nothing
-// leaves no command at all, and the worktree is handed back the way one nothing
-// opens on is.
-func TestACommandWhoseFirstElementRendersToNothingHandsTheWorktreeBack(t *testing.T) {
-	// The one element the command holds renders empty for a ticket carrying no title.
-	untitled := with(doable, func(b *ticket) { b.Title = "" })
-	s := tracking(t, []ticket{untitled}, []ticket{untitled},
-		[]string{"claude"}, claudeTable+"command = [\"{{.Title}}\"]\n")
-
-	r := s.run("add", "bd-1")
-
-	r.came(t, result{Answered: s.at("bd-1"), Asked: worked("bd-1", s.at("bd-1"), "bd-1")})
-}
-
 // The claim is the tracker's own places alone: a pull request the forge answered
 // for is another system's, and bd is left out of it.
 func TestAPlaceAnotherSystemAnsweredForIsNotClaimed(t *testing.T) {
