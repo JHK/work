@@ -21,8 +21,8 @@ func (o Opener) Name() string { return Name }
 
 // Open renders the command work replaces itself with, or the worktree itself
 // where that command renders to nothing.
-func (o Opener) Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error) {
-	run, err := o.command.Render(vals)
+func (o Opener) Open(t worktree.Tree) (worktree.Handoff, error) {
+	run, err := o.command.Render(t.Values)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

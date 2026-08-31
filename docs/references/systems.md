@@ -30,17 +30,9 @@ The forge, over `gh`, pinned to origin's URL. It reads origin's open pull reques
 
 ## Actions
 
-An action runs on the worktree that now exists.
+An action runs on the worktree that now exists, and is handed the values below.
 
-### mise
-
-The tool trust, over `mise`. It runs `mise trust` in a worktree that was just created.
-
-### claude
-
-The agent, `claude` by default, whatever the [`claude.command`](configuration.md#commands) setting names. A new worktree is handed to it, where [the settings name the verb that created it](configuration.md#opening-on-a-session). It renders that one command over the values below.
-
-#### Values
+### Values
 
 Every value is always rendered, empty where nothing behind the worktree has one. The core fills all but `.Subject`, which the [resolver that answered](#resolvers) spells out.
 
@@ -52,3 +44,11 @@ Every value is always rendered, empty where nothing behind the worktree has one.
 | `.Name` | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |
 | `.Dir` | the worktree, which the process has already changed into |
 | `.Subject` | the target spelled out, as its resolver reads it |
+
+### mise
+
+The tool trust, over `mise`. It runs `mise trust` in a worktree that was just created.
+
+### claude
+
+The agent, `claude` by default, whatever the [`claude.command`](configuration.md#commands) setting names. A new worktree is handed to it, where [the settings name the verb that created it](configuration.md#opening-on-a-session). It renders that one command over [the values](#values).

@@ -68,8 +68,8 @@ type Action interface {
 type Opener interface {
 	worktree.System
 
-	// Open renders the handoff from the values gathered for the worktree.
-	Open(t worktree.Tree, vals worktree.Values) (worktree.Handoff, error)
+	// Open renders the handoff from the values the worktree carries.
+	Open(t worktree.Tree) (worktree.Handoff, error)
 }
 
 // Systems are the implementations behind the seams, in the order they are asked.

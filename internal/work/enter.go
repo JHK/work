@@ -29,6 +29,8 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		return worktree.Handoff{}, err
 	}
 
+	t.Values = e.values(t)
+
 	if t.Created {
 		for _, a := range e.Systems.Actions {
 			if err := a.Run(t); err != nil {
@@ -45,13 +47,11 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	// Past the creation and the actions, so the resolver is asked of a worktree that
-	// exists.
 	opener, err := e.openerFor(c, o)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
-	return opener.Open(t, e.values(t))
+	return opener.Open(t)
 }
 
 // create is the worktree a candidate has, made where it has none, and whether

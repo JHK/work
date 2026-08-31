@@ -46,6 +46,10 @@ type Tree struct {
 	Path    string
 	Created bool // this run made it, rather than found it
 
+	// Values are what a command for this worktree renders with, assembled once
+	// before the actions run.
+	Values Values
+
 	// By is the resolver that answered for the place. An action wanting more than a
 	// Place carries declares the interface it needs and asserts this to it.
 	By System
@@ -89,7 +93,8 @@ func ValueNames() []string {
 }
 
 // Source is a system that knows values the core does not hold, the core's own
-// names winning where both name one. It is asked once, of a worktree that exists.
+// names winning where both name one. It is asked once, of a worktree that
+// exists, and ahead of the assembly, so [Tree.Values] is empty there.
 type Source interface {
 	System
 
