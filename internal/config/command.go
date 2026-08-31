@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -111,11 +112,22 @@ func (c *Command) UnmarshalTOML(v any) error {
 	return err
 }
 
+// commandFuncs are the filters a command element may pipe a value through, named
+// as sprig names them.
+var commandFuncs = template.FuncMap{"squote": shellQuote}
+
+// shellQuote is the value as one word of a POSIX shell, for an element that is
+// itself a shell script. Single quotes hold every other character, and a single
+// quote closes them, escapes and reopens.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 func parseCommand(texts []string) (Command, error) {
 	// Non-nil even when empty, so that a key set to no command reads as set.
 	parts := make([]tmpl, 0, len(texts))
 	for _, text := range texts {
-		t, err := parseTmpl("command", text)
+		t, err := parseTmpl("command", text, commandFuncs)
 		if err != nil {
 			return Command{}, err
 		}

@@ -100,7 +100,8 @@ func parsePattern(text string) (Pattern, error) {
 	if strings.ContainsAny(text, idMark+anyMark) {
 		return Pattern{}, errors.New("carries a control byte")
 	}
-	t, err := parseTmpl("branch", text)
+	// No filters: the pattern also renders into the matcher that finds a worktree again.
+	t, err := parseTmpl("branch", text, nil)
 	if err != nil {
 		return Pattern{}, err
 	}

@@ -145,6 +145,8 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a value named inside a branch", "[claude]\ncommand = [\"claude\", \"{{with .Title}}{{$.Number}}{{end}}\"]\n", "claude.command"},
 		// Only the arm a worktree the tracker answered for reaches names it.
 		{"a value named inside a source arm", "[claude]\ncommand = [\"claude\", \"{{if eq .Source \\\"beads\\\"}}{{.Number}}{{end}}\"]\n", "claude.command"},
+		{"a command naming a filter that does not exist", "[claude]\ncommand = [\"claude\", \"{{.Subject | shout}}\"]\n", "claude.command"},
+		{"a branch pattern naming squote", "[branch]\nticket = \"{{.ID | squote}}\"\n", "branch.ticket"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -297,4 +299,33 @@ func TestACommandInTheFileReplacesTheDefaultWhole(t *testing.T) {
 	r := s.hands("add", "bd-1")
 
 	r.came(t, result{Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"), "claude bd-1")})
+}
+
+// An element that is itself a shell script carries a value through squote, which
+// hands the shell one word whatever that value holds.
+func TestACommandQuotesAValueIntoAShellString(t *testing.T) {
+	awkward := with(doable, func(t *ticket) { t.Title = `Do a $HOME thing it's "own" way` })
+	s := tracking(t, []ticket{awkward}, []ticket{awkward}, []string{"claude"},
+		claudeTable+"command = [\"sh\", \"-c\", \"claude {{.Subject | squote}}\"]\n",
+		// The word count is what tells one argument from the several a raw value splits into.
+		testenv.Stub{Name: "claude", Shell: `printf '%d: %s' "$#" "$1"`})
+
+	r := s.hands("add", "bd-1")
+
+	subject := "bd-1: " + awkward.Title
+	r.came(t, result{Out: "1: " + subject,
+		Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-home-thing-it-s-own-way"), "claude "+subject)})
+}
+
+// An empty value quotes to a word all the same, so an element written that way
+// is never one the argv drops.
+func TestAnEmptyValueQuotesToAnEmptyWord(t *testing.T) {
+	untitled := with(doable, func(b *ticket) { b.Title = "" })
+	s := tracking(t, []ticket{untitled}, []ticket{untitled}, []string{"claude"},
+		claudeTable+"command = [\"sh\", \"-c\", \"claude {{.Title | squote}} last\"]\n",
+		testenv.Stub{Name: "claude", Shell: `printf '%d: [%s]' "$#" "$1"`})
+
+	r := s.hands("add", "bd-1")
+
+	r.came(t, result{Out: "2: []", Asked: append(worked("bd-1", s.at("bd-1"), "bd-1"), "claude  last")})
 }

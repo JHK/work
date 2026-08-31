@@ -53,6 +53,7 @@ Refused at load:
 
 - a pattern placing no `.ID` or no `.Number`
 - a pattern rendering a branch that opens with a dash
+- a pattern naming `squote`, which is a command's alone
 
 ## Opening on a session
 
@@ -66,10 +67,13 @@ Refused at load: a word no verb goes by, and a verb no worktree comes into being
 
 `claude.command` is the argv of a command run without a shell, one [Go template](https://pkg.go.dev/text/template) per element, over [the values a worktree carries](claude.md#values). An element rendering to nothing is dropped from the argv.
 
+An element that is itself a shell script may pipe a value through `squote`, the one filter there is: the value as one word of that shell, in single quotes.
+
 Refused at load:
 
 - an empty list
 - a value the command may not place
+- a name no filter goes by
 
 A first element rendering to nothing leaves no command to run: the worktree is [handed back](cli.md#handoff), once it is created and the ticket claimed.
 
