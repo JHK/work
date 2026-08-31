@@ -45,25 +45,25 @@ var defaultClaude = Claude{
 }
 
 // Command is a whole command line: one [text/template] per argv element,
-// rendered with [commandValues].
+// rendered with [worktree.ValueNames].
 type Command struct {
 	parts []tmpl
 }
 
-// commandValues are always supplied, empty where nothing behind the worktree
-// has one.
-var commandValues = []string{"Source", "ID", "Title", "Name", "Dir", "Subject"}
+var valueNames = worktree.ValueNames()
 
-// A name outside [commandValues] fails the render rather than rendering empty.
+// A name outside [worktree.ValueNames] fails the render rather than rendering
+// empty. Every one of them is supplied, empty where nothing behind the worktree
+// has one.
 func knownValues(vals worktree.Values) map[string]any {
-	d := make(map[string]any, len(commandValues))
-	for _, name := range commandValues {
+	d := make(map[string]any, len(valueNames))
+	for _, name := range valueNames {
 		d[name] = vals[name]
 	}
 	return d
 }
 
-var valueList = "{{." + strings.Join(commandValues, "}}, {{.") + "}}"
+var valueList = "{{." + strings.Join(valueNames, "}}, {{.") + "}}"
 
 // mark is the shortest any real value is, so a command rendering with it renders
 // with anything.
@@ -77,7 +77,7 @@ func probes() []map[string]any {
 	for _, value := range []string{"", mark} {
 		for _, source := range sources {
 			d := everyValue(value)
-			d["Source"] = source
+			d[worktree.SourceValue] = source
 			out = append(out, d)
 		}
 	}
@@ -85,8 +85,8 @@ func probes() []map[string]any {
 }
 
 func everyValue(value string) map[string]any {
-	d := make(map[string]any, len(commandValues))
-	for _, name := range commandValues {
+	d := make(map[string]any, len(valueNames))
+	for _, name := range valueNames {
 		d[name] = value
 	}
 	return d

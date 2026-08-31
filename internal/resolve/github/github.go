@@ -117,7 +117,7 @@ func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 	if t.Label != "" {
 		subject += ": " + t.Label
 	}
-	return worktree.Values{"Subject": subject}, nil
+	return worktree.Values{worktree.SubjectValue: subject}, nil
 }
 
 // place names a pull request by the branch its worktree checks out.

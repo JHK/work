@@ -573,11 +573,11 @@ func contains(root, path string) bool {
 // holds, then the subject the resolver that answered spells out.
 func (e Env) values(t worktree.Tree) worktree.Values {
 	vals := worktree.Values{
-		"Source": t.Source,
-		"ID":     t.ID,
-		"Title":  t.Label,
-		"Name":   t.Name,
-		"Dir":    t.Path,
+		worktree.SourceValue: t.Source,
+		worktree.IDValue:     t.ID,
+		worktree.TitleValue:  t.Label,
+		worktree.NameValue:   t.Name,
+		worktree.DirValue:    t.Path,
 	}
 	if s, ok := t.By.(worktree.Source); ok {
 		if supplied, err := s.Supply(t); err == nil {

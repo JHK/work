@@ -72,6 +72,22 @@ func (v Values) Merge(other Values) {
 	}
 }
 
+// The names a command may place.
+const (
+	SourceValue  = "Source"
+	IDValue      = "ID"
+	TitleValue   = "Title"
+	NameValue    = "Name"
+	DirValue     = "Dir"
+	SubjectValue = "Subject"
+)
+
+// ValueNames are those names, in the order a listing of them reads. A name
+// outside them is never supplied.
+func ValueNames() []string {
+	return []string{SourceValue, IDValue, TitleValue, NameValue, DirValue, SubjectValue}
+}
+
 // Source is a system that knows values the core does not hold, the core's own
 // names winning where both name one. It is asked once, of a worktree that exists.
 type Source interface {

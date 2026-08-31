@@ -30,7 +30,7 @@ The core is responsible for [that sequence](scope-of-work.md#the-remit-is-the-se
 
 ## The compiler decided where the shared words go, and the design did not
 
-The core, the two sides of the seams, and the settings share a small vocabulary. It names a place, a worktree that exists, and the command that a worktree opens on. A package of its own declares these words. That package imports only the standard library.
+The core, the two sides of the seams, and the settings share a small vocabulary. It names a place, a worktree that exists, the command that a worktree opens on, and the values that command renders with. A package of its own declares these words. That package imports only the standard library.
 
 No part of the partition depends on that position. These words are the core's conditions, and they would sit with the other conditions in the core. But the core imports the settings, and the settings use these words too. They fill a repository's commands with the values that a worktree supplies.
 
