@@ -24,8 +24,8 @@ func directory(dir string) string {
 var documented = []string{
 	"systems",
 	"worktree.directory",
-	"branch.ticket",
-	"branch.pull-request",
+	"github.branch",
+	"beads.branch",
 	"claude.on-creation",
 	"claude.command",
 }
@@ -88,7 +88,8 @@ func TestConfigDumpLoadsBack(t *testing.T) {
 		{"the compiled-in defaults", ""},
 		// A quote and a tab survive the printing, the block holding both as written.
 		{"a file naming every key", systemsOn("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
-			"on-creation = [\"carry\"]\n" + directory("trees") + "[branch]\nticket = \"{{.ID}}\"\npull-request = \"review/{{.Number}}\"\n"},
+			"on-creation = [\"carry\"]\n" + directory("trees") +
+			"[github]\nbranch = \"review/{{.Number}}\"\n[beads]\nbranch = \"{{.ID}}\"\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,14 +135,14 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"the repository root, by traversal", directory("trees/.."), "not a directory inside"},
 		{"git's own directory", directory(".git"), "git's own directory"},
 		{"a directory under git's own", directory(".git/worktrees"), "git's own directory"},
-		{"a pattern that does not parse", "[branch]\nticket = \"{{.ID\"\n", "branch.ticket"},
-		{"a pattern that is not a string", "[branch]\nticket = 3\n", "ticket"},
-		{"a ticket pattern without its id", "[branch]\nticket = \"feature/{{.Slug}}\"\n", "places no {{.ID}}"},
+		{"a pattern that does not parse", "[beads]\nbranch = \"{{.ID\"\n", "beads.branch"},
+		{"a pattern that is not a string", "[beads]\nbranch = 3\n", "branch"},
+		{"a ticket pattern without its id", "[beads]\nbranch = \"feature/{{.Slug}}\"\n", "places no {{.ID}}"},
 		// The pattern places the id, but only where a ticket with no slug would not
 		// reach, and that ticket's branch would then stand for every ticket.
-		{"an id only some tickets reach", "[branch]\nticket = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
-		{"a pull request pattern without its number", "[branch]\npull-request = \"pr-{{.ID}}\"\n", "{{.Number}}"},
-		{"a branch opening with a dash", "[branch]\nticket = \"-{{.ID}}\"\n", "dash"},
+		{"an id only some tickets reach", "[beads]\nbranch = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
+		{"a pull request pattern without its number", "[github]\nbranch = \"pr-{{.ID}}\"\n", "{{.Number}}"},
+		{"a branch opening with a dash", "[beads]\nbranch = \"-{{.ID}}\"\n", "dash"},
 		// A system is switched on by the one systems list, which is the only key that
 		// names one.
 		{"a name in the list no system goes by", "systems = [\"linear\"]\n", "is no system work has"},
@@ -151,6 +152,10 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
 		{"a table under the name it used to go by", "[agent]\ncommand = [\"claude\"]\n", "the [agent] table is now [claude]"},
+		// A branch is named by the system whose target it is, so a file holding both
+		// under one table is told the two keys they sit under.
+		{"branches in a table of their own", "[branch]\nticket = \"{{.ID}}\"\n",
+			"the [branch] table is now github.branch and beads.branch"},
 		// claude.on-creation names verbs a worktree can come into being under:
 		// docs/references/configuration.md#opening-on-a-session.
 		{"a verb that creates no worktree", agentOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
@@ -173,7 +178,7 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		// Only the arm a worktree the tracker answered for reaches names it.
 		{"a value named inside a source arm", "[claude]\ncommand = '''\nclaude {{if eq .Source \"beads\"}}{{.Number}}{{end}}\n'''\n", "claude.command"},
 		{"a command naming a filter that does not exist", "[claude]\ncommand = '''\nclaude {{.Subject | shout}}\n'''\n", "claude.command"},
-		{"a branch pattern naming squote", "[branch]\nticket = \"{{.ID | squote}}\"\n", "branch.ticket"},
+		{"a branch pattern naming squote", "[beads]\nbranch = \"{{.ID | squote}}\"\n", "beads.branch"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

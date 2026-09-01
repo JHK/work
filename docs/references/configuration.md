@@ -8,7 +8,7 @@ Refused at load, naming the file:
 
 - an unknown key
 - a key whose case does not match
-- a table under a name a rename replaced, refused with the name it goes by now
+- a table replaced or split, refused with what a file writes instead
 
 Values are validated once the file is read, before anything is created.
 
@@ -18,8 +18,8 @@ Values are validated once the file is read, before anything is created.
 |---|---|
 | [`systems`](../../internal/config/systems.go) | the [systems](#systems) that run |
 | [`worktree.directory`](../../internal/config/config.go) | a directory inside the main checkout, where a new worktree is created |
-| [`branch.ticket`](../../internal/config/config.go) | the branch a ticket's worktree checks out |
-| [`branch.pull-request`](../../internal/config/config.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
+| [`github.branch`](../../internal/config/branch.go) | the branch a pull request's worktree checks out, and the name that pull request is retyped as |
+| [`beads.branch`](../../internal/config/branch.go) | the branch a ticket's worktree checks out |
 | [`claude.on-creation`](../../internal/config/verbs.go) | the verbs whose creations [open a session](#opening-on-a-session) |
 | [`claude.command`](../../internal/config/command.go) | the [command](#commands) a new worktree opens on |
 
@@ -42,12 +42,12 @@ Refused at load: a name no system goes by, refused with the names there are.
 
 ## Branch patterns
 
-A `[branch]` value is a [Go template](https://pkg.go.dev/text/template) over the values its kind of target has:
+A branch pattern is a [Go template](https://pkg.go.dev/text/template) over the values the system's targets have:
 
 | Key | Values |
 |---|---|
-| `branch.ticket` | `.ID`, the ticket id; `.Slug`, its title lowercased, dash-joined and cut at 40 characters, empty where that leaves nothing |
-| `branch.pull-request` | `.Number`, the pull request number |
+| `github.branch` | `.Number`, the pull request number |
+| `beads.branch` | `.ID`, the ticket id; `.Slug`, its title lowercased, dash-joined and cut at 40 characters, empty where that leaves nothing |
 
 Refused at load:
 

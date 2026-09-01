@@ -8,40 +8,44 @@ import (
 	"strings"
 )
 
-// Branch is how a target's branch is named, one pattern per kind of target.
-type Branch struct {
-	TicketPattern      Pattern `toml:"ticket"`
-	PullRequestPattern Pattern `toml:"pull-request"`
+// Github is the forge's table: how a pull request's branch is named.
+type Github struct {
+	BranchPattern Pattern `toml:"branch"`
 }
 
-// Ticket names the branch a ticket's worktree checks out. slug is the title
-// slugged, empty for a title that slugs to nothing.
-func (b Branch) Ticket(id, slug string) string {
-	return b.ticket().render(ticketValues.with(id, slug))
+// Beads is the tracker's table: how a ticket's branch is named.
+type Beads struct {
+	BranchPattern Pattern `toml:"branch"`
 }
 
-// PullRequest names the branch a pull request's worktree checks out, which is
-// also the name the pull request is retyped as.
-func (b Branch) PullRequest(number string) string {
-	return b.pullRequest().render(pullRequestValues.with(number, ""))
-}
-
-// Owns reports whether a branch is the one a ticket with this id checks out,
-// whatever that ticket was titled when its worktree was made.
-func (b Branch) Owns(id, branch string) bool {
-	return b.ticket().owns(id, branch)
+// Branch names the branch a pull request's worktree checks out, which is also
+// the name the pull request is retyped as.
+func (g Github) Branch(number string) string {
+	return g.pattern().render(pullRequestValues.with(number, ""))
 }
 
 // NumberIn reads the pull request a branch is named for. The digits are what the
 // branch spells; canonicalising them is the caller's.
-func (b Branch) NumberIn(branch string) (string, bool) {
-	return b.pullRequest().capture(branch)
+func (g Github) NumberIn(branch string) (string, bool) {
+	return g.pattern().capture(branch)
+}
+
+// Branch names the branch a ticket's worktree checks out. slug is the title
+// slugged, empty for a title that slugs to nothing.
+func (b Beads) Branch(id, slug string) string {
+	return b.pattern().render(ticketValues.with(id, slug))
+}
+
+// Owns reports whether a branch is the one a ticket with this id checks out,
+// whatever that ticket was titled when its worktree was made.
+func (b Beads) Owns(id, branch string) bool {
+	return b.pattern().owns(id, branch)
 }
 
 // An unset pattern is the compiled-in one, so a Config that never reached Load
 // still names a branch.
-func (b Branch) ticket() Pattern      { return b.TicketPattern.or(defaults.TicketPattern) }
-func (b Branch) pullRequest() Pattern { return b.PullRequestPattern.or(defaults.PullRequestPattern) }
+func (g Github) pattern() Pattern { return g.BranchPattern.or(defaultGithub.BranchPattern) }
+func (b Beads) pattern() Pattern  { return b.BranchPattern.or(defaultBeads.BranchPattern) }
 
 // Pattern is a [text/template] naming a branch. Rendered with a target's values
 // it names that target's branch; matched against a branch with the identifier

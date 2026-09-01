@@ -19,7 +19,8 @@ import (
 type Config struct {
 	Systems  []string
 	Worktree Worktree
-	Branch   Branch
+	Github   Github
+	Beads    Beads
 	Claude   Claude
 }
 
@@ -32,9 +33,9 @@ const (
 	defaultTicket      = "{{.ID}}{{with .Slug}}-{{.}}{{end}}"
 	defaultPullRequest = "pr-{{.Number}}"
 
-	dirKey         = "worktree.directory"
-	ticketKey      = "branch.ticket"
-	pullRequestKey = "branch.pull-request"
+	dirKey          = "worktree.directory"
+	githubBranchKey = "github.branch"
+	beadsBranchKey  = "beads.branch"
 )
 
 // Dir is where a worktree is created, relative to the repository root. An unset
@@ -46,18 +47,18 @@ func (w Worktree) Dir() string {
 	return w.Directory
 }
 
-// defaults are the compiled-in patterns, bound once.
-var defaults = Branch{
-	TicketPattern:      mustPattern(defaultTicket, ticketValues),
-	PullRequestPattern: mustPattern(defaultPullRequest, pullRequestValues),
-}
+var (
+	defaultGithub = Github{BranchPattern: mustPattern(defaultPullRequest, pullRequestValues)}
+	defaultBeads  = Beads{BranchPattern: mustPattern(defaultTicket, ticketValues)}
+)
 
 // Default is what an unset key falls back to. The systems list is left empty,
 // which is every system off.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
-		Branch:   defaults,
+		Github:   defaultGithub,
+		Beads:    defaultBeads,
 		Claude:   defaultClaude,
 	}
 }
@@ -105,9 +106,12 @@ func userFile() string {
 	return filepath.Join(home, ".config", "work", "config.toml")
 }
 
-// renamed are the names a table used to go by, so a file written before a rename
-// is told which name to write instead.
-var renamed = map[string]string{"agent": ClaudeSystem}
+// renamed are the names a table used to go by, each with what a file writes
+// instead: the table it became, or the keys a split one's values went to.
+var renamed = map[string]string{
+	"agent":  "[" + ClaudeSystem + "]",
+	"branch": githubBranchKey + " and " + beadsBranchKey,
+}
 
 // decode reads the file over what the defaults left, leaving every key the file
 // does not name alone.
@@ -123,7 +127,7 @@ func decode(path string, c *Config) error {
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
 		key := undecoded[0]
 		if now, ok := renamed[key[0]]; ok {
-			return fmt.Errorf("%s: the [%s] table is now [%s]", path, key[0], now)
+			return fmt.Errorf("%s: the [%s] table is now %s", path, key[0], now)
 		}
 		return fmt.Errorf("%s: unknown setting %s", path, key)
 	}
@@ -144,11 +148,11 @@ func (c *Config) validate() (string, error) {
 		return systemsKey, err
 	}
 	c.Systems = c.switchedOn()
-	if err := c.Branch.TicketPattern.bind(ticketValues); err != nil {
-		return ticketKey, err
+	if err := c.Github.BranchPattern.bind(pullRequestValues); err != nil {
+		return githubBranchKey, err
 	}
-	if err := c.Branch.PullRequestPattern.bind(pullRequestValues); err != nil {
-		return pullRequestKey, err
+	if err := c.Beads.BranchPattern.bind(ticketValues); err != nil {
+		return beadsBranchKey, err
 	}
 
 	if key, err := c.Claude.validate(); err != nil {

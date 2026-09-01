@@ -25,14 +25,14 @@ var prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]
 
 // Resolver answers for the repository's pull requests.
 type Resolver struct {
-	repo    string
-	pattern config.Branch
+	repo     string
+	settings config.Github
 }
 
-// New answers for the repository at repo, naming branches by the pull request
+// New answers for the repository at repo, naming branches by the forge's own
 // pattern.
-func New(repo string, branch config.Branch) Resolver {
-	return Resolver{repo: repo, pattern: branch}
+func New(repo string, settings config.Github) Resolver {
+	return Resolver{repo: repo, settings: settings}
 }
 
 func (Resolver) Name() string { return Name }
@@ -66,7 +66,7 @@ func (r Resolver) read(arg string) (worktree.Place, error) {
 		n = arg
 	} else if m := prURL.FindStringSubmatch(arg); m != nil {
 		n = m[1]
-	} else if number, ok := r.pattern.NumberIn(arg); ok {
+	} else if number, ok := r.settings.NumberIn(arg); ok {
 		// The worktree's own name, so that what the picker shows can be retyped.
 		n = number
 	}
@@ -121,7 +121,7 @@ func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 
 // place names a pull request by the branch its worktree checks out.
 func (r Resolver) place(number, title string) worktree.Place {
-	branch := r.pattern.PullRequest(number)
+	branch := r.settings.Branch(number)
 	return worktree.Place{ID: number, Name: branch, Branch: branch, Label: title}
 }
 

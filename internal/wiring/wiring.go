@@ -34,10 +34,10 @@ func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
 	// A bare number is a pull request and every other name is a possible ticket id,
 	// so the forge is asked ahead of the tracker.
 	if cfg.On(config.GithubSystem) {
-		chain = append(chain, github.New(repo, cfg.Branch))
+		chain = append(chain, github.New(repo, cfg.Github))
 	}
 	if cfg.On(config.BeadsSystem) {
-		chain = append(chain, resolvebeads.New(repo, checkout, cfg.Branch))
+		chain = append(chain, resolvebeads.New(repo, checkout, cfg.Beads))
 	}
 	// Last, and never off: a worktree nothing recognises is still one to reach.
 	return append(chain, plain.New(repo, checkout))

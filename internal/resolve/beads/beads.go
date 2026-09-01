@@ -22,8 +22,8 @@ const Name = "beads"
 // one run asks bd for each of them at most once and the vetting reads the very
 // snapshot that called a bead ready.
 type Resolver struct {
-	from    string // the checkout work was invoked in, whose HEAD a new branch forks from
-	pattern config.Branch
+	from     string // the checkout work was invoked in, whose HEAD a new branch forks from
+	settings config.Beads
 
 	// allBeads is every bead bd knows, closed ones included; readyBeads is every
 	// bead bd calls unblocked. Each is listed at most once per run.
@@ -32,11 +32,12 @@ type Resolver struct {
 	held sync.Map // id -> beads.Bead, the records already in hand
 }
 
-// New answers for the repository at repo, naming branches by the ticket pattern.
-func New(repo, from string, branch config.Branch) *Resolver {
+// New answers for the repository at repo, naming branches by the tracker's own
+// pattern.
+func New(repo, from string, settings config.Beads) *Resolver {
 	return &Resolver{
 		from:       from,
-		pattern:    branch,
+		settings:   settings,
 		allBeads:   sync.OnceValues(func() ([]beads.Bead, error) { return beads.All(repo) }),
 		readyBeads: sync.OnceValues(func() ([]beads.Bead, error) { return beads.Ready(repo) }),
 	}
@@ -74,7 +75,7 @@ func (r *Resolver) byID(id string) (worktree.Place, error) {
 // being one to confirm rather than to look up.
 func (r *Resolver) byBranch(id string, o worktree.Open) (worktree.Place, error) {
 	// Ahead of the listing: confirming an identifier against a branch must not need bd.
-	if id != "" && !r.pattern.Owns(id, o.Branch) {
+	if id != "" && !r.settings.Owns(id, o.Branch) {
 		return worktree.Place{}, notMine(o)
 	}
 
@@ -124,7 +125,7 @@ func (r *Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 	if err := r.vet(b); err != nil {
 		return p, err
 	}
-	p.Branch = r.pattern.Ticket(b.ID, slug(b.Title))
+	p.Branch = r.settings.Branch(b.ID, slug(b.Title))
 	p.Label = b.Title
 	return p, nil
 }
@@ -217,7 +218,7 @@ func (r *Resolver) owner(branch string) string {
 	}
 	best := ""
 	for _, b := range list {
-		if len(b.ID) > len(best) && r.pattern.Owns(b.ID, branch) {
+		if len(b.ID) > len(best) && r.settings.Owns(b.ID, branch) {
 			best = b.ID
 		}
 	}

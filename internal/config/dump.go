@@ -49,8 +49,8 @@ func (c Config) keys() []key {
 	return []key{
 		{systemsKey, c.Systems},
 		{dirKey, c.Worktree.Dir()},
-		{ticketKey, c.Branch.ticket().tmpl.text},
-		{pullRequestKey, c.Branch.pullRequest().tmpl.text},
+		{githubBranchKey, c.Github.pattern().tmpl.text},
+		{beadsBranchKey, c.Beads.pattern().tmpl.text},
 		{onCreationKey, c.Claude.OnCreation()},
 		{commandKey, block(c.Claude.Command().text)},
 	}

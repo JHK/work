@@ -100,7 +100,7 @@ func TestTheBranchATicketsWorktreeChecksOut(t *testing.T) {
 
 // patterned is the settings under which a ticket's branch is named by a pattern
 // of the repository's own rather than by the compiled-in one.
-const patterned = "[branch]\nticket = \"feature/{{.ID}}-{{.Slug}}\"\n"
+const patterned = "[beads]\nbranch = \"feature/{{.ID}}-{{.Slug}}\"\n"
 
 func TestAConfiguredPatternNamesATicketsBranch(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, patterned)
@@ -281,7 +281,7 @@ func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 // A configured pattern names the branch a pull request's worktree checks out,
 // which is also the name that pull request is retyped as.
 func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
-	s := reviewing(t, nil, "[branch]\npull-request = \"review-{{.Number}}\"\n")
+	s := reviewing(t, nil, "[github]\nbranch = \"review-{{.Number}}\"\n")
 
 	made := s.run("add", "7")
 
