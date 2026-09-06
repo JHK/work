@@ -10,19 +10,22 @@ import (
 // Name is what this action goes by, and the table its settings sit in.
 const Name = "claude"
 
-// Opener renders the command a worktree opens on.
-type Opener struct {
+// Session is the agent a worktree opens on.
+type Session struct {
 	command config.Command
 }
 
-func New(table config.Claude) Opener { return Opener{command: table.Command()} }
+func New(table config.Claude) Session { return Session{command: table.Command()} }
 
-func (o Opener) Name() string { return Name }
+func (s Session) Name() string { return Name }
+
+// OnCreated has nothing to do: the agent is handed a worktree when it opens.
+func (Session) OnCreated(worktree.Tree) error { return nil }
 
 // Open renders the command work replaces itself with, or the worktree itself
 // where that command renders to nothing.
-func (o Opener) Open(t worktree.Tree) (worktree.Handoff, error) {
-	run, err := o.command.Render(t.Values)
+func (s Session) Open(t worktree.Tree) (worktree.Handoff, error) {
+	run, err := s.command.Render(t.Values)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

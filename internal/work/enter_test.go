@@ -12,20 +12,20 @@ import (
 
 // No command reaches this: no action that ships renders a value, so the seam is
 // what the case can ask.
-func TestTheActionsAndTheOpenerReadOneSetOfValues(t *testing.T) {
+func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 	by := &supplier{}
-	action, opener := &keeper{}, &keeper{}
+	a := &keeper{}
 	e := Env{
 		Repo:    testenv.InitRepo(t),
 		Config:  config.Default(),
-		Systems: Systems{Actions: []Action{action}, Openers: []Opener{opener}},
+		Systems: Systems{Actions: []Action{a}, Handback: a},
 	}
 	place := worktree.Place{ID: "bd-1", Name: "bd-1", Label: "a title"}
 
 	_, err := e.Enter(answered(by, Candidate{Place: place}), Options{Verb: "add"})
 
 	require.NoError(t, err, "the worktree was refused")
-	testenv.Equal(t, opener.values, action.values, "the action read values of its own")
+	testenv.Equal(t, a.opened, a.created, "the two moments read values of their own")
 	require.Equal(t, 1, by.asks, "the values were assembled more than once")
 }
 
@@ -55,17 +55,17 @@ func (s *supplier) Supply(t worktree.Tree) (worktree.Values, error) {
 	return worktree.Values{worktree.SubjectValue: t.ID + ": " + t.Label}, nil
 }
 
-// keeper stands at both halves of the far seam: it is an action and an opener.
-type keeper struct{ values worktree.Values }
+// keeper stands at the far seam and keeps what each of its two moments read.
+type keeper struct{ created, opened worktree.Values }
 
-func (*keeper) Name() string { return config.ShellOpener }
+func (*keeper) Name() string { return "keeper" }
 
-func (k *keeper) Run(t worktree.Tree) error {
-	k.values = t.Values
+func (k *keeper) OnCreated(t worktree.Tree) error {
+	k.created = t.Values
 	return nil
 }
 
 func (k *keeper) Open(t worktree.Tree) (worktree.Handoff, error) {
-	k.values = t.Values
+	k.opened = t.Values
 	return worktree.Handoff{Dir: t.Path}, nil
 }

@@ -12,7 +12,7 @@ import (
 // Options are the choices a front end makes on the way in, beyond the place
 // itself.
 type Options struct {
-	Verb  string // the verb typed, which is what settles a creation's opener
+	Verb  string // the verb typed, which is what settles what a creation opens on
 	Carry bool   // the invoking checkout's working state moves into a worktree just made
 }
 
@@ -33,7 +33,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 
 	if t.Created {
 		for _, a := range e.Systems.Actions {
-			if err := a.Run(t); err != nil {
+			if err := a.OnCreated(t); err != nil {
 				return worktree.Handoff{}, err
 			}
 		}
@@ -47,11 +47,11 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	opener, err := e.openerFor(c, o)
+	action, err := e.openingAction(c, o)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
-	return opener.Open(t)
+	return action.Open(t)
 }
 
 // create is the worktree a candidate has, made where it has none, and whether
@@ -117,20 +117,19 @@ func (e Env) carry(to string) error {
 	return nil
 }
 
-// openerFor is what the moment opens on: a worktree this run created goes to the
-// agent where the settings send that verb's creations, and every other worktree
-// is handed back.
-func (e Env) openerFor(c Candidate, o Options) (Opener, error) {
+// openingAction is what the run opens on. The settings send a creation to the
+// agent only where the agent is wired, so the lookup answers.
+func (e Env) openingAction(c Candidate, o Options) (Action, error) {
 	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
-		return e.opener(config.ClaudeOpener)
+		return e.actionNamed(config.ClaudeSystem)
 	}
-	return e.opener(config.ShellOpener)
+	return e.Systems.Handback, nil
 }
 
-func (e Env) opener(name string) (Opener, error) {
-	for _, op := range e.Systems.Openers {
-		if op.Name() == name {
-			return op, nil
+func (e Env) actionNamed(name string) (Action, error) {
+	for _, a := range e.Systems.Actions {
+		if a.Name() == name {
+			return a, nil
 		}
 	}
 	return nil, fmt.Errorf("nothing here goes by the action %q", name)

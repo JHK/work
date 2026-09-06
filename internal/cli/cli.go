@@ -182,7 +182,7 @@ func opening(cmd *cobra.Command, offer offering[opens]) *cobra.Command {
 }
 
 // handing wires the one handoff a verb that opens something ends on. The verb is
-// read off the command that ran, which is what a creation's opener follows from.
+// read off the command that ran, which is what settles what a creation opens on.
 func handing(cmd *cobra.Command, run opens) *cobra.Command {
 	// Cobra runs RunE with the command it hangs on, so the one name serves both.
 	cmd.RunE = func(_ *cobra.Command, args []string) error {

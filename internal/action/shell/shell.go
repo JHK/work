@@ -5,19 +5,22 @@ package shell
 import (
 	"os"
 
-	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-const name = config.ShellOpener
+// Name is what this action goes by.
+const Name = "shell"
 
-// Opener hands the worktree back rather than running anything inside it.
-type Opener struct{}
+// Handback hands the worktree back rather than running anything inside it.
+type Handback struct{}
 
-func (Opener) Name() string { return name }
+func (Handback) Name() string { return Name }
+
+// OnCreated has nothing to do: a worktree is handed back however it came about.
+func (Handback) OnCreated(worktree.Tree) error { return nil }
 
 // Open answers with the worktree, which is a handoff naming no command.
-func (Opener) Open(t worktree.Tree) (worktree.Handoff, error) {
+func (Handback) Open(t worktree.Tree) (worktree.Handoff, error) {
 	// No chdir stands behind this handoff the way one stands behind a command, so a
 	// worktree git still lists but nobody can enter is refused here or nowhere.
 	if _, err := os.Stat(t.Path); err != nil {

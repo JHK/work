@@ -17,11 +17,14 @@ type Trust struct{}
 
 func (Trust) Name() string { return Name }
 
-// Run lets mise find the configs itself. Best effort: a grant that fails only
-// means the session prompts, never the worktree just made.
-func (Trust) Run(t worktree.Tree) error {
+// OnCreated lets mise find the configs itself. Best effort: a grant that fails
+// only means the session prompts, never the worktree just made.
+func (Trust) OnCreated(t worktree.Tree) error {
 	if _, err := run.Output(t.Path, "mise", "trust"); err != nil {
 		slog.Warn(err.Error())
 	}
 	return nil
 }
+
+// Open has nothing to open: a worktree never opens on the tool trust.
+func (Trust) Open(worktree.Tree) (worktree.Handoff, error) { return worktree.Handoff{}, nil }

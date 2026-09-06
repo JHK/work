@@ -66,7 +66,8 @@ func load(t *testing.T) config.Config {
 
 // wired is every system a wiring holds, under the names they go by.
 func wired(systems work.Systems) []string {
-	return slices.Concat(names(systems.Resolvers), names(systems.Actions), names(systems.Openers))
+	return append(slices.Concat(names(systems.Resolvers), names(systems.Actions)),
+		systems.Handback.Name())
 }
 
 func names[T worktree.System](systems []T) []string {

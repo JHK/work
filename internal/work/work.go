@@ -56,19 +56,17 @@ type Resolver interface {
 	Create(p worktree.Place, path string) error
 }
 
-// Action is the far seam's running half. Every one of them runs, in order, and
-// none of them runs on the way back into a worktree that was already there.
+// Action is the far seam: what a worktree that exists is handed to, at either of
+// two moments.
 type Action interface {
 	worktree.System
-	Run(t worktree.Tree) error
-}
 
-// Opener is the far seam's other half: the one action a worktree opens on, of
-// which exactly one per run does.
-type Opener interface {
-	worktree.System
+	// OnCreated tells the action a worktree came into being. Every action is
+	// told, in order, and none is told for a worktree that was already there.
+	OnCreated(t worktree.Tree) error
 
-	// Open renders the handoff from the values the worktree carries.
+	// Open renders the handoff from the values the worktree carries. Exactly one
+	// action is asked, on every run.
 	Open(t worktree.Tree) (worktree.Handoff, error)
 }
 
@@ -76,11 +74,13 @@ type Opener interface {
 type Systems struct {
 	Resolvers []Resolver
 	Actions   []Action
-	Openers   []Opener
 
 	// Named is the chain's tail for an identifier nothing answered for: the resolver
 	// add hands a name of the user's own.
 	Named Resolver
+
+	// Handback is what a worktree that opens on nothing else is handed back by.
+	Handback Action
 }
 
 // Wiring names the systems for a repository once its settings are read.

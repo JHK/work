@@ -20,8 +20,8 @@ func Wire(repo, checkout string, cfg config.Config) work.Systems {
 	return work.Systems{
 		Resolvers: resolving(repo, checkout, cfg),
 		Actions:   acting(repo, cfg),
-		Openers:   opening(cfg),
 		Named:     plain.Named(repo, checkout),
+		Handback:  shell.Handback{},
 	}
 }
 
@@ -43,9 +43,8 @@ func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
 	return append(chain, plain.New(repo, checkout))
 }
 
-// acting is what a worktree coming into being means. The tracker is one system
-// on both seams under the one name, so the half [resolving] counts is not
-// counted again here.
+// acting is what a worktree that exists is handed to, at both of an action's
+// moments. The tracker is one system on both seams, so [resolving] counts it, not this.
 func acting(repo string, cfg config.Config) []work.Action {
 	var run []work.Action
 
@@ -55,15 +54,8 @@ func acting(repo string, cfg config.Config) []work.Action {
 	if cfg.On(config.MiseSystem) {
 		run = append(run, mise.Trust{})
 	}
-	return run
-}
-
-func opening(cfg config.Config) []work.Opener {
-	var on []work.Opener
-
 	if cfg.On(config.ClaudeSystem) {
-		on = append(on, claude.New(cfg.Claude))
+		run = append(run, claude.New(cfg.Claude))
 	}
-	// Never off either: a worktree always has something to open on.
-	return append(on, shell.Opener{})
+	return run
 }

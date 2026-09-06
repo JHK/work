@@ -6,13 +6,6 @@ import (
 	"strings"
 )
 
-// ClaudeOpener and ShellOpener are the two things a worktree opens on, under the
-// names the openers go by.
-const (
-	ClaudeOpener = ClaudeSystem
-	ShellOpener  = "shell"
-)
-
 // creating are the verbs that can bring a worktree into being, which is what
 // claude.on-creation may name, and entering the rest of the command line.
 // Nothing in the compiler holds these and the command tree together.

@@ -18,11 +18,14 @@ func New(repo string) Claim { return Claim{repo: repo} }
 
 func (c Claim) Name() string { return Name }
 
-// Run claims the ticket, and only where this system's own resolver sourced the
-// place: one sourced anywhere else is another tracker's.
-func (c Claim) Run(t worktree.Tree) error {
+// OnCreated claims the ticket, and only where this system's own resolver
+// sourced the place: one sourced anywhere else is another tracker's.
+func (c Claim) OnCreated(t worktree.Tree) error {
 	if t.Source != Name {
 		return nil
 	}
 	return beads.Claim(c.repo, t.ID)
 }
+
+// Open has nothing to open: a worktree never opens on the tracker.
+func (Claim) Open(worktree.Tree) (worktree.Handoff, error) { return worktree.Handoff{}, nil }
