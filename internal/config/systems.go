@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // These are the names a settings file switches a system on under, and also the
@@ -16,14 +18,10 @@ const (
 	ClaudeSystem = "claude"
 )
 
-// plainSystem is the resolver that answers for whatever the others leave. It
-// runs whatever the settings say, so no list switches it on and no file names it.
-const plainSystem = "plain"
-
 // sourceNames are the resolvers a place can be sourced to, which is not
-// [SystemNames]: an action is never one, and plain is in no settings list.
+// [SystemNames]: an action is never one, and git is in no settings list.
 func sourceNames() []string {
-	return []string{GithubSystem, BeadsSystem, plainSystem}
+	return []string{GithubSystem, BeadsSystem, string(worktree.GitSource)}
 }
 
 // systemsKey is the one list that switches systems on.

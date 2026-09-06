@@ -38,7 +38,7 @@ Every value is always rendered, empty where nothing behind the worktree has one.
 
 | Value | Is |
 |---|---|
-| `.Source` | the system that answered: `beads`, `github`, or `plain` for a name of your own |
+| `.Source` | the system that answered: `beads`, `github`, or `git` where none did |
 | `.ID` | the ticket id, the pull request number, or the name |
 | `.Title` | the target's title |
 | `.Name` | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |

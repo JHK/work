@@ -10,7 +10,6 @@ import (
 	"github.com/JHK/work-cli/internal/config"
 	resolvebeads "github.com/JHK/work-cli/internal/resolve/beads"
 	"github.com/JHK/work-cli/internal/resolve/github"
-	"github.com/JHK/work-cli/internal/resolve/plain"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -21,14 +20,11 @@ func Wire(repo worktree.Repo, checkout worktree.Path, cfg config.Config) work.Sy
 	return work.Systems{
 		Resolvers: resolving(repo, checkout, cfg),
 		Actions:   acting(repo, cfg),
-		Named:     plain.Named(repo, checkout),
 		Handback:  shell.Handback{},
 	}
 }
 
-// resolving is the chain an identifier is put to. The order is the one they are
-// asked in: the first to recognise an identifier takes it, and the last takes
-// whatever is left.
+// resolving is the settings' systems, in the order they are asked.
 func resolving(repo worktree.Repo, checkout worktree.Path, cfg config.Config) []work.Resolver {
 	var chain []work.Resolver
 
@@ -40,8 +36,7 @@ func resolving(repo worktree.Repo, checkout worktree.Path, cfg config.Config) []
 	if cfg.On(config.BeadsSystem) {
 		chain = append(chain, resolvebeads.New(repo, checkout, cfg.Beads))
 	}
-	// Last, and never off: a worktree nothing recognises is still one to reach.
-	return append(chain, plain.New(repo, checkout))
+	return chain
 }
 
 // acting is what a worktree that exists is handed to, at both of an action's

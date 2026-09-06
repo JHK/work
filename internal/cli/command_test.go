@@ -38,6 +38,17 @@ func TestOneConditionalGuardsEveryLineOfABlock(t *testing.T) {
 		Asked: append(worked("bd-1", s.at("bd-1"), "bd-1-do-a-thing"), "claude --name=bd-1 /start bd-1")})
 }
 
+// The source a command is guarded on is what these worktrees arm.
+func TestANameOfYourOwnIsSourcedToGit(t *testing.T) {
+	s := repository(t, cutting)
+	s.settings(systemsOn("claude") + guarding("git"))
+
+	r := s.hands("add", "scratch")
+
+	r.came(t, result{Out: "[--name=scratch][/start scratch]",
+		Asked: []string{"claude --name=scratch /start scratch"}})
+}
+
 // A worktree the guard renders false for is created and its ticket claimed, then
 // handed back the way one nothing opens on is.
 func TestAWorktreeWhoseGuardRendersFalseIsHandedBack(t *testing.T) {

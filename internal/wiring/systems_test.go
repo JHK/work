@@ -42,8 +42,11 @@ func TestTheSettingsSpellEverySystemTheWiringHas(t *testing.T) {
 func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	repo := worktree.Repo(t.TempDir())
 
+	// The core's own answer marks rows too, and no settings file names it.
+	chain := work.Env{Systems: Wire(repo, worktree.Path(repo), everySystem(t))}.Chain()
+
 	marks := map[string]worktree.SystemName{}
-	for _, r := range Wire(repo, worktree.Path(repo), everySystem(t)).Resolvers {
+	for _, r := range chain {
 		icon := r.Icon()
 		by, taken := marks[icon]
 		require.Falsef(t, taken, "%s and %s both mark their rows %q", by, r.Name(), icon)

@@ -42,6 +42,10 @@ type (
 	ValueName string
 )
 
+// GitSource is what a place no system answered for is sourced to: a name of the
+// user's own, or a worktree described out of git alone.
+const GitSource SystemName = "git"
+
 // Place is one place to work, as the resolver that owns it describes it. The
 // core reads Name and Branch; the rest is for whoever draws it or is handed it.
 type Place struct {

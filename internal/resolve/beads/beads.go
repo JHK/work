@@ -50,7 +50,7 @@ func (r *Resolver) Icon() string { return "◆" }
 
 // Identify names the bead behind an identifier bd lists, or behind a worktree
 // whose branch the longest id bd knows owns. A bd that will not list leaves a
-// worktree plain.
+// worktree to git.
 func (r *Resolver) Identify(id worktree.ID, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return r.byID(id)

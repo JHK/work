@@ -75,10 +75,6 @@ type Systems struct {
 	Resolvers []Resolver
 	Actions   []Action
 
-	// Named is the chain's tail for an identifier nothing answered for: the resolver
-	// add hands a name of the user's own.
-	Named Resolver
-
 	// Handback is what a worktree that opens on nothing else is handed back by.
 	Handback Action
 }
@@ -270,10 +266,16 @@ func answered(r Resolver, c Candidate) Candidate {
 // is a name to add rather than a place to reach.
 var errUnanswered = errors.New("nothing answers for")
 
-// identify is the chain: the first resolver to answer for what the core is
-// holding owns it, and one that does not recognise it passes it on.
+// Chain is what an identifier is put to, in the order they are asked: the
+// systems the settings named, then the core's own.
+func (e Env) Chain() []Resolver {
+	return append(slices.Clone(e.Systems.Resolvers), e.gitAlone())
+}
+
+// identify puts what the core is holding to the chain: the first resolver to
+// answer for it owns it, and one that does not recognise it passes it on.
 func (e Env) identify(id worktree.ID, o worktree.Open) (Resolver, worktree.Place, error) {
-	for _, r := range e.Systems.Resolvers {
+	for _, r := range e.Chain() {
 		p, err := r.Identify(id, o)
 		if errors.Is(err, worktree.ErrUnknown) {
 			continue
@@ -283,8 +285,7 @@ func (e Env) identify(id worktree.ID, o worktree.Open) (Resolver, worktree.Place
 		}
 		return r, p, nil
 	}
-	// The last resolver answers for whatever is left, so a worktree never runs the
-	// chain out: nothing recognising one is the listing failing.
+	// Nothing recognising a worktree is the listing failing, not a name to add.
 	if o.None() {
 		return nil, worktree.Place{}, errUnanswered
 	}
@@ -318,11 +319,8 @@ func (e Env) invent(name worktree.Name) (Candidate, error) {
 	if err := checkName(name); err != nil {
 		return Candidate{}, err
 	}
-	p, err := e.Systems.Named.Identify(worktree.ID(name), worktree.Open{})
-	if err != nil {
-		return Candidate{}, err
-	}
-	return answered(e.Systems.Named, Candidate{Place: p}), nil
+	by := e.gitAlone()
+	return answered(by, Candidate{Place: by.place(name)}), nil
 }
 
 // Own is the place a name of the user's own makes, no identifier resolved and no
@@ -479,16 +477,17 @@ func detached(c Candidate) int {
 // resolver that will not answer costs its own rows, never the worktrees, and its
 // refusal comes back beside them for the front end to say.
 func (e Env) Candidates() ([]Candidate, []error, error) {
+	chain := e.Chain()
 	var (
 		open    []Candidate
 		err     error
-		offers  = make([]offered, len(e.Systems.Resolvers))
-		refused = make([]error, len(e.Systems.Resolvers))
+		offers  = make([]offered, len(chain))
+		refused = make([]error, len(chain))
 	)
 	// No resolver reads another's answer.
 	var wg sync.WaitGroup
 	wg.Go(func() { open, err = e.Worktrees() })
-	for i, r := range e.Systems.Resolvers {
+	for i, r := range chain {
 		offers[i].by = r
 		wg.Go(func() { offers[i].places, refused[i] = r.Offer() })
 	}
