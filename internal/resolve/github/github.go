@@ -25,17 +25,17 @@ var prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]
 
 // Resolver answers for the repository's pull requests.
 type Resolver struct {
-	repo     string
+	repo     worktree.Repo
 	settings config.Github
 }
 
 // New answers for the repository at repo, naming branches by the forge's own
 // pattern.
-func New(repo string, settings config.Github) Resolver {
+func New(repo worktree.Repo, settings config.Github) Resolver {
 	return Resolver{repo: repo, settings: settings}
 }
 
-func (Resolver) Name() string { return Name }
+func (Resolver) Name() worktree.SystemName { return Name }
 
 // Icon marks a row that stands for a review.
 func (Resolver) Icon() string { return "⇄" }
@@ -43,12 +43,12 @@ func (Resolver) Icon() string { return "⇄" }
 // Identify names the pull request behind what the core is holding: an identifier
 // read by [Resolver.read], or a worktree, which is its own only where the branch
 // is one the pattern names itself, so pr-007 does not stand for pr-7's worktree.
-func (r Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
+func (r Resolver) Identify(id worktree.ID, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
-		return r.read(id)
+		return r.read(string(id))
 	}
-	p, err := r.read(cmp.Or(id, o.Branch))
-	if err != nil || p.Name != o.Branch {
+	p, err := r.read(cmp.Or(string(id), string(o.Branch)))
+	if err != nil || p.Branch != o.Branch {
 		return worktree.Place{}, notMine(o)
 	}
 	return p, nil
@@ -99,7 +99,7 @@ func (r Resolver) Offer() ([]worktree.Place, error) {
 func (r Resolver) Prepare(p worktree.Place) (worktree.Place, error) { return p, nil }
 
 // Create fetches the pull request's head and checks it out.
-func (r Resolver) Create(p worktree.Place, path string) error {
+func (r Resolver) Create(p worktree.Place, path worktree.Path) error {
 	// A branch left behind by an earlier review is behind the PR head, so fetch
 	// regardless and fall back to it only when the fetch cannot advance it.
 	if err := git.Fetch(r.repo, fmt.Sprintf("pull/%s/head:%s", p.ID, p.Branch)); err != nil {
@@ -112,17 +112,17 @@ func (r Resolver) Create(p worktree.Place, path string) error {
 
 // Supply spells out the pull request a worktree was made for.
 func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
-	subject := "PR #" + t.ID
+	subject := "PR #" + string(t.ID)
 	if t.Label != "" {
-		subject += ": " + t.Label
+		subject += ": " + string(t.Label)
 	}
 	return worktree.Values{worktree.SubjectValue: subject}, nil
 }
 
 // place names a pull request by the branch its worktree checks out.
 func (r Resolver) place(number, title string) worktree.Place {
-	branch := r.settings.Branch(number)
-	return worktree.Place{ID: number, Name: branch, Branch: branch, Label: title}
+	branch := worktree.Branch(r.settings.Branch(number))
+	return worktree.Place{ID: worktree.ID(number), Name: worktree.Name(branch), Branch: branch, Label: worktree.Label(title)}
 }
 
 // pull is a pull request as far as work is concerned: the number that names its
@@ -144,6 +144,6 @@ func (r Resolver) pulls() ([]pull, error) {
 	if remote == "" {
 		return nil, nil
 	}
-	return run.JSON[[]pull](r.repo, Binary, "pr", "list", "--repo", remote,
+	return run.JSON[[]pull](string(r.repo), Binary, "pr", "list", "--repo", remote,
 		"--state", "open", "--limit", prLimit, "--json", "number,title")
 }

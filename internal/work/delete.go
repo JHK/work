@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"github.com/JHK/work-cli/internal/git"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // Deletion is what was taken away: the worktree, and the branch it had checked
 // out where it had one.
 type Deletion struct {
-	Path   string
-	Branch string
+	Path   worktree.Path
+	Branch worktree.Branch
 }
 
 // Delete removes a worktree and the branch it had checked out. No ticket is

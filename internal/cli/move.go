@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // move carries no flag. A tab press offers what its picker offers at the name
@@ -51,11 +52,11 @@ func move(env work.Env, l listing, target, dest string) (work.Move, error) {
 	if dest == "" {
 		// The directory rather than the name, which for a plain worktree is its branch
 		// and may carry a separator the destination would read as a path.
-		if dest, err = ask(c.Dir()); err != nil {
+		if dest, err = ask(string(c.Dir())); err != nil {
 			return work.Move{}, err
 		}
 	}
-	return env.Move(c, dest)
+	return env.Move(c, worktree.Path(dest))
 }
 
 // moved prints what moved: the worktree, and the branch where the destination

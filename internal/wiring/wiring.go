@@ -12,11 +12,12 @@ import (
 	"github.com/JHK/work-cli/internal/resolve/github"
 	"github.com/JHK/work-cli/internal/resolve/plain"
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // Wire names every implementation the settings asked for. A system the list
 // leaves out is wired nowhere.
-func Wire(repo, checkout string, cfg config.Config) work.Systems {
+func Wire(repo worktree.Repo, checkout worktree.Path, cfg config.Config) work.Systems {
 	return work.Systems{
 		Resolvers: resolving(repo, checkout, cfg),
 		Actions:   acting(repo, cfg),
@@ -28,7 +29,7 @@ func Wire(repo, checkout string, cfg config.Config) work.Systems {
 // resolving is the chain an identifier is put to. The order is the one they are
 // asked in: the first to recognise an identifier takes it, and the last takes
 // whatever is left.
-func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
+func resolving(repo worktree.Repo, checkout worktree.Path, cfg config.Config) []work.Resolver {
 	var chain []work.Resolver
 
 	// A bare number is a pull request and every other name is a possible ticket id,
@@ -45,7 +46,7 @@ func resolving(repo, checkout string, cfg config.Config) []work.Resolver {
 
 // acting is what a worktree that exists is handed to, at both of an action's
 // moments. The tracker is one system on both seams, so [resolving] counts it, not this.
-func acting(repo string, cfg config.Config) []work.Action {
+func acting(repo worktree.Repo, cfg config.Config) []work.Action {
 	var run []work.Action
 
 	if cfg.On(config.BeadsSystem) {

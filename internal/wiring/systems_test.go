@@ -18,25 +18,32 @@ func TestMain(m *testing.M) { testenv.Main(m) }
 // A system wired off a name [config.SystemNames] leaves out is one no settings
 // file reaches. Structural like R3 and R4: no command asserts an "every".
 func TestTheSettingsSpellEverySystemTheWiringHas(t *testing.T) {
-	repo := t.TempDir()
+	repo := worktree.Repo(t.TempDir())
+	from := worktree.Path(repo)
 	// Read before the settings are written: each takes a settings home of its own.
-	core := wired(Wire(repo, repo, load(t)))
-	added := wired(Wire(repo, repo, everySystem(t)))
+	core := wired(Wire(repo, from, load(t)))
+	added := wired(Wire(repo, from, everySystem(t)))
 
-	added = slices.DeleteFunc(added, func(name string) bool { return slices.Contains(core, name) })
+	added = slices.DeleteFunc(added, func(name worktree.SystemName) bool { return slices.Contains(core, name) })
 
 	// Compacted, the tracker counting once for the two seams it fills.
 	slices.Sort(added)
-	testenv.Equal(t, slices.Sorted(slices.Values(config.SystemNames())), slices.Compact(added),
+	spelled := config.SystemNames()
+	want := make([]worktree.SystemName, 0, len(spelled))
+	for _, name := range spelled {
+		want = append(want, worktree.SystemName(name))
+	}
+	slices.Sort(want)
+	testenv.Equal(t, want, slices.Compact(added),
 		"a system the wiring has is one no settings file spells")
 }
 
 // Structural like the case above: a command draws one row, never the set.
 func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
-	repo := t.TempDir()
+	repo := worktree.Repo(t.TempDir())
 
-	marks := map[string]string{}
-	for _, r := range Wire(repo, repo, everySystem(t)).Resolvers {
+	marks := map[string]worktree.SystemName{}
+	for _, r := range Wire(repo, worktree.Path(repo), everySystem(t)).Resolvers {
 		icon := r.Icon()
 		by, taken := marks[icon]
 		require.Falsef(t, taken, "%s and %s both mark their rows %q", by, r.Name(), icon)
@@ -65,13 +72,13 @@ func load(t *testing.T) config.Config {
 }
 
 // wired is every system a wiring holds, under the names they go by.
-func wired(systems work.Systems) []string {
+func wired(systems work.Systems) []worktree.SystemName {
 	return append(slices.Concat(names(systems.Resolvers), names(systems.Actions)),
 		systems.Handback.Name())
 }
 
-func names[T worktree.System](systems []T) []string {
-	var under []string
+func names[T worktree.System](systems []T) []worktree.SystemName {
+	var under []worktree.SystemName
 	for _, s := range systems {
 		under = append(under, s.Name())
 	}

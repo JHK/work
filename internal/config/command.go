@@ -57,12 +57,21 @@ var valueNames = worktree.ValueNames()
 func knownValues(vals worktree.Values) map[string]any {
 	d := make(map[string]any, len(valueNames))
 	for _, name := range valueNames {
-		d[name] = vals[name]
+		d[string(name)] = vals[name]
 	}
 	return d
 }
 
-var valueList = "{{." + strings.Join(valueNames, "}}, {{.") + "}}"
+var valueList = "{{." + strings.Join(placed(valueNames), "}}, {{.") + "}}"
+
+// placed is the value names as a template writes them.
+func placed(names []worktree.ValueName) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		out[i] = string(name)
+	}
+	return out
+}
 
 // mark is the shortest any real value is, so a command rendering with it renders
 // with anything.
@@ -76,7 +85,7 @@ func probes() []map[string]any {
 	for _, value := range []string{"", mark} {
 		for _, source := range sources {
 			d := everyValue(value)
-			d[worktree.SourceValue] = source
+			d[string(worktree.SourceValue)] = source
 			out = append(out, d)
 		}
 	}
@@ -86,7 +95,7 @@ func probes() []map[string]any {
 func everyValue(value string) map[string]any {
 	d := make(map[string]any, len(valueNames))
 	for _, name := range valueNames {
-		d[name] = value
+		d[string(name)] = value
 	}
 	return d
 }

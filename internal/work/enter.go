@@ -103,7 +103,7 @@ func (e Env) carries() bool {
 
 // carry moves the working state of the checkout work was invoked in into the
 // worktree at to.
-func (e Env) carry(to string) error {
+func (e Env) carry(to worktree.Path) error {
 	saved, err := git.Stash(e.Dir)
 	if err != nil {
 		return fmt.Errorf("%w; the worktree at %s is made, and the changes are where they were", err, to)
@@ -126,7 +126,7 @@ func (e Env) openingAction(c Candidate, o Options) (Action, error) {
 	return e.Systems.Handback, nil
 }
 
-func (e Env) actionNamed(name string) (Action, error) {
+func (e Env) actionNamed(name worktree.SystemName) (Action, error) {
 	for _, a := range e.Systems.Actions {
 		if a.Name() == name {
 			return a, nil

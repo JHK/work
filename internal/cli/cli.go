@@ -45,7 +45,7 @@ type front struct {
 	move     offering[moves]
 	dump     func(out io.Writer) error
 	edit     func(out io.Writer) error
-	branches func() ([]string, error)
+	branches func() ([]worktree.Name, error)
 }
 
 // verbs answers the front's calls against the settings and the wiring Execute

@@ -15,21 +15,48 @@ import (
 	"github.com/JHK/work-cli/internal/run"
 )
 
+// The words the vocabulary is made of, one defined type each.
+type (
+	// SystemName is the name a resolver or an action goes by.
+	SystemName string
+
+	// ID is what the resolver that owns a place calls it.
+	ID string
+
+	// Name is what a row shows, what the user retypes, and the directory.
+	Name string
+
+	// Branch is what a worktree checks out.
+	Branch string
+
+	// Label is the title a row carries beside its name.
+	Label string
+
+	// Repo is a repository's main checkout.
+	Repo string
+
+	// Path is where a worktree sits.
+	Path string
+
+	// ValueName is a name a command template places.
+	ValueName string
+)
+
 // Place is one place to work, as the resolver that owns it describes it. The
 // core reads Name and Branch; the rest is for whoever draws it or is handed it.
 type Place struct {
-	Source string // the resolver that answered for it, stamped by the core
-	ID     string // what that resolver calls this place
-	Name   string // what a row shows, what the user retypes, and the directory
-	Branch string // what its worktree checks out, named by Prepare where creating names it
-	Label  string // a title for the row, empty where nothing named one
+	Source SystemName // the resolver that answered for it, stamped by the core
+	ID     ID
+	Name   Name
+	Branch Branch // what its worktree checks out, named by Prepare where creating names it
+	Label  Label  // empty where nothing named one
 }
 
 // Open is a worktree the repository already has, as a resolver is shown one:
 // enough to say whose it is, and no more.
 type Open struct {
-	Path   string
-	Branch string // empty where the worktree is detached
+	Path   Path
+	Branch Branch // empty where the worktree is detached
 }
 
 // None reports whether there is no worktree in hand, the resolver being asked
@@ -38,12 +65,14 @@ func (o Open) None() bool { return o.Path == "" }
 
 // Name is what a worktree goes by where nothing behind it names it: the branch
 // it has checked out, or its directory where it is detached.
-func (o Open) Name() string { return cmp.Or(o.Branch, filepath.Base(o.Path)) }
+func (o Open) Name() Name {
+	return Name(cmp.Or(string(o.Branch), filepath.Base(string(o.Path))))
+}
 
 // Tree is a worktree that exists, which is the only thing an action is handed.
 type Tree struct {
 	Place
-	Path    string
+	Path    Path
 	Created bool // this run made it, rather than found it
 
 	// Values are what a command for this worktree renders with, assembled once
@@ -58,13 +87,13 @@ type Tree struct {
 // System is a resolver or an action under the name it goes by, which is the name
 // a [Place] is sourced to.
 type System interface {
-	Name() string
+	Name() SystemName
 }
 
 // Values are what a command renders with, keyed by the name a template places
 // rather than by a field. A name nothing supplied renders empty, which is a
 // command element that drops out.
-type Values map[string]string
+type Values map[ValueName]string
 
 // Merge takes in another set of values, leaving every name already set alone: the
 // first to set a name owns it.
@@ -78,18 +107,18 @@ func (v Values) Merge(other Values) {
 
 // The names a command may place.
 const (
-	SourceValue  = "Source"
-	IDValue      = "ID"
-	TitleValue   = "Title"
-	NameValue    = "Name"
-	DirValue     = "Dir"
-	SubjectValue = "Subject"
+	SourceValue  ValueName = "Source"
+	IDValue      ValueName = "ID"
+	TitleValue   ValueName = "Title"
+	NameValue    ValueName = "Name"
+	DirValue     ValueName = "Dir"
+	SubjectValue ValueName = "Subject"
 )
 
 // ValueNames are those names, in the order a listing of them reads. A name
 // outside them is never supplied.
-func ValueNames() []string {
-	return []string{SourceValue, IDValue, TitleValue, NameValue, DirValue, SubjectValue}
+func ValueNames() []ValueName {
+	return []ValueName{SourceValue, IDValue, TitleValue, NameValue, DirValue, SubjectValue}
 }
 
 // Source is a system that knows values the core does not hold, the core's own
@@ -110,7 +139,7 @@ var ErrUnknown = errors.New("no system answers for it")
 // running inside the worktree. One naming no command is the worktree itself,
 // which the front end answers with rather than running.
 type Handoff struct {
-	Dir string
+	Dir Path
 	Run []string
 }
 
@@ -128,7 +157,7 @@ func (h Handoff) Exec() error {
 	if err != nil {
 		return err
 	}
-	if err := os.Chdir(h.Dir); err != nil {
+	if err := os.Chdir(string(h.Dir)); err != nil {
 		return err
 	}
 	return syscall.Exec(bin, h.Run, os.Environ())

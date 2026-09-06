@@ -11,12 +11,12 @@ const Name = "beads"
 
 // Claim marks the ticket a fresh worktree was made for as being worked.
 type Claim struct {
-	repo string
+	repo worktree.Repo
 }
 
-func New(repo string) Claim { return Claim{repo: repo} }
+func New(repo worktree.Repo) Claim { return Claim{repo: repo} }
 
-func (c Claim) Name() string { return Name }
+func (c Claim) Name() worktree.SystemName { return Name }
 
 // OnCreated claims the ticket, and only where this system's own resolver
 // sourced the place: one sourced anywhere else is another tracker's.

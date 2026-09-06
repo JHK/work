@@ -41,10 +41,10 @@ func completions(candidates []work.Candidate) []cobra.Completion {
 	out := make([]cobra.Completion, len(candidates))
 	for i, c := range candidates {
 		if c.Label == "" {
-			out[i] = c.Name
+			out[i] = string(c.Name)
 			continue
 		}
-		out[i] = cobra.CompletionWithDesc(c.Name, c.Label)
+		out[i] = cobra.CompletionWithDesc(string(c.Name), string(c.Label))
 	}
 	return out
 }

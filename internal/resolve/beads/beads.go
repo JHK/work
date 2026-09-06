@@ -22,19 +22,19 @@ const Name = "beads"
 // one run asks bd for each of them at most once and the vetting reads the very
 // snapshot that called a bead ready.
 type Resolver struct {
-	from     string // the checkout work was invoked in, whose HEAD a new branch forks from
+	from     worktree.Path // the checkout work was invoked in, whose HEAD a new branch forks from
 	settings config.Beads
 
 	// allBeads is every bead bd knows, closed ones included; readyBeads is every
 	// bead bd calls unblocked. Each is listed at most once per run.
 	allBeads, readyBeads func() ([]beads.Bead, error)
 
-	held sync.Map // id -> beads.Bead, the records already in hand
+	held sync.Map // worktree.ID -> beads.Bead, the records already in hand
 }
 
 // New answers for the repository at repo, naming branches by the tracker's own
 // pattern.
-func New(repo, from string, settings config.Beads) *Resolver {
+func New(repo worktree.Repo, from worktree.Path, settings config.Beads) *Resolver {
 	return &Resolver{
 		from:       from,
 		settings:   settings,
@@ -43,7 +43,7 @@ func New(repo, from string, settings config.Beads) *Resolver {
 	}
 }
 
-func (r *Resolver) Name() string { return Name }
+func (r *Resolver) Name() worktree.SystemName { return Name }
 
 // Icon marks a row that stands for a ticket.
 func (r *Resolver) Icon() string { return "◆" }
@@ -51,7 +51,7 @@ func (r *Resolver) Icon() string { return "◆" }
 // Identify names the bead behind an identifier bd lists, or behind a worktree
 // whose branch the longest id bd knows owns. A bd that will not list leaves a
 // worktree plain.
-func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) {
+func (r *Resolver) Identify(id worktree.ID, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return r.byID(id)
 	}
@@ -59,7 +59,7 @@ func (r *Resolver) Identify(id string, o worktree.Open) (worktree.Place, error) 
 }
 
 // byID is the bead bd lists under an identifier.
-func (r *Resolver) byID(id string) (worktree.Place, error) {
+func (r *Resolver) byID(id worktree.ID) (worktree.Place, error) {
 	list, err := r.allBeads()
 	if err != nil {
 		return worktree.Place{}, err
@@ -68,14 +68,19 @@ func (r *Resolver) byID(id string) (worktree.Place, error) {
 	if !ok {
 		return worktree.Place{}, fmt.Errorf("%w: bd names no bead %q", worktree.ErrUnknown, id)
 	}
-	return worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title}, nil
+	return place(b), nil
+}
+
+// place is the bead as a place to work, which its own identifier names.
+func place(b beads.Bead) worktree.Place {
+	return worktree.Place{ID: b.ID, Name: worktree.Name(b.ID), Label: b.Title}
 }
 
 // byBranch is the bead a worktree's branch belongs to, an identifier in hand
 // being one to confirm rather than to look up.
-func (r *Resolver) byBranch(id string, o worktree.Open) (worktree.Place, error) {
+func (r *Resolver) byBranch(id worktree.ID, o worktree.Open) (worktree.Place, error) {
 	// Ahead of the listing: confirming an identifier against a branch must not need bd.
-	if id != "" && !r.settings.Owns(id, o.Branch) {
+	if id != "" && !r.settings.Owns(string(id), string(o.Branch)) {
 		return worktree.Place{}, notMine(o)
 	}
 
@@ -91,7 +96,7 @@ func (r *Resolver) byBranch(id string, o worktree.Open) (worktree.Place, error) 
 		return worktree.Place{}, notMine(o)
 	}
 	b, _ := r.listed(found)
-	return worktree.Place{ID: found, Name: found, Branch: o.Branch, Label: b.Title}, nil
+	return worktree.Place{ID: found, Name: worktree.Name(found), Branch: o.Branch, Label: b.Title}, nil
 }
 
 func notMine(o worktree.Open) error {
@@ -109,7 +114,7 @@ func (r *Resolver) Offer() ([]worktree.Place, error) {
 		// Kept whole, so entering one of these vets it against the snapshot that called
 		// it ready rather than asking bd again.
 		r.held.Store(b.ID, b)
-		out = append(out, worktree.Place{ID: b.ID, Name: b.ID, Label: b.Title})
+		out = append(out, place(b))
 	}
 	return out, nil
 }
@@ -125,22 +130,22 @@ func (r *Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 	if err := r.vet(b); err != nil {
 		return p, err
 	}
-	p.Branch = r.settings.Branch(b.ID, slug(b.Title))
+	p.Branch = worktree.Branch(r.settings.Branch(string(b.ID), slug(b.Title)))
 	p.Label = b.Title
 	return p, nil
 }
 
 // Create has bd add the worktree, wired to the repository's shared database and
 // forked from what the checkout work was invoked in has at HEAD.
-func (r *Resolver) Create(p worktree.Place, path string) error {
+func (r *Resolver) Create(p worktree.Place, path worktree.Path) error {
 	return beads.CreateWorktree(r.from, path, p.Branch)
 }
 
 // Supply spells out the ticket a worktree was made for.
 func (r *Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
-	subject := t.ID
+	subject := string(t.ID)
 	if t.Label != "" {
-		subject += ": " + t.Label
+		subject += ": " + string(t.Label)
 	}
 	return worktree.Values{worktree.SubjectValue: subject}, nil
 }
@@ -175,7 +180,7 @@ func (r *Resolver) vet(b beads.Bead) error {
 }
 
 // workable asks whether bd lists the bead as unblocked.
-func (r *Resolver) workable(id string) (bool, error) {
+func (r *Resolver) workable(id worktree.ID) (bool, error) {
 	list, err := r.readyBeads()
 	if err != nil {
 		return false, err
@@ -185,7 +190,7 @@ func (r *Resolver) workable(id string) (bool, error) {
 }
 
 // bead is the record for an id: one already in hand, else the full listing's own.
-func (r *Resolver) bead(id string) (beads.Bead, error) {
+func (r *Resolver) bead(id worktree.ID) (beads.Bead, error) {
 	if b, ok := r.held.Load(id); ok {
 		return b.(beads.Bead), nil
 	}
@@ -197,7 +202,7 @@ func (r *Resolver) bead(id string) (beads.Bead, error) {
 
 // listed is the bead the full listing named, if it named one. A bd that will not
 // list names none.
-func (r *Resolver) listed(id string) (beads.Bead, bool) {
+func (r *Resolver) listed(id worktree.ID) (beads.Bead, bool) {
 	list, err := r.allBeads()
 	if err != nil {
 		return beads.Bead{}, false
@@ -207,7 +212,7 @@ func (r *Resolver) listed(id string) (beads.Bead, bool) {
 
 // owner names the bead a branch belongs to: the longest known id owning it, so
 // that a branch of one-two's does not fall to one.
-func (r *Resolver) owner(branch string) string {
+func (r *Resolver) owner(branch worktree.Branch) worktree.ID {
 	// Ahead of the listing: a detached worktree has no branch for any id to own.
 	if branch == "" {
 		return ""
@@ -216,16 +221,16 @@ func (r *Resolver) owner(branch string) string {
 	if err != nil {
 		return ""
 	}
-	best := ""
+	var best worktree.ID
 	for _, b := range list {
-		if len(b.ID) > len(best) && r.settings.Owns(b.ID, branch) {
+		if len(b.ID) > len(best) && r.settings.Owns(string(b.ID), string(branch)) {
 			best = b.ID
 		}
 	}
 	return best
 }
 
-func find(list []beads.Bead, id string) (beads.Bead, bool) {
+func find(list []beads.Bead, id worktree.ID) (beads.Bead, bool) {
 	for _, b := range list {
 		if b.ID == id {
 			return b, true
@@ -238,8 +243,8 @@ const slugLen = 40
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
-func slug(title string) string {
-	s := nonSlug.ReplaceAllString(strings.ToLower(title), "-")
+func slug(title worktree.Label) string {
+	s := nonSlug.ReplaceAllString(strings.ToLower(string(title)), "-")
 	s = strings.Trim(s, "-")
 	if len(s) > slugLen {
 		s = s[:slugLen]

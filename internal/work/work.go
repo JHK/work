@@ -41,7 +41,7 @@ type Resolver interface {
 	//
 	// [worktree.ErrUnknown] means this resolver does not answer for what it was
 	// shown, and the next one is asked. Every other error stops the run.
-	Identify(id string, o worktree.Open) (worktree.Place, error)
+	Identify(id worktree.ID, o worktree.Open) (worktree.Place, error)
 
 	// Offer lists the places worth starting, whether or not they have a worktree. A
 	// refusal costs the offered rows and nothing else.
@@ -53,7 +53,7 @@ type Resolver interface {
 	Prepare(p worktree.Place) (worktree.Place, error)
 
 	// Create checks the place's branch out into a worktree at path.
-	Create(p worktree.Place, path string) error
+	Create(p worktree.Place, path worktree.Path) error
 }
 
 // Action is the far seam: what a worktree that exists is handed to, at either of
@@ -88,42 +88,43 @@ type Systems struct {
 // worktree itself still lands under repo. A front end asks with neither and
 // reads the names and flags alone off what comes back, so a system wired here
 // reaches for nothing until it is asked a question.
-type Wiring func(repo, checkout string, cfg config.Config) Systems
+type Wiring func(repo worktree.Repo, checkout worktree.Path, cfg config.Config) Systems
 
 // Env is the repository work operates on, the directory it was invoked in, the
 // settings it reads, and the systems behind its seams.
 type Env struct {
-	Repo string
+	Repo worktree.Repo
 
 	// Dir is where work was invoked, which is what standing in a worktree is
 	// judged against. It is absolute, an empty one standing nowhere.
-	Dir string
+	Dir worktree.Path
 
 	Config  config.Config
 	Systems Systems
 }
 
 // Open finds the repository containing dir and wires the systems cfg asks for.
-func Open(dir string, cfg config.Config, wire Wiring) (Env, error) {
+func Open(dir worktree.Path, cfg config.Config, wire Wiring) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
 		return Env{}, err
 	}
-	here, err := filepath.Abs(dir)
+	abs, err := filepath.Abs(string(dir))
 	if err != nil {
 		return Env{}, err
 	}
+	here := worktree.Path(abs)
 	sayWhatWorkRead(repo, here, cfg)
 	return Env{Repo: repo, Dir: here, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
 }
 
-func sayWhatWorkRead(repo, here string, cfg config.Config) {
+func sayWhatWorkRead(repo worktree.Repo, here worktree.Path, cfg config.Config) {
 	ctx := context.Background()
 	if !slog.Default().Enabled(ctx, slog.LevelDebug) {
 		return
 	}
 	slog.LogAttrs(ctx, slog.LevelDebug, "work opened a repository",
-		slog.String("repository", repo), slog.String("checkout", here))
+		slog.String("repository", string(repo)), slog.String("checkout", string(here)))
 	var settings []slog.Attr
 	for name, value := range cfg.Settings() {
 		settings = append(settings, slog.Any(name, value))
@@ -135,8 +136,8 @@ func sayWhatWorkRead(repo, here string, cfg config.Config) {
 // traverse, and may not open with a dash.
 var worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
-func checkName(name string) error {
-	if !worktreeName.MatchString(name) {
+func checkName(name worktree.Name) error {
+	if !worktreeName.MatchString(string(name)) {
 		return fmt.Errorf("%q is not a usable worktree name", name)
 	}
 	return nil
@@ -150,17 +151,17 @@ type Candidate struct {
 	Icon string // the mark that resolver draws its rows with
 
 	by     Resolver
-	path   string // where that worktree sits
-	branch string // what it has checked out, empty when it is detached
+	path   worktree.Path
+	branch worktree.Branch // empty when it is detached
 }
 
 // Dir is what the worktree's directory is called, empty where the candidate has
 // none. A branch may be spelled with separators in it; a directory never is.
-func (c Candidate) Dir() string {
+func (c Candidate) Dir() worktree.Name {
 	if c.path == "" {
 		return ""
 	}
-	return filepath.Base(c.path)
+	return worktree.Name(filepath.Base(string(c.path)))
 }
 
 // actionable is why a verb may not act on the worktree a candidate has: there is
@@ -180,7 +181,7 @@ func (e Env) actionable(c Candidate, verb string) error {
 	return nil
 }
 
-func (e Env) mainCheckout(c Candidate) bool { return git.SameDir(c.path, e.Repo) }
+func (e Env) mainCheckout(c Candidate) bool { return git.SameDir(c.path, worktree.Path(e.Repo)) }
 
 // holds reports whether [Env.Dir] sits within the worktree a candidate has, a
 // worktree nested in that one counting as within it.
@@ -188,8 +189,8 @@ func (e Env) holds(c Candidate) bool { return e.Dir != "" && git.Inside(e.Dir, c
 
 // stoodIn is where the worktree the shell is in sits: the innermost of the ones
 // holding [Env.Dir], and empty where it stands outside them all.
-func (e Env) stoodIn(open []Candidate) string {
-	found := ""
+func (e Env) stoodIn(open []Candidate) worktree.Path {
+	var found worktree.Path
 	for _, c := range open {
 		if e.holds(c) && (found == "" || git.Inside(c.path, found)) {
 			found = c.path
@@ -199,7 +200,7 @@ func (e Env) stoodIn(open []Candidate) string {
 }
 
 // lessStoodIn drops the row for the worktree at here, an empty here naming none.
-func lessStoodIn(rows []Candidate, here string) []Candidate {
+func lessStoodIn(rows []Candidate, here worktree.Path) []Candidate {
 	if here == "" {
 		return rows
 	}
@@ -208,7 +209,7 @@ func lessStoodIn(rows []Candidate, here string) []Candidate {
 
 // Resolve maps an identifier to the place it names and to the worktree that
 // place already has.
-func (e Env) Resolve(arg string) (Candidate, error) {
+func (e Env) Resolve(arg worktree.ID) (Candidate, error) {
 	if arg == "" {
 		return Candidate{}, errors.New("no target given")
 	}
@@ -227,14 +228,14 @@ func (e Env) Resolve(arg string) (Candidate, error) {
 func Unanswered(err error) bool { return errors.Is(err, errUnanswered) }
 
 // Nameable reports whether a name is one a worktree could be made for.
-func Nameable(name string) bool { return checkName(name) == nil }
+func Nameable(name worktree.Name) bool { return checkName(name) == nil }
 
 // place is the candidate an identifier names against the worktrees open. A name
 // nothing answered for comes back wrapping [errUnanswered].
-func (e Env) place(id string, open []Candidate) (Candidate, error) {
+func (e Env) place(id worktree.ID, open []Candidate) (Candidate, error) {
 	// A worktree listed under the name is that worktree, whatever a resolver would
 	// make of it.
-	if named := byName(open, id); len(named) > 0 {
+	if named := byName(open, worktree.Name(id)); len(named) > 0 {
 		return preferred(named), nil
 	}
 	r, p, err := e.identify(id, worktree.Open{})
@@ -248,7 +249,7 @@ func (e Env) place(id string, open []Candidate) (Candidate, error) {
 	return e.locate(r, p, open)
 }
 
-func byName(open []Candidate, name string) []Candidate {
+func byName(open []Candidate, name worktree.Name) []Candidate {
 	var found []Candidate
 	for _, c := range open {
 		if c.Name == name {
@@ -271,7 +272,7 @@ var errUnanswered = errors.New("nothing answers for")
 
 // identify is the chain: the first resolver to answer for what the core is
 // holding owns it, and one that does not recognise it passes it on.
-func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, error) {
+func (e Env) identify(id worktree.ID, o worktree.Open) (Resolver, worktree.Place, error) {
 	for _, r := range e.Systems.Resolvers {
 		p, err := r.Identify(id, o)
 		if errors.Is(err, worktree.ErrUnknown) {
@@ -293,14 +294,14 @@ func (e Env) identify(id string, o worktree.Open) (Resolver, worktree.Place, err
 // Add is the place a worktree is about to be made for: what a system answers for
 // the identifier with, else a name of the user's own. A place that already has a
 // worktree is refused.
-func (e Env) Add(id string) (Candidate, error) {
+func (e Env) Add(id worktree.ID) (Candidate, error) {
 	open, err := e.Worktrees()
 	if err != nil {
 		return Candidate{}, err
 	}
 	c, err := e.place(id, open)
 	if errors.Is(err, errUnanswered) {
-		return e.invent(id)
+		return e.invent(worktree.Name(id))
 	}
 	if err != nil {
 		return Candidate{}, err
@@ -313,11 +314,11 @@ func (e Env) Add(id string) (Candidate, error) {
 
 // invent is the place a name of the user's own makes: no ticket and no pull
 // request behind it, on a branch spelled exactly as the name is.
-func (e Env) invent(name string) (Candidate, error) {
+func (e Env) invent(name worktree.Name) (Candidate, error) {
 	if err := checkName(name); err != nil {
 		return Candidate{}, err
 	}
-	p, err := e.Systems.Named.Identify(name, worktree.Open{})
+	p, err := e.Systems.Named.Identify(worktree.ID(name), worktree.Open{})
 	if err != nil {
 		return Candidate{}, err
 	}
@@ -326,7 +327,7 @@ func (e Env) invent(name string) (Candidate, error) {
 
 // Own is the place a name of the user's own makes, no identifier resolved and no
 // tracker or forge asked. A name git already lists a worktree under is refused.
-func (e Env) Own(name string) (Candidate, error) {
+func (e Env) Own(name worktree.Name) (Candidate, error) {
 	open, err := e.Branches()
 	if err != nil {
 		return Candidate{}, err
@@ -338,7 +339,7 @@ func (e Env) Own(name string) (Candidate, error) {
 }
 
 // taken is what a name a worktree is already open under is refused with.
-func taken(name string) error {
+func taken(name worktree.Name) error {
 	return fmt.Errorf("%s already has a worktree; enter it with work switch %s", name, name)
 }
 
@@ -406,12 +407,12 @@ func (e Env) listing() ([]git.Worktree, error) {
 // Branches is what the repository's worktrees have checked out, in git's order:
 // a detached one under its directory. It asks git and nothing else, so a listing
 // costs no tracker and no forge.
-func (e Env) Branches() ([]string, error) {
+func (e Env) Branches() ([]worktree.Name, error) {
 	list, err := e.listing()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(list))
+	out := make([]worktree.Name, 0, len(list))
 	for _, w := range list {
 		out = append(out, worktree.Open{Path: w.Path, Branch: w.Branch}.Name())
 	}
@@ -511,7 +512,7 @@ type offered struct {
 // keyed on the name, which is what a place of any source is retyped as.
 func openWithOffers(open []Candidate, offers []offered) []Candidate {
 	out := slices.Clone(open)
-	seen := make(map[string]int, len(out))
+	seen := make(map[worktree.Name]int, len(out))
 	for i, c := range out {
 		seen[c.Name] = i
 	}
@@ -548,15 +549,15 @@ func (e Env) Addable() ([]Candidate, []error, error) {
 }
 
 // path is where a worktree for a place would be created.
-func (e Env) path(name string) string {
-	return filepath.Join(e.Repo, e.Config.Worktree.Dir(), name)
+func (e Env) path(name worktree.Name) worktree.Path {
+	return worktree.Path(filepath.Join(string(e.Repo), e.Config.Worktree.Dir(), string(name)))
 }
 
 // inside refuses a worktree directory leading out of the repository. The setting
 // is read as a path; a symlink standing where it names is not.
 func (e Env) inside() error {
 	dir := e.Config.Worktree.Dir()
-	if contains(e.Repo, filepath.Join(e.Repo, dir)) {
+	if contains(string(e.Repo), filepath.Join(string(e.Repo), dir)) {
 		return nil
 	}
 	return fmt.Errorf("%q resolves outside the repository", dir)
@@ -580,11 +581,11 @@ func contains(root, path string) bool {
 // holds, then the subject the resolver that answered spells out.
 func (e Env) values(t worktree.Tree) worktree.Values {
 	vals := worktree.Values{
-		worktree.SourceValue: t.Source,
-		worktree.IDValue:     t.ID,
-		worktree.TitleValue:  t.Label,
-		worktree.NameValue:   t.Name,
-		worktree.DirValue:    t.Path,
+		worktree.SourceValue: string(t.Source),
+		worktree.IDValue:     string(t.ID),
+		worktree.TitleValue:  string(t.Label),
+		worktree.NameValue:   string(t.Name),
+		worktree.DirValue:    string(t.Path),
 	}
 	if s, ok := t.By.(worktree.Source); ok {
 		if supplied, err := s.Supply(t); err == nil {

@@ -27,7 +27,7 @@ func Edit() (worktree.Handoff, error) {
 	if err := create(path); err != nil {
 		return worktree.Handoff{}, err
 	}
-	return worktree.Handoff{Dir: filepath.Dir(path), Run: append(editor, path)}, nil
+	return worktree.Handoff{Dir: worktree.Path(filepath.Dir(path)), Run: append(editor, path)}, nil
 }
 
 // create brings an empty settings file into being, leaving one already there as

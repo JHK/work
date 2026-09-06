@@ -16,7 +16,7 @@ func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 	by := &supplier{}
 	a := &keeper{}
 	e := Env{
-		Repo:    testenv.InitRepo(t),
+		Repo:    worktree.Repo(testenv.InitRepo(t)),
 		Config:  config.Default(),
 		Systems: Systems{Actions: []Action{a}, Handback: a},
 	}
@@ -33,32 +33,34 @@ func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 // supplies the one value the core does not hold.
 type supplier struct{ asks int }
 
-func (*supplier) Name() string { return "supplier" }
+func (*supplier) Name() worktree.SystemName { return "supplier" }
 
 func (*supplier) Icon() string { return "s" }
 
-func (*supplier) Identify(string, worktree.Open) (worktree.Place, error) {
+func (*supplier) Identify(worktree.ID, worktree.Open) (worktree.Place, error) {
 	return worktree.Place{}, worktree.ErrUnknown
 }
 
 func (*supplier) Offer() ([]worktree.Place, error) { return nil, nil }
 
 func (*supplier) Prepare(p worktree.Place) (worktree.Place, error) {
-	p.Branch = p.Name
+	p.Branch = worktree.Branch(p.Name)
 	return p, nil
 }
 
-func (*supplier) Create(_ worktree.Place, path string) error { return os.MkdirAll(path, 0o755) }
+func (*supplier) Create(_ worktree.Place, path worktree.Path) error {
+	return os.MkdirAll(string(path), 0o755)
+}
 
 func (s *supplier) Supply(t worktree.Tree) (worktree.Values, error) {
 	s.asks++
-	return worktree.Values{worktree.SubjectValue: t.ID + ": " + t.Label}, nil
+	return worktree.Values{worktree.SubjectValue: string(t.ID) + ": " + string(t.Label)}, nil
 }
 
 // keeper stands at the far seam and keeps what each of its two moments read.
 type keeper struct{ created, opened worktree.Values }
 
-func (*keeper) Name() string { return "keeper" }
+func (*keeper) Name() worktree.SystemName { return "keeper" }
 
 func (k *keeper) OnCreated(t worktree.Tree) error {
 	k.created = t.Values

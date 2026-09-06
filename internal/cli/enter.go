@@ -47,7 +47,7 @@ func open(env work.Env, verb string, c work.Candidate) (worktree.Handoff, error)
 // takes the terminal.
 func hand(h worktree.Handoff, stdout io.Writer) error {
 	if h.Directory() {
-		return shim.Answer(h.Dir, stdout)
+		return shim.Answer(string(h.Dir), stdout)
 	}
 	// Dropped before the exec, so nothing the terminal goes to, and nothing it
 	// starts in turn, answers into the shim that called this invocation.

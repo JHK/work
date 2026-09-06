@@ -14,7 +14,7 @@ const Name = "shell"
 // Handback hands the worktree back rather than running anything inside it.
 type Handback struct{}
 
-func (Handback) Name() string { return Name }
+func (Handback) Name() worktree.SystemName { return Name }
 
 // OnCreated has nothing to do: a worktree is handed back however it came about.
 func (Handback) OnCreated(worktree.Tree) error { return nil }
@@ -23,7 +23,7 @@ func (Handback) OnCreated(worktree.Tree) error { return nil }
 func (Handback) Open(t worktree.Tree) (worktree.Handoff, error) {
 	// No chdir stands behind this handoff the way one stands behind a command, so a
 	// worktree git still lists but nobody can enter is refused here or nowhere.
-	if _, err := os.Stat(t.Path); err != nil {
+	if _, err := os.Stat(string(t.Path)); err != nil {
 		return worktree.Handoff{}, err
 	}
 	return worktree.Handoff{Dir: t.Path}, nil

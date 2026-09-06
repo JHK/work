@@ -45,7 +45,7 @@ func carry(env work.Env, verb, name string) (worktree.Handoff, error) {
 	if err := env.Carryable(); err != nil {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes the worktree and carries nothing", err, name)
 	}
-	c, err := env.Own(name)
+	c, err := env.Own(worktree.Name(name))
 	if err != nil {
 		return worktree.Handoff{}, err
 	}

@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/JHK/work-cli/internal/git"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // Move is what moved: where the worktree was and where it sits now, and what its
 // branch was called and is called now.
 type Move struct {
-	From, To string
-	Was, Now string // both empty where the worktree is detached
+	From, To worktree.Path
+	Was, Now worktree.Branch // both empty where the worktree is detached
 }
 
 // Renamed reports whether the branch took a name it did not already have.
@@ -27,7 +28,7 @@ func (e Env) Movable(c Candidate) error { return e.actionable(c, "move") }
 // last element. No ticket is touched, no tracker asked and no action run. Both
 // halves land or neither does. A candidate [Env.Movable] refuses is refused here
 // too, a front end asking ahead of the destination being what that is for.
-func (e Env) Move(c Candidate, dest string) (Move, error) {
+func (e Env) Move(c Candidate, dest worktree.Path) (Move, error) {
 	m, err := e.plan(c, dest)
 	if err != nil {
 		return Move{}, err
@@ -48,7 +49,7 @@ func (e Env) Move(c Candidate, dest string) (Move, error) {
 }
 
 // plan is what the move would come to, and every refusal that costs nothing.
-func (e Env) plan(c Candidate, dest string) (Move, error) {
+func (e Env) plan(c Candidate, dest worktree.Path) (Move, error) {
 	if err := e.Movable(c); err != nil {
 		return Move{}, err
 	}
@@ -62,7 +63,7 @@ func (e Env) plan(c Candidate, dest string) (Move, error) {
 	}
 	m := Move{From: c.path, To: to, Was: c.branch}
 	if c.branch != "" {
-		m.Now = filepath.Base(to)
+		m.Now = worktree.Branch(filepath.Base(string(to)))
 	}
 	// Ahead of the move, so a name already taken costs nothing rather than leaving
 	// the worktree moved and its branch behind.
@@ -75,15 +76,16 @@ func (e Env) plan(c Candidate, dest string) (Move, error) {
 // destination is where a worktree lands: a bare name beside where it sits, and
 // one carrying a separator a path of its own, read from [Env.Dir] where it is
 // relative. Its last element is the name either way.
-func (e Env) destination(from, dest string) (string, error) {
-	if err := checkName(filepath.Base(dest)); err != nil {
+func (e Env) destination(from, dest worktree.Path) (worktree.Path, error) {
+	to := string(dest)
+	if err := checkName(worktree.Name(filepath.Base(to))); err != nil {
 		return "", err
 	}
 	switch {
-	case !strings.ContainsRune(dest, filepath.Separator):
-		return filepath.Join(filepath.Dir(from), dest), nil
-	case filepath.IsAbs(dest):
-		return filepath.Clean(dest), nil
+	case !strings.ContainsRune(to, filepath.Separator):
+		return worktree.Path(filepath.Join(filepath.Dir(string(from)), to)), nil
+	case filepath.IsAbs(to):
+		return worktree.Path(filepath.Clean(to)), nil
 	}
-	return filepath.Join(e.Dir, dest), nil
+	return worktree.Path(filepath.Join(string(e.Dir), to)), nil
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/JHK/work-cli/internal/shim"
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/JHK/work-cli/internal/wiring"
+	"github.com/JHK/work-cli/internal/worktree"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -526,16 +527,16 @@ func (s *session) dirty() {
 
 func (s *session) hasBranch(name string) bool {
 	s.t.Helper()
-	return git.HasBranch(s.Repo, name)
+	return git.HasBranch(worktree.Repo(s.Repo), worktree.Branch(name))
 }
 
 func (s *session) hasWorktree(path string) bool {
 	s.t.Helper()
-	list, err := git.Worktrees(s.Repo)
+	list, err := git.Worktrees(worktree.Repo(s.Repo))
 	if err != nil {
 		s.t.Fatalf("read the repository's worktrees: %v", err)
 	}
-	return slices.ContainsFunc(list, func(w git.Worktree) bool { return git.SameDir(w.Path, path) })
+	return slices.ContainsFunc(list, func(w git.Worktree) bool { return git.SameDir(w.Path, worktree.Path(path)) })
 }
 
 // screen is the picker as a case reads it: an fzf that records the rows it was

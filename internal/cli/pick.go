@@ -10,6 +10,7 @@ import (
 
 	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/work"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 const (
@@ -49,9 +50,9 @@ func rowsAlone(list func(work.Env) ([]work.Candidate, error)) func(work.Env) ([]
 
 // targeted is the place a verb was given, or the one its listing hands over where
 // it was given none.
-func targeted(env work.Env, l listing, target string, resolve func(string) (work.Candidate, error)) (work.Candidate, error) {
+func targeted(env work.Env, l listing, target string, resolve func(worktree.ID) (work.Candidate, error)) (work.Candidate, error) {
 	if target != "" {
-		return resolve(target)
+		return resolve(worktree.ID(target))
 	}
 	rows, _, err := l.rows(env)
 	return pickFrom(l.saidWhenEmpty, rows, err)
@@ -157,7 +158,7 @@ func label(c work.Candidate, width int) string {
 		mark = openMark
 	}
 
-	name, about := c.Name, c.Label
+	name, about := string(c.Name), string(c.Label)
 	if about != "" {
 		name = fmt.Sprintf("%-*s", width, name)
 	}

@@ -15,12 +15,12 @@ const Name = "mise"
 // Trust marks a fresh worktree's mise configs as trusted.
 type Trust struct{}
 
-func (Trust) Name() string { return Name }
+func (Trust) Name() worktree.SystemName { return Name }
 
 // OnCreated lets mise find the configs itself. Best effort: a grant that fails
 // only means the session prompts, never the worktree just made.
 func (Trust) OnCreated(t worktree.Tree) error {
-	if _, err := run.Output(t.Path, "mise", "trust"); err != nil {
+	if _, err := run.Output(string(t.Path), "mise", "trust"); err != nil {
 		slog.Warn(err.Error())
 	}
 	return nil

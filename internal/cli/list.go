@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // listCommand asks git and no system beyond it.
-func listCommand(branches func() ([]string, error)) *cobra.Command {
+func listCommand(branches func() ([]worktree.Name, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Print the repository's open worktrees",
@@ -29,7 +31,7 @@ out, or its directory where it has none.`,
 	}
 }
 
-func (v verbs) branches() ([]string, error) {
+func (v verbs) branches() ([]worktree.Name, error) {
 	env, err := v.repository()
 	if err != nil {
 		return nil, err
