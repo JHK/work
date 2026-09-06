@@ -14,7 +14,7 @@ var cutting = testenv.Stub{Name: "claude", Shell: `printf '[%s]' "$@"`}
 // it carries and however deep it is written.
 func TestEachLineOfABlockIsOneArgument(t *testing.T) {
 	s := repository(t, cutting)
-	s.settings(systemsOn("claude") + commandBlock("claude", "  --name=one two", "\ta b c"))
+	s.settings(integrationsOn("claude") + commandBlock("claude", "  --name=one two", "\ta b c"))
 
 	r := s.hands("add", "scratch")
 
@@ -41,7 +41,7 @@ func TestOneConditionalGuardsEveryLineOfABlock(t *testing.T) {
 // The source a command is guarded on is what these worktrees arm.
 func TestANameOfYourOwnIsSourcedToGit(t *testing.T) {
 	s := repository(t, cutting)
-	s.settings(systemsOn("claude") + guarding("git"))
+	s.settings(integrationsOn("claude") + guarding("git"))
 
 	r := s.hands("add", "scratch")
 

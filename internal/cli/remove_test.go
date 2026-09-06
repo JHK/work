@@ -162,7 +162,7 @@ func TestRemoveRefusesTheWorktreeStoodIn(t *testing.T) {
 
 // Nothing to remove is refused before anything is touched, and the refusal
 // invites no verb that would create it. A name nothing answers for and a place
-// a system answers for that has no worktree read as their own thing.
+// an integration answers for that has no worktree read as their own thing.
 func TestRemoveWhatIsNotThere(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -179,7 +179,7 @@ func TestRemoveWhatIsNotThere(t *testing.T) {
 			// A bare number is the forge's by its spelling alone, so the place is made
 			// without gh being asked for it.
 			"a place with no worktree open",
-			systemsOn("github"), "7",
+			integrationsOn("github"), "7",
 			"pr-7 has no worktree to remove",
 		},
 	}

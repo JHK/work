@@ -47,7 +47,7 @@ type key struct {
 // sitting in no table comes first, which is where TOML reads one.
 func (c Config) keys() []key {
 	return []key{
-		{systemsKey, c.Systems},
+		{integrationsKey, c.Integrations},
 		{dirKey, c.Worktree.Dir()},
 		{githubBranchKey, c.Github.pattern().tmpl.text},
 		{beadsBranchKey, c.Beads.pattern().tmpl.text},

@@ -14,7 +14,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this system goes by, and Binary the CLI it goes through.
+// Name is what this integration goes by, and Binary the CLI it goes through.
 const (
 	Name   = "github"
 	Binary = "gh"
@@ -35,7 +35,7 @@ func New(repo worktree.Repo, settings config.Github) Resolver {
 	return Resolver{repo: repo, settings: settings}
 }
 
-func (Resolver) Name() worktree.SystemName { return Name }
+func (Resolver) Name() worktree.IntegrationName { return Name }
 
 // Icon marks a row that stands for a review.
 func (Resolver) Icon() string { return "⇄" }

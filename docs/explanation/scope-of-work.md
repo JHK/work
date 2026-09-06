@@ -2,7 +2,7 @@
 
 `work` exists to shorten the distance between deciding to work on something and standing in the place that work happens. The place is a git worktree, and most of what makes it the right one is knowable from a ticket, a pull request or a name.
 
-## The remit is the sequence, not the systems at its ends
+## The remit is the sequence, not the integrations at its ends
 
 The sequence runs over the worktrees of a repository: which ones exist, which one is being asked for, making it exist where it does not, and opening it. A tracker can resolve work to be opened in the worktree, and creating one can trigger an agent session as an action.
 
@@ -14,9 +14,9 @@ The other half is the agent arriving knowing what it is there for, which is the 
 
 ## The identifier already knows what the worktree needs
 
-A worktree needs a branch, a name and a place to fork from, and something has to decide all three. The identifier a person is already holding came from the tracker that filed the work or the forge that hosts the review, and everything the worktree needs sits at the other end of it. A resolver is what asks. It speaks to one of those systems, turns an identifier into the worktree belonging to it, and carries along what came back.
+A worktree needs a branch, a name and a place to fork from, and something has to decide all three. The identifier a person is already holding came from the tracker that filed the work or the forge that hosts the review, and everything the worktree needs sits at the other end of it. A resolver is what asks. It speaks to one of those integrations, turns an identifier into the worktree belonging to it, and carries along what came back.
 
-That is convenience where a plain name would have done, and it is the only source of context where a plain name would not. It is also where a system's own vocabulary stays: what claiming a ticket means, what fetching a pull request's head means, what a branch is named after. A plain name is resolved too, by the resolver whose answer is that a name is a name.
+That is convenience where a plain name would have done, and it is the only source of context where a plain name would not. It is also where an integration's own vocabulary stays: what claiming a ticket means, what fetching a pull request's head means, what a branch is named after. A plain name is resolved too, by the resolver whose answer is that a name is a name.
 
 ## None of the work in a worktree is `work`'s
 
@@ -28,4 +28,4 @@ Opening is not the whole of it. A worktree coming into being says work has start
 
 Everything ships in the one binary, and neither resolvers nor actions are a wall around the tool. What sits behind them is what would otherwise be welded into the sequence, where a branch per tracker, per forge and per agent lands in the path every invocation runs through, and the file that should change least changes for everything the loop picks up.
 
-A system `work` was never built against therefore arrives under its own name beside the ones already there, rather than displacing them. [The command line](../references/cli.md) and [the configuration](../references/configuration.md) carry the set that ships.
+An integration `work` was never built against therefore arrives under its own name beside the ones already there, rather than displacing them. [The command line](../references/cli.md) and [the configuration](../references/configuration.md) carry the set that ships.

@@ -8,7 +8,7 @@ import (
 )
 
 // A worktree already open is reached under the name it is listed by, whatever a
-// system would make of that name: docs/references/cli.md#identifiers.
+// integration would make of that name: docs/references/cli.md#identifiers.
 func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 	tests := []struct {
 		name string
@@ -26,7 +26,7 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 		{"a name a verb wins the first position with", "add", "add", "add", false},
 		// A bare number is the forge's by its spelling alone, and the worktree takes it
 		// all the same.
-		{"a name a system would read as its own", "1234", "1234", "1234", true},
+		{"a name an integration would read as its own", "1234", "1234", "1234", true},
 		// The number reaches the worktree open on the branch the forge names for it,
 		// which is the name that worktree goes by.
 		{"a pull request by its number", "pr-7", "pr-7", "7", true},
@@ -35,7 +35,7 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
 			if tt.forge {
-				s.settings(systemsOn("github"))
+				s.settings(integrationsOn("github"))
 			}
 			path := s.Repo
 			if tt.dir != "" {
@@ -85,9 +85,9 @@ func TestGoWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	r.came(t, result{Answered: path, Asked: []string{putUp}})
 }
 
-// An identifier no system in the chain answers for is refused before anything is
-// made, and names the verb that would make a worktree of it only where add would
-// take it.
+// An identifier no integration in the chain answers for is refused before
+// anything is made, and names the verb that would make a worktree of it only
+// where add would take it.
 func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -100,9 +100,9 @@ func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 			`nothing answers for "typo"; work add typo makes a worktree of it`,
 		},
 		{
-			// Wired or not, no system reads a path into a place, and none may: the name is
-			// about to become a directory of its own, so add is not offered.
-			"a name no worktree could carry, the forge wired", systemsOn("github"), "a/b",
+			// Wired or not, no integration reads a path into a place, and none may: the
+			// name is about to become a directory of its own, so add is not offered.
+			"a name no worktree could carry, the forge wired", integrationsOn("github"), "a/b",
 			`nothing answers for "a/b"`,
 		},
 		{
@@ -148,11 +148,12 @@ func TestGoTakesTheBranchAheadOfADetachedWorktreeOfThatName(t *testing.T) {
 	r.came(t, result{Answered: held})
 }
 
-// A system that recognises the identifier and cannot answer for it stops the
-// run, and what it was put is what the refusal carries: R5 of docs/rules/refusals.md.
+// An integration that recognises the identifier and cannot answer for it stops
+// the run, and what it was put is what the refusal carries: R5 of
+// docs/rules/refusals.md.
 func TestGoSaysWhatTheTrackerWouldNotAnswer(t *testing.T) {
 	s := repository(t)
-	s.settings(systemsOn("beads"))
+	s.settings(integrationsOn("beads"))
 
 	r := s.run("go", "bd-1")
 

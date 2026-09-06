@@ -148,7 +148,7 @@ func TestMoveRefusesBeforeAsking(t *testing.T) {
 			"scratch is the worktree you are standing in; run work move from outside it", true},
 		// A bare number is the forge's by its spelling alone, so the place is made
 		// without gh being asked for it.
-		{"a place with no worktree open", systemsOn("github"), "7", "pr-7 has no worktree to move", false},
+		{"a place with no worktree open", integrationsOn("github"), "7", "pr-7 has no worktree to move", false},
 		{"a name nothing answers for", "", "typo", `nothing answers for "typo"`, false},
 	}
 	for _, tt := range tests {
@@ -171,16 +171,16 @@ func TestMoveRefusesBeforeAsking(t *testing.T) {
 	}
 }
 
-// A system the picker's listing could not reach is said on the way past, one
-// line each, so a listing short of its rows does not read as a repository with
-// none.
-func TestThePickerSaysEverySystemItsListingCouldNotReach(t *testing.T) {
+// An integration the picker's listing could not reach is said on the way past,
+// one line each, so a listing short of its rows does not read as a repository
+// with none.
+func TestThePickerSaysEveryIntegrationItsListingCouldNotReach(t *testing.T) {
 	s := repository(t)
 	// A remote is what the forge reads the repository off, carrying the suffix a
 	// clone URL has, which the forge is asked with as it stands.
 	remote := hosted + ".git"
 	testenv.Git(t, s.Repo, "remote", "add", "origin", remote)
-	s.settings(systemsOn("beads", "github"))
+	s.settings(integrationsOn("beads", "github"))
 	s.opened("scratch")
 
 	// fzf stands in failing, so the run ends cancelled with nothing else said: what
@@ -297,8 +297,8 @@ func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 	put := putsUp(t)
 	other := with(doable, func(b *ticket) { b.ID, b.Title = "bd-2", "Another thing" })
 	s := tracking(t, []ticket{doable, other}, []ticket{doable, other}, nil, "", put.dismisses())
-	// The ticket's own worktree, a worktree no system answers for, and the one the
-	// shell stands in so that the main checkout is a row.
+	// The ticket's own worktree, a worktree no integration answers for, and the
+	// one the shell stands in so that the main checkout is a row.
 	s.openedOn("worked", "bd-1-do-a-thing")
 	s.opened("loose")
 	s.Dir = s.opened("spike")
@@ -320,8 +320,9 @@ func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 	require.NotContains(t, rows[3], openMark, "the offered row came back with a worktree")
 }
 
-// Naming a worktree asks as little as it can, so a system reading a branch alone
-// may have no title for it: its own offer beside it is what completes the row.
+// Naming a worktree asks as little as it can, so an integration reading a
+// branch alone may have no title for it: its own offer beside it is what
+// completes the row.
 func TestAnOpenRowTakesTheTitleFromItsOffer(t *testing.T) {
 	put := putsUp(t)
 	s := reviewing(t, nil, "", put.dismisses(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
@@ -337,12 +338,13 @@ func TestAnOpenRowTakesTheTitleFromItsOffer(t *testing.T) {
 	require.Regexp(t, `pr-7\s+·\s+Review this`, plain(rows[0]), "the row did not take the title its own offer had")
 }
 
-// Only the system that answered for the worktree completes its row: another's
-// offer of the same name is another place that happens to be spelled alike.
-func TestAnOpenRowTakesNoTitleFromAnotherSystemsOffer(t *testing.T) {
+// Only the integration that answered for the worktree completes its row:
+// another's offer of the same name is another place that happens to be spelled
+// alike.
+func TestAnOpenRowTakesNoTitleFromAnotherIntegrationsOffer(t *testing.T) {
 	put := putsUp(t)
 	// A ticket spelled as the forge names a pull request, which is the one way two
-	// systems put one name up.
+	// integrations put one name up.
 	alike := with(doable, func(b *ticket) { b.ID, b.Title = "pr-7", "Another place spelled alike" })
 	// No origin, so the forge names the worktree off its branch and has nothing to
 	// offer, as gh that is absent or unauthenticated has nothing to offer.
@@ -354,7 +356,7 @@ func TestAnOpenRowTakesNoTitleFromAnotherSystemsOffer(t *testing.T) {
 	r.came(t, result{Code: 1, Asked: []string{listed, vetted, putUp}}, atOnce)
 	rows := put.rows()
 	testenv.Equal(t, []string{"pr-7"}, retyped(rows), "the place was counted other than once")
-	require.NotContains(t, rows[0], "·", "the row took another system's title")
+	require.NotContains(t, rows[0], "·", "the row took another integration's title")
 }
 
 // An offer the core could not make a directory for could be shown but never

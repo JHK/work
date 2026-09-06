@@ -8,21 +8,21 @@ import (
 
 // A creation under a verb claude.on-creation names opens a session, and every
 // other creation is handed back: docs/references/configuration.md. go is the
-// other verb the key names, and takes an identifier a system answers for.
+// other verb the key names, and takes an identifier an integration answers for.
 func TestWhatAVerbsCreationOpensOn(t *testing.T) {
 	tests := []struct {
-		name, body      string
-		systemsBesideBd []string
-		opensASession   bool
+		name, body           string
+		integrationsBesideBd []string
+		opensASession        bool
 	}{
 		{"the default, which names add", "", []string{"claude"}, true},
 		{"the key naming go alone", claudeTable + "on-creation = [\"go\"]\n", []string{"claude"}, false},
 		{"the key naming nothing", claudeTable + "on-creation = []\n", []string{"claude"}, false},
-		{"the agent left out of the systems list", claudeTable + "on-creation = [\"add\"]\n", nil, false},
+		{"the agent left out of the integrations list", claudeTable + "on-creation = [\"add\"]\n", nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := tracking(t, []ticket{doable}, []ticket{doable}, tt.systemsBesideBd, tt.body,
+			s := tracking(t, []ticket{doable}, []ticket{doable}, tt.integrationsBesideBd, tt.body,
 				testenv.Stub{Name: "claude"})
 			path := s.at("bd-1")
 			asked := worked("bd-1", path, "bd-1-do-a-thing")
@@ -41,7 +41,7 @@ func TestWhatAVerbsCreationOpensOn(t *testing.T) {
 // handed back whatever claude.on-creation names.
 func TestACreationNothingAnsweredForIsHandedBack(t *testing.T) {
 	tests := []struct{ name, body, verb string }{
-		{"add, which the key names by default", systemsOn("claude"), "add"},
+		{"add, which the key names by default", integrationsOn("claude"), "add"},
 		{"carry, where the key names it", agentOn + "on-creation = [\"carry\"]\n", "carry"},
 	}
 	for _, tt := range tests {

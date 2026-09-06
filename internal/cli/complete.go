@@ -49,15 +49,16 @@ func completions(candidates []work.Candidate) []cobra.Completion {
 	return out
 }
 
-// integration is a shell work prints for.
-type integration struct {
+// snippet is what work init prints for one shell: the function, then the
+// completions.
+type snippet struct {
 	shell      string
 	function   string
 	completion func(root *cobra.Command, out io.Writer, desc bool) error
 }
 
-// integrations are the shells [work init] answers to.
-var integrations = []integration{
+// snippets are the shells [work init] answers to.
+var snippets = []snippet{
 	{"bash", shim.Bash, (*cobra.Command).GenBashCompletionV2},
 	{"fish", shim.Fish, (*cobra.Command).GenFishCompletion},
 	{"zsh", shim.Bash, zshCompletion},
@@ -72,8 +73,8 @@ func zshCompletion(root *cobra.Command, out io.Writer, _ bool) error {
 // initCommand prints the shell integration. It opens no repository and asks no
 // tool anything.
 func initCommand() *cobra.Command {
-	valid := make([]cobra.Completion, len(integrations))
-	for i, in := range integrations {
+	valid := make([]cobra.Completion, len(snippets))
+	for i, in := range snippets {
 		valid[i] = cobra.CompletionWithDesc(in.shell, in.shell+" shell integration")
 	}
 	return &cobra.Command{
@@ -91,7 +92,7 @@ into the worktree, and completes the commands and each verb's argument.`,
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: valid,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			in, ok := integrationFor(args[0])
+			in, ok := snippetFor(args[0])
 			if !ok {
 				return fmt.Errorf("no %s integration", args[0])
 			}
@@ -104,12 +105,12 @@ into the worktree, and completes the commands and each verb's argument.`,
 	}
 }
 
-// integrationFor is what work prints for a shell, and whether it prints for one.
-func integrationFor(shell string) (integration, bool) {
-	for _, in := range integrations {
+// snippetFor is what work prints for a shell, and whether it prints for one.
+func snippetFor(shell string) (snippet, bool) {
+	for _, in := range snippets {
 		if in.shell == shell {
 			return in, true
 		}
 	}
-	return integration{}, false
+	return snippet{}, false
 }

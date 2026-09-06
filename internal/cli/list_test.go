@@ -7,11 +7,13 @@ import (
 )
 
 // What list prints is git's own answer, the main checkout first and a detached
-// worktree under its directory, and no system is asked for a name or a title.
-func TestListPrintsWhatGitReportsAndAsksNoSystem(t *testing.T) {
+// worktree under its directory, and no integration is asked for a name or a
+// title.
+func TestListPrintsWhatGitReportsAndAsksNoIntegration(t *testing.T) {
 	s := repository(t)
-	// Both systems on, and every stand-in refuses: one asked would be a line said.
-	s.settings(systemsOn("beads", "github"))
+	// Both integrations on, and every stand-in refuses: one asked would be a line
+	// said.
+	s.settings(integrationsOn("beads", "github"))
 	testenv.Git(t, s.Repo, "branch", "--move", "trunk")
 	s.openedOn("worked", "bd-1-do-a-thing")
 	s.detached("adrift")

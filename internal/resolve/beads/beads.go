@@ -15,7 +15,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this system goes by on both seams.
+// Name is what this integration goes by on both seams.
 const Name = "beads"
 
 // Resolver answers for the repository's beads. It holds the listings it made, so
@@ -43,7 +43,7 @@ func New(repo worktree.Repo, from worktree.Path, settings config.Beads) *Resolve
 	}
 }
 
-func (r *Resolver) Name() worktree.SystemName { return Name }
+func (r *Resolver) Name() worktree.IntegrationName { return Name }
 
 // Icon marks a row that stands for a ticket.
 func (r *Resolver) Icon() string { return "◆" }

@@ -24,7 +24,7 @@ A worktree already open is handed back. One this run creates opens on a Claude
 session where claude.on-creation names go, which it does by default.
 
 Creating a worktree for a ticket vets that ticket and claims it. A name no
-system answers for is work add's.
+integration answers for is work add's.
 
 work <identifier> is work go <identifier>: work go add reaches the worktree add.`,
 	}, verb)

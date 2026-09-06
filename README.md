@@ -23,7 +23,7 @@ work init fish | source     # config.fish
 source <(work init zsh)     # .zshrc, below compinit
 ```
 
-`git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/systems.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
+`git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/integrations.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
 
 ## Use
 
@@ -31,27 +31,27 @@ source <(work init zsh)     # .zshrc, below compinit
 work
 ```
 
-Choose from the repository's worktrees. The systems you enable add to the list: ready tickets, open pull requests.
+Choose from the repository's worktrees. The integrations you enable add to the list: ready tickets, open pull requests.
 
 Every verb and argument: [the command line](docs/references/cli.md).
 
-## Systems
+## Integrations
 
-Everything `work` reaches for beyond git is a system. Name the ones you work with in `~/.config/work/config.toml`:
+Everything `work` reaches for beyond git is an integration. Name the ones you work with in `~/.config/work/config.toml`:
 
 ```toml
-systems = ["beads", "claude"]
+integrations = ["beads", "claude"]
 ```
 
 A resolver answers before a worktree exists, turning an identifier into the place to work.
 
-- [`beads`](docs/references/systems.md#beads): a ready ticket over `bd`
-- [`github`](docs/references/systems.md#github): one open pull request
+- [`beads`](docs/references/integrations.md#beads): a ready ticket over `bd`
+- [`github`](docs/references/integrations.md#github): one open pull request
 
 An action runs on the worktree that now exists.
 
-- [`mise`](docs/references/systems.md#mise): trusts the new worktree
-- [`claude`](docs/references/systems.md#claude): hands the worktree to the agent
+- [`mise`](docs/references/integrations.md#mise): trusts the new worktree
+- [`claude`](docs/references/integrations.md#claude): hands the worktree to the agent
 
 Every setting: [configuration](docs/references/configuration.md).
 

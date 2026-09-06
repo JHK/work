@@ -37,7 +37,7 @@ func (c Claude) OnCreation() []string {
 // OpensOnCreation reports whether a worktree created under that verb opens on a
 // session, which the settings leaving the agent out says of no verb.
 func (c Config) OpensOnCreation(verb string) bool {
-	return c.On(ClaudeSystem) && slices.Contains(c.Claude.OnCreation(), verb)
+	return c.On(ClaudeIntegration) && slices.Contains(c.Claude.OnCreation(), verb)
 }
 
 // validateOnCreation refuses a verb no worktree comes into being under, and a

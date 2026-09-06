@@ -377,17 +377,17 @@ func tickets(list ...ticket) string {
 	return string(out)
 }
 
-// systemsOn is the settings that put those systems in force, which is the line every
-// other body a case writes follows.
-func systemsOn(systems ...string) string {
-	return "systems = [\"" + strings.Join(systems, "\", \"") + "\"]\n"
+// integrationsOn is the settings that put those integrations in force, which is
+// the line every other body a case writes follows.
+func integrationsOn(integrations ...string) string {
+	return "integrations = [\"" + strings.Join(integrations, "\", \"") + "\"]\n"
 }
 
 // claudeTable opens the agent's table, so the keys a case writes beside it land
 // in [claude]. agentOn is the agent in force with that table open.
 const claudeTable = "[claude]\n"
 
-var agentOn = systemsOn("claude") + claudeTable
+var agentOn = integrationsOn("claude") + claudeTable
 
 // quotes open and close the TOML multiline literal string a command is written
 // as, and commandBlock is one, the lines given as they stand between them.
@@ -445,13 +445,14 @@ func tracker(all, ready string) testenv.Stub {
 	}}
 }
 
-// tracking stands a shell in a repository whose tracker lists all, calls each of
-// ready unblocked, and makes the worktree work asks it for. also are the systems
-// a case asks for besides the tracker, and body the tables it writes.
+// tracking stands a shell in a repository whose tracker lists all, calls each
+// of ready unblocked, and makes the worktree work asks it for. also are the
+// integrations a case asks for besides the tracker, and body the tables it
+// writes.
 func tracking(t *testing.T, all, ready []ticket, also []string, body string, answering ...testenv.Stub) *session {
 	t.Helper()
 	s := repository(t, append([]testenv.Stub{tracker(tickets(all...), tickets(ready...))}, answering...)...)
-	s.settings(systemsOn(append([]string{"beads"}, also...)...) + body)
+	s.settings(integrationsOn(append([]string{"beads"}, also...)...) + body)
 	return s
 }
 
@@ -461,7 +462,7 @@ const reviewHead = "the pull request's head"
 
 // reviewing stands a shell in a repository whose forge is on and whose origin
 // holds the head of pull request 7, which is what its worktree checks out. also
-// are the systems a case asks for besides the forge, and body the tables it
+// are the integrations a case asks for besides the forge, and body the tables it
 // writes.
 func reviewing(t *testing.T, also []string, body string, answering ...testenv.Stub) *session {
 	t.Helper()
@@ -470,7 +471,7 @@ func reviewing(t *testing.T, also []string, body string, answering ...testenv.St
 	testenv.Git(t, s.Origin, "commit", "--allow-empty", "-m", reviewHead)
 	testenv.Git(t, s.Origin, "update-ref", "refs/pull/7/head", "HEAD")
 	testenv.Git(t, s.Repo, "remote", "add", "origin", s.Origin)
-	s.settings(systemsOn(append([]string{"github"}, also...)...) + body)
+	s.settings(integrationsOn(append([]string{"github"}, also...)...) + body)
 	return s
 }
 
@@ -482,8 +483,8 @@ func (s *session) at(name string) string { return filepath.Join(s.Repo, defaultD
 // name.
 func (s *session) opened(name string) string { return s.openedOn(name, name) }
 
-// openedOn is the same with the branch spelled otherwise, which is what a system
-// naming its own branches leaves behind.
+// openedOn is the same with the branch spelled otherwise, which is what an
+// integration naming its own branches leaves behind.
 func (s *session) openedOn(dir, branch string) string {
 	s.t.Helper()
 	path := s.at(dir)

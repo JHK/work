@@ -15,7 +15,7 @@ const Name = "mise"
 // Trust marks a fresh worktree's mise configs as trusted.
 type Trust struct{}
 
-func (Trust) Name() worktree.SystemName { return Name }
+func (Trust) Name() worktree.IntegrationName { return Name }
 
 // OnCreated lets mise find the configs itself. Best effort: a grant that fails
 // only means the session prompts, never the worktree just made.

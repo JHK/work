@@ -14,7 +14,7 @@ const Name = "shell"
 // Handback hands the worktree back rather than running anything inside it.
 type Handback struct{}
 
-func (Handback) Name() worktree.SystemName { return Name }
+func (Handback) Name() worktree.IntegrationName { return Name }
 
 // OnCreated has nothing to do: a worktree is handed back however it came about.
 func (Handback) OnCreated(worktree.Tree) error { return nil }

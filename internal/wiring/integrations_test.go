@@ -15,27 +15,28 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// A system wired off a name [config.SystemNames] leaves out is one no settings
-// file reaches. Structural like R3 and R4: no command asserts an "every".
-func TestTheSettingsSpellEverySystemTheWiringHas(t *testing.T) {
+// An integration wired off a name [config.IntegrationNames] leaves out is one
+// no settings file reaches. Structural like R3 and R4: no command asserts an
+// "every".
+func TestTheSettingsSpellEveryIntegrationTheWiringHas(t *testing.T) {
 	repo := worktree.Repo(t.TempDir())
 	from := worktree.Path(repo)
 	// Read before the settings are written: each takes a settings home of its own.
 	core := wired(Wire(repo, from, load(t)))
-	added := wired(Wire(repo, from, everySystem(t)))
+	added := wired(Wire(repo, from, everyIntegration(t)))
 
-	added = slices.DeleteFunc(added, func(name worktree.SystemName) bool { return slices.Contains(core, name) })
+	added = slices.DeleteFunc(added, func(name worktree.IntegrationName) bool { return slices.Contains(core, name) })
 
 	// Compacted, the tracker counting once for the two seams it fills.
 	slices.Sort(added)
-	spelled := config.SystemNames()
-	want := make([]worktree.SystemName, 0, len(spelled))
+	spelled := config.IntegrationNames()
+	want := make([]worktree.IntegrationName, 0, len(spelled))
 	for _, name := range spelled {
-		want = append(want, worktree.SystemName(name))
+		want = append(want, worktree.IntegrationName(name))
 	}
 	slices.Sort(want)
 	testenv.Equal(t, want, slices.Compact(added),
-		"a system the wiring has is one no settings file spells")
+		"an integration the wiring has is one no settings file spells")
 }
 
 // Structural like the case above: a command draws one row, never the set.
@@ -43,9 +44,9 @@ func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	repo := worktree.Repo(t.TempDir())
 
 	// The core's own answer marks rows too, and no settings file names it.
-	chain := work.Env{Systems: Wire(repo, worktree.Path(repo), everySystem(t))}.Chain()
+	chain := work.Env{Seams: Wire(repo, worktree.Path(repo), everyIntegration(t))}.Chain()
 
-	marks := map[string]worktree.SystemName{}
+	marks := map[string]worktree.IntegrationName{}
 	for _, r := range chain {
 		icon := r.Icon()
 		by, taken := marks[icon]
@@ -56,12 +57,12 @@ func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	}
 }
 
-// everySystem is the settings of a machine that named every system, read the way
-// work reads them. Nothing holds the name internal/config spells and the name
-// the implementation goes by together, so this names both.
-func everySystem(t *testing.T) config.Config {
+// everyIntegration is the settings of a machine that named every integration,
+// read the way work reads them. Nothing holds the name internal/config spells
+// and the name the implementation goes by together, so this names both.
+func everyIntegration(t *testing.T) config.Config {
 	t.Helper()
-	testenv.Settings(t, `systems = ["`+strings.Join(config.SystemNames(), `", "`)+"\"]\n")
+	testenv.Settings(t, `integrations = ["`+strings.Join(config.IntegrationNames(), `", "`)+"\"]\n")
 	return load(t)
 }
 
@@ -74,15 +75,15 @@ func load(t *testing.T) config.Config {
 	return cfg
 }
 
-// wired is every system a wiring holds, under the names they go by.
-func wired(systems work.Systems) []worktree.SystemName {
-	return append(slices.Concat(names(systems.Resolvers), names(systems.Actions)),
-		systems.Handback.Name())
+// wired is every integration a wiring holds, under the names they go by.
+func wired(integrations work.Seams) []worktree.IntegrationName {
+	return append(slices.Concat(names(integrations.Resolvers), names(integrations.Actions)),
+		integrations.Handback.Name())
 }
 
-func names[T worktree.System](systems []T) []worktree.SystemName {
-	var under []worktree.SystemName
-	for _, s := range systems {
+func names[T worktree.Named](integrations []T) []worktree.IntegrationName {
+	var under []worktree.IntegrationName
+	for _, s := range integrations {
 		under = append(under, s.Name())
 	}
 	return under

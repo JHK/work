@@ -11,7 +11,7 @@ import (
 )
 
 // A ticket that cannot be worked is refused in work's own words, and nothing the
-// verdict cannot turn on is asked: docs/references/systems.md#vetting.
+// verdict cannot turn on is asked: docs/references/integrations.md#vetting.
 func TestATicketThatCannotBeWorkedIsRefused(t *testing.T) {
 	epic := with(doable, func(b *ticket) { b.Type = "epic" })
 	tests := []struct {
@@ -68,7 +68,7 @@ func TestATrackerThatWillNotSayWhetherATicketIsReady(t *testing.T) {
 		{To: []string{"list"}, Says: tickets(doable)},
 		{To: []string{"ready"}, Grumbles: "the database is not there", Exits: 1},
 	}})
-	s.settings(systemsOn("beads"))
+	s.settings(integrationsOn("beads"))
 
 	r := s.run("go", "bd-1")
 
@@ -197,7 +197,7 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
-			s.settings(systemsOn("github"))
+			s.settings(integrationsOn("github"))
 			path := s.openedOn("wt", cmp.Or(tt.branch, "pr-7"))
 
 			r := s.run("switch", tt.id)
@@ -225,18 +225,18 @@ func TestTheForgeIsAskedAheadOfTheTracker(t *testing.T) {
 	r.came(t, result{Answered: s.at("pr-7"), Asked: []string{listed}})
 }
 
-// The last resolver takes whatever worktree is left, so one no system recognises
-// is still drawn, under a mark of that resolver's own.
-func TestTheLastResolverMarksTheWorktreeNoSystemRecognises(t *testing.T) {
+// The last resolver takes whatever worktree is left, so one no integration
+// recognises is still drawn, under a mark of that resolver's own.
+func TestTheLastResolverMarksTheWorktreeNoIntegrationRecognises(t *testing.T) {
 	put := putsUp(t)
 	// The tracker and the forge are both wired, so both decline before it is asked.
 	s := tracking(t, nil, nil, []string{"github"}, "", put.dismisses())
-	s.openedOn("held", "a-branch-no-system-names")
+	s.openedOn("held", "a-branch-no-integration-names")
 
 	r := s.run("switch")
 
 	r.came(t, result{Code: 1, Asked: []string{listed, putUp}})
-	require.Contains(t, plain(put.rows()[0]), "◇ a-branch-no-system-names",
+	require.Contains(t, plain(put.rows()[0]), "◇ a-branch-no-integration-names",
 		"the worktree's row carries no mark of the resolver that adopted it")
 }
 
@@ -256,7 +256,7 @@ func TestAPullRequestsWorktreeChecksOutTheHeadItFetches(t *testing.T) {
 // the fetch is made regardless and that branch taken only where none can be.
 func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 	s := repository(t)
-	s.settings(systemsOn("github"))
+	s.settings(integrationsOn("github"))
 	// No origin to fetch from, so this is the fallback and nothing else.
 	testenv.Git(t, s.Repo, "branch", "pr-7")
 
@@ -270,7 +270,7 @@ func TestAPullRequestFallsBackToTheBranchAnEarlierReviewLeft(t *testing.T) {
 // out, and the refusal is git's own.
 func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 	s := repository(t)
-	s.settings(systemsOn("github"))
+	s.settings(integrationsOn("github"))
 
 	r := s.run("add", "7")
 
@@ -322,7 +322,7 @@ func TestAPullRequestWithNoTitleIsNamedByItsNumber(t *testing.T) {
 // A name the tracker does not list is nobody's, so the verb that resolves one
 // takes it at its word: a place of its own, on a branch spelled exactly as the
 // name is.
-func TestANameNoSystemAnswersForIsTakenAtItsWord(t *testing.T) {
+func TestANameNoIntegrationAnswersForIsTakenAtItsWord(t *testing.T) {
 	// A name a ticket id could have been read into, the tracker being what settles
 	// that it is not one.
 	const name = "one-two"
@@ -357,9 +357,10 @@ func TestAWorktreeOutsideTheConfiguredDirectoryIsReachedWhereItSits(t *testing.T
 	r.came(t, result{Answered: resolved(t, outside)})
 }
 
-// The rows are what each system offers, under the title it gave them, and one
-// run asks each system for its listing once however many rows come back.
-func TestThePickersRowsAreWhatEachSystemOffers(t *testing.T) {
+// The rows are what each integration offers, under the title it gave them, and
+// one run asks each integration for its listing once however many rows come
+// back.
+func TestThePickersRowsAreWhatEachIntegrationOffers(t *testing.T) {
 	put := putsUp(t)
 	s := tracking(t, []ticket{doable}, []ticket{doable}, []string{"github"}, "",
 		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
@@ -384,12 +385,12 @@ func TestThePickersRowsAreWhatEachSystemOffers(t *testing.T) {
 
 // The worktrees are still offered, and what work put to it is said: R5 of
 // docs/rules/refusals.md.
-func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
+func TestAnIntegrationThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 	s := repository(t,
 		testenv.Stub{Name: "bd", Grumbles: "the database is not there", Exits: 1},
 		testenv.Stub{Name: "gh", Grumbles: "not authenticated", Exits: 1},
 		testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
-	s.settings(systemsOn("beads", "github"))
+	s.settings(integrationsOn("beads", "github"))
 	testenv.Git(t, s.Repo, "remote", "add", "origin", hosted)
 	path := s.opened("scratch")
 
@@ -402,9 +403,9 @@ func TestASystemThatWillNotAnswerCostsItsOwnRowsAlone(t *testing.T) {
 
 // A repository with no origin has no pull requests rather than a listing work
 // could not make, and a name of your own is typed rather than offered.
-func TestWhatNoSystemOffersIsNotPutUp(t *testing.T) {
+func TestWhatNoIntegrationOffersIsNotPutUp(t *testing.T) {
 	s := repository(t)
-	s.settings(systemsOn("github"))
+	s.settings(integrationsOn("github"))
 	s.opened("scratch")
 
 	r := s.run("add")

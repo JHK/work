@@ -16,9 +16,9 @@ func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 	by := &supplier{}
 	a := &keeper{}
 	e := Env{
-		Repo:    worktree.Repo(testenv.InitRepo(t)),
-		Config:  config.Default(),
-		Systems: Systems{Actions: []Action{a}, Handback: a},
+		Repo:   worktree.Repo(testenv.InitRepo(t)),
+		Config: config.Default(),
+		Seams:  Seams{Actions: []Action{a}, Handback: a},
 	}
 	place := worktree.Place{ID: "bd-1", Name: "bd-1", Label: "a title"}
 
@@ -33,7 +33,7 @@ func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 // supplies the one value the core does not hold.
 type supplier struct{ asks int }
 
-func (*supplier) Name() worktree.SystemName { return "supplier" }
+func (*supplier) Name() worktree.IntegrationName { return "supplier" }
 
 func (*supplier) Icon() string { return "s" }
 
@@ -60,7 +60,7 @@ func (s *supplier) Supply(t worktree.Tree) (worktree.Values, error) {
 // keeper stands at the far seam and keeps what each of its two moments read.
 type keeper struct{ created, opened worktree.Values }
 
-func (*keeper) Name() worktree.SystemName { return "keeper" }
+func (*keeper) Name() worktree.IntegrationName { return "keeper" }
 
 func (k *keeper) OnCreated(t worktree.Tree) error {
 	k.created = t.Values

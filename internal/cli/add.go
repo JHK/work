@@ -14,7 +14,7 @@ func addCommand(verb offering[opens]) *cobra.Command {
 		Short: "Create the worktree an identifier names and open it",
 		Long: `Create the worktree an identifier names, forked from the checkout you are
 standing in. A ticket is vetted and claimed, a pull request is checked out, and
-a name no system answers for becomes a branch spelled exactly as it is.
+a name no integration answers for becomes a branch spelled exactly as it is.
 
 An identifier that already has a worktree is refused, work switch being what
 enters one. The checkout is left as it stands, work carry being what takes its

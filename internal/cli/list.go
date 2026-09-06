@@ -8,7 +8,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// listCommand asks git and no system beyond it.
+// listCommand asks git and no integration beyond it.
 func listCommand(branches func() ([]worktree.Name, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",

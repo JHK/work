@@ -32,7 +32,7 @@ A worktree is created forked from the `HEAD` of the directory the shell is stand
 
 `work go [<identifier>]` enters the worktree the [identifier](#identifiers) names, creating it where there is none.
 
-A [system](systems.md) can add to either form.
+An [integration](integrations.md) can add to either form.
 
 ### switch
 
@@ -42,7 +42,7 @@ A [system](systems.md) can add to either form.
 
 `work add [<identifier>]` creates the worktree the [identifier](#identifiers) has none of, and [opens it](#handoff).
 
-The identifier resolves as anywhere else, and a name no [system](systems.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
+The identifier resolves as anywhere else, and a name no [integration](integrations.md) answers for becomes a branch spelled exactly as it is. An identifier that already has a worktree is refused, and so are a name of your own whose branch is already there and a directory already sitting where the worktree would go.
 
 ### carry
 
@@ -95,14 +95,14 @@ Where neither variable names an editor, the invocation is refused before anythin
 | Argument | Resolves to |
 |---|---|
 | `feature/x` | the worktree already open under that name, ahead of everything below |
-| `bd-42` | that bead, for an id [the tracker](systems.md#beads) lists |
+| `bd-42` | that bead, for an id [the tracker](integrations.md#beads) lists |
 | `7`, `007` | pull request 7 |
 | [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
 
 A URL contributes its number, and the number is read against the current repository.
 
-The first row is `work`'s own; every other is one a [system](systems.md) adds. A name nothing answers for is refused; [`add`](#add) reads it as a name of your own instead.
+The first row is `work`'s own; every other is one an [integration](integrations.md) adds. A name nothing answers for is refused; [`add`](#add) reads it as a name of your own instead.
 
 Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
 
@@ -128,9 +128,9 @@ What a verb puts up is what it can act on:
 
 A listing left with no rows is one line on stderr naming what there is nothing of.
 
-A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [system](systems.md) names it.
+A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [integration](integrations.md) names it.
 
-Beside the worktrees, a system can add rows of its own and the titles on them.
+Beside the worktrees, an integration can add rows of its own and the titles on them.
 
 ### The prompt
 
@@ -138,7 +138,7 @@ One question with the answer already typed into it, standing in for the destinat
 
 ### Completion
 
-What [`init`](#init)'s integration offers at each position:
+What [`init`](#init)'s completion offers at each position:
 
 | Position | Offers |
 |---|---|
@@ -153,7 +153,7 @@ In bash the completion needs the `bash-completion` package sourced, cobra's scri
 
 `work` changes into the worktree and execs [the command it opens on](configuration.md#opening-on-a-session), so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
 
-Every other worktree is handed back: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that the integration is not sourced; the invocation still exits 0.
+Every other worktree is handed back: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that [the function](#the-function) is not sourced; the invocation still exits 0.
 
 A dismissed list exits 1 silently.
 

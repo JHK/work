@@ -20,9 +20,9 @@ var creatingVerbs = []string{"add", "carry", "go"}
 // bare form would then take ahead of go. R2 of docs/rules/command-grammar.md.
 func TestWhereEachFlagIsDeclared(t *testing.T) {
 	s := repository(t)
-	// Every system switched on, so a flag a system reached the command line with
-	// would show up here.
-	s.settings(systemsOn("claude", "beads", "mise", "github"))
+	// Every integration switched on, so a flag an integration reached the command
+	// line with would show up here.
+	s.settings(integrationsOn("claude", "beads", "mise", "github"))
 
 	// The help is on every command and the level is handed down to every command;
 	// the version is the root's alone, and --force is remove's.
@@ -141,7 +141,7 @@ func TestCommandRejects(t *testing.T) {
 	}
 	// One repository for the lot: a word the command line refuses never reaches it.
 	s := repository(t)
-	s.settings(systemsOn("claude", "beads"))
+	s.settings(integrationsOn("claude", "beads"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := s.run(tt.args...)

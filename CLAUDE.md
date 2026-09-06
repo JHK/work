@@ -32,7 +32,7 @@ No comment justifies a design choice, restates the code beneath it, or explains 
 
 ## Tests
 
-A test is a command as the user types it, run through the harness in [internal/cli/](internal/cli/) over the systems [internal/wiring](internal/wiring/) names. Read that harness first; no case builds its own. A test of an internal function earns its place only where no command reaches the behaviour, and says why in a line.
+A test is a command as the user types it, run through the harness in [internal/cli/](internal/cli/) over the integrations [internal/wiring](internal/wiring/) names. Read that harness first; no case builds its own. A test of an internal function earns its place only where no command reaches the behaviour, and says why in a line.
 
 [internal/testenv](internal/testenv/) is the ground, and its doc comments say what it offers. A package whose tests reach git, the settings or the agent imports it and declares `func TestMain(m *testing.M) { testenv.Main(m) }`, held to [docs/rules/test-isolation.md](docs/rules/test-isolation.md). Nothing else enters the module for a test's sake, testify's `mock` and `suite` included: a stand-in is hand-written.
 

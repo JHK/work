@@ -22,7 +22,7 @@ func directory(dir string) string {
 // docs/references/configuration.md spells it and grouped under the table it sits
 // in, which no case may derive from the code.
 var documented = []string{
-	"systems",
+	"integrations",
 	"worktree.directory",
 	"github.branch",
 	"beads.branch",
@@ -87,7 +87,7 @@ func TestConfigDumpLoadsBack(t *testing.T) {
 	tests := []struct{ name, body string }{
 		{"the compiled-in defaults", ""},
 		// A quote and a tab survive the printing, the block holding both as written.
-		{"a file naming every key", systemsOn("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
+		{"a file naming every key", integrationsOn("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
 			"on-creation = [\"carry\"]\n" + directory("trees") +
 			"[github]\nbranch = \"review/{{.Number}}\"\n[beads]\nbranch = \"{{.ID}}\"\n"},
 	}
@@ -143,17 +143,17 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"an id only some tickets reach", "[beads]\nbranch = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
 		{"a pull request pattern without its number", "[github]\nbranch = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[beads]\nbranch = \"-{{.ID}}\"\n", "dash"},
-		// A system is switched on by the one systems list, which is the only key that
-		// names one.
-		{"a name in the list no system goes by", "systems = [\"linear\"]\n", "is no system work has"},
-		{"a system named in another case", "systems = [\"Beads\"]\n", "is no system work has"},
-		{"systems that are not a list", "systems = \"beads\"\n", "systems"},
-		{"a system that is not a string", "systems = [3]\n", "systems"},
+		// An integration is switched on by the one integrations list, which is the
+		// only key that names one.
+		{"a name in the list no integration goes by", "integrations = [\"linear\"]\n", "is no integration work has"},
+		{"an integration named in another case", "integrations = [\"Beads\"]\n", "is no integration work has"},
+		{"integrations that are not a list", "integrations = \"beads\"\n", "integrations"},
+		{"an integration that is not a string", "integrations = [3]\n", "integrations"},
 		// A file written before a rename is told the new spelling rather than that
 		// what it names is unknown.
 		{"a table under the name it used to go by", "[agent]\ncommand = [\"claude\"]\n", "the [agent] table is now [claude]"},
-		// A branch is named by the system whose target it is, so a file holding both
-		// under one table is told the two keys they sit under.
+		// A branch is named by the integration whose target it is, so a file holding
+		// both under one table is told the two keys they sit under.
 		{"branches in a table of their own", "[branch]\nticket = \"{{.ID}}\"\n",
 			"the [branch] table is now github.branch and beads.branch"},
 		// claude.on-creation names verbs a worktree can come into being under:
@@ -254,18 +254,18 @@ func TestASettingsFileWorkWillNotReadLeavesInitAlone(t *testing.T) {
 	require.Contains(t, r.Out, shim.Fish, "work init fish printed no shell integration")
 }
 
-// A system the list names is reached on every seam it fills, and one the list
-// leaves out is reached nowhere: docs/references/systems.md.
-func TestEachSystemIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
+// An integration the list names is reached on every seam it fills, and one the
+// list leaves out is reached nowhere: docs/references/integrations.md.
+func TestEachIntegrationIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 	tests := []struct {
 		name, body string
 		// picking is what the stand-ins were asked to put the picker up with, and
 		// creating what they were asked to bring a worktree of a plain name into being.
 		picking, creating []string
 	}{
-		{"the forge lists the pull requests", systemsOn("github"), []string{pullRequests(hosted), putUp}, nil},
-		{"the tracker lists the tickets", systemsOn("beads"), []string{listed, vetted, putUp}, []string{listed}},
-		{"the runner trusts a fresh worktree", systemsOn("mise"), []string{putUp}, []string{"mise trust"}},
+		{"the forge lists the pull requests", integrationsOn("github"), []string{pullRequests(hosted), putUp}, nil},
+		{"the tracker lists the tickets", integrationsOn("beads"), []string{listed, vetted, putUp}, []string{listed}},
+		{"the runner trusts a fresh worktree", integrationsOn("mise"), []string{putUp}, []string{"mise trust"}},
 		// Told to open no creation on a session, so what the agent is asked here is what
 		// it is asked at a seam, which is nothing.
 		{"the agent fills neither seam", agentOn + "on-creation = []\n", []string{putUp}, nil},
@@ -279,7 +279,8 @@ func TestEachSystemIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 			// A row for the picker to be put up over, which is what asks each listing.
 			s.opened("scratch")
 
-			// Dismissed, so the listing each system was asked for is all that came of it.
+			// Dismissed, so the listing each integration was asked for is all that came
+			// of it.
 			s.run("go").came(t, result{Code: 1, Asked: tt.picking}, atOnce)
 
 			s.run("add", "fresh").came(t, result{Answered: s.at("fresh"), Asked: tt.creating})

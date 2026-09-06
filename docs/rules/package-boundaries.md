@@ -1,6 +1,6 @@
 # Package boundaries
 
-What the core may reach, and what a system may not. What each system does is [the systems](../references/systems.md).
+What the core may reach, and what an integration may not. What each integration does is [the integrations](../references/integrations.md).
 
 ## R3 — The core reaches the vocabulary, git and the settings
 
@@ -8,10 +8,10 @@ What the core may reach, and what a system may not. What each system does is [th
 
 *Enforced by:* `TestCoreReachesNothingElse` in `internal/work/imports_test.go`, which reads the package's imports off `go list`.
 
-## R4 — No system reaches another system
+## R4 — No integration reaches another integration
 
-No package under `internal/resolve/` or `internal/action/` imports a package of another system, test files included. A system is one directory under either of those two, with whatever it holds. The two halves of one system meet at a client of their own, `internal/beads/` for the tracker.
+No package under `internal/resolve/` or `internal/action/` imports a package of another integration, test files included. An integration is one directory under either of those two, with whatever it holds. The two halves of one integration meet at a client of their own, `internal/beads/` for the tracker.
 
-R4 reaches further than R3, which reads one package. It is keyed on the path, so an implementation that reaches another system's client passes it.
+R4 reaches further than R3, which reads one package. It is keyed on the path, so an implementation that reaches another integration's client passes it.
 
-*Enforced by:* `TestNoSystemReachesAnother` in `internal/work/imports_test.go`, which reads every implementation's imports off `go list`, test compilations included.
+*Enforced by:* `TestNoIntegrationReachesAnother` in `internal/work/imports_test.go`, which reads every implementation's imports off `go list`, test compilations included.

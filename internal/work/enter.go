@@ -21,7 +21,7 @@ type Options struct {
 func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	// A candidate without a resolver is one a front end made itself.
 	if c.by == nil {
-		return worktree.Handoff{}, errors.New("no system answers for this place")
+		return worktree.Handoff{}, errors.New("no integration answers for this place")
 	}
 
 	t, carrying, err := e.create(c, o.Carry)
@@ -32,7 +32,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	t.Values = e.values(t)
 
 	if t.Created {
-		for _, a := range e.Systems.Actions {
+		for _, a := range e.Seams.Actions {
 			if err := a.OnCreated(t); err != nil {
 				return worktree.Handoff{}, err
 			}
@@ -121,13 +121,13 @@ func (e Env) carry(to worktree.Path) error {
 // agent only where the agent is wired, so the lookup answers.
 func (e Env) openingAction(c Candidate, o Options) (Action, error) {
 	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
-		return e.actionNamed(config.ClaudeSystem)
+		return e.actionNamed(config.ClaudeIntegration)
 	}
-	return e.Systems.Handback, nil
+	return e.Seams.Handback, nil
 }
 
-func (e Env) actionNamed(name worktree.SystemName) (Action, error) {
-	for _, a := range e.Systems.Actions {
+func (e Env) actionNamed(name worktree.IntegrationName) (Action, error) {
+	for _, a := range e.Seams.Actions {
 		if a.Name() == name {
 			return a, nil
 		}

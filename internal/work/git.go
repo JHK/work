@@ -7,8 +7,8 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// gitAlone is the core's own answer, behind every system the settings named: a
-// worktree no system claims is described out of git alone.
+// gitAlone is the core's own answer, behind every integration the settings
+// named: a worktree no integration claims is described out of git alone.
 type gitAlone struct {
 	repo worktree.Repo
 	from worktree.Path // the checkout work was invoked in, whose HEAD a new branch forks from
@@ -16,7 +16,7 @@ type gitAlone struct {
 
 func (e Env) gitAlone() gitAlone { return gitAlone{repo: e.Repo, from: e.Dir} }
 
-func (gitAlone) Name() worktree.SystemName { return worktree.GitSource }
+func (gitAlone) Name() worktree.IntegrationName { return worktree.GitSource }
 
 // Icon marks a row that stands for nothing but itself.
 func (gitAlone) Icon() string { return "◇" }

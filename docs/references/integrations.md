@@ -1,10 +1,10 @@
-# Systems
+# Integrations
 
-A system is what `work` reaches for beyond git: a tracker, a forge, a tool, an agent. Each goes by one name in [the settings' list](configuration.md#systems), and none runs until you name it.
+An integration is what `work` reaches for beyond git: a tracker, a forge, a tool, an agent. Each goes by one name in [the settings' list](configuration.md#integrations), and none runs until you name it.
 
-`work` bundles none of them: what a system needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
+`work` bundles none of them: what an integration needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
 
-Each system takes part at one or both of [the two seams](../explanation/seam-partition.md).
+Each integration takes part at one or both of [the two seams](../explanation/seam-partition.md).
 
 ## Resolvers
 
@@ -38,7 +38,7 @@ Every value is always rendered, empty where nothing behind the worktree has one.
 
 | Value | Is |
 |---|---|
-| `.Source` | the system that answered: `beads`, `github`, or `git` where none did |
+| `.Source` | the integration that answered: `beads`, `github`, or `git` where none did |
 | `.ID` | the ticket id, the pull request number, or the name |
 | `.Title` | the target's title |
 | `.Name` | what the target is retyped as: the ticket id, `pr-<n>`, or the branch |

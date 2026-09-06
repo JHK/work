@@ -38,23 +38,23 @@ var seams = []string{
 	testenv.Module + "/internal/resolve/",
 }
 
-// R4 of docs/rules/package-boundaries.md: what one system does is its own, and
-// an implementation that named another would put the second one's work into the
-// first one's answer.
-func TestNoSystemReachesAnother(t *testing.T) {
+// R4 of docs/rules/package-boundaries.md: what one integration does is its own,
+// and an implementation that named another would put the second one's work into
+// the first one's answer.
+func TestNoIntegrationReachesAnother(t *testing.T) {
 	read := map[string]bool{}
 	// Test files are held to the rule too, so all three compilations are read.
 	for _, line := range testenv.Listed(t, root, "-f",
 		`{{.ImportPath}}{{range .Imports}} {{.}}{{end}}{{range .TestImports}} {{.}}{{end}}{{range .XTestImports}} {{.}}{{end}}`, "./...") {
 		paths := strings.Fields(line)
-		seam, from := system(paths[0])
+		seam, from := integration(paths[0])
 		if from == "" {
 			continue
 		}
 		read[seam] = true
 		for _, imported := range paths[1:] {
-			if _, to := system(imported); to != "" && to != from {
-				t.Errorf("%s imports %s; a system reaches no other system's package", paths[0], imported)
+			if _, to := integration(imported); to != "" && to != from {
+				t.Errorf("%s imports %s; an integration reaches no other integration's package", paths[0], imported)
 			}
 		}
 	}
@@ -67,10 +67,11 @@ func TestNoSystemReachesAnother(t *testing.T) {
 	}
 }
 
-// system names the seam an import path sits behind and the system it belongs to,
-// both empty for a path behind neither. A system is one directory under a seam,
-// with whatever it holds, so its own packages read as one rather than as peers.
-func system(path string) (seam, name string) {
+// integration names the seam an import path sits behind and the integration it
+// belongs to, both empty for a path behind neither. An integration is one
+// directory under a seam, with whatever it holds, so its own packages read as
+// one rather than as peers.
+func integration(path string) (seam, name string) {
 	for _, s := range seams {
 		if rest, ok := strings.CutPrefix(path, s); ok {
 			under, _, _ := strings.Cut(rest, "/")

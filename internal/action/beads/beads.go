@@ -6,7 +6,7 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this system goes by on both seams.
+// Name is what this integration goes by on both seams.
 const Name = "beads"
 
 // Claim marks the ticket a fresh worktree was made for as being worked.
@@ -16,9 +16,9 @@ type Claim struct {
 
 func New(repo worktree.Repo) Claim { return Claim{repo: repo} }
 
-func (c Claim) Name() worktree.SystemName { return Name }
+func (c Claim) Name() worktree.IntegrationName { return Name }
 
-// OnCreated claims the ticket, and only where this system's own resolver
+// OnCreated claims the ticket, and only where this integration's own resolver
 // sourced the place: one sourced anywhere else is another tracker's.
 func (c Claim) OnCreated(t worktree.Tree) error {
 	if t.Source != Name {

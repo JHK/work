@@ -56,7 +56,7 @@ type verbs struct {
 	wire    work.Wiring
 }
 
-// repository is the one the shell stands in, with its systems wired.
+// repository is the one the shell stands in, with its integrations wired.
 func (v verbs) repository() (work.Env, error) {
 	if v.refusal != nil {
 		return work.Env{}, v.refusal
@@ -80,7 +80,7 @@ func performs[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B
 	}
 }
 
-// warning is l with every system it came back short of said once.
+// warning is l with every integration it came back short of said once.
 func warning(l listing) listing {
 	rows := l.rows
 	l.rows = func(env work.Env) ([]work.Candidate, []error, error) {

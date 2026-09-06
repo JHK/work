@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Nothing on the command line calls the claim off: docs/references/systems.md#claiming.
-// What else the tracker is asked is work go's own case.
+// Nothing on the command line calls the claim off:
+// docs/references/integrations.md#claiming. What else the tracker is asked is
+// work go's own case.
 func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	path := s.at("bd-1")
@@ -112,7 +113,7 @@ func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
 // trust is best effort, so the worktree is still made: internal/action/mise.
 func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	s := repository(t)
-	s.settings(systemsOn("mise"))
+	s.settings(integrationsOn("mise"))
 
 	r := s.run("add", "scratch")
 
@@ -123,8 +124,8 @@ func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 }
 
 // The claim is the tracker's own places alone: a pull request the forge answered
-// for is another system's, and bd is left out of it.
-func TestAPlaceAnotherSystemAnsweredForIsNotClaimed(t *testing.T) {
+// for is another integration's, and bd is left out of it.
+func TestAPlaceAnotherIntegrationAnsweredForIsNotClaimed(t *testing.T) {
 	s := reviewing(t, []string{"beads"}, "", testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
 
 	r := s.run("add", "7")

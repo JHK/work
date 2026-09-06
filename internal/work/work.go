@@ -22,7 +22,7 @@ import (
 // Resolver is the near seam: it says which places are its own, offers the picker
 // its candidates, and creates the worktree.
 type Resolver interface {
-	worktree.System
+	worktree.Named
 
 	// Icon is the mark a screen draws the rows this resolver answers for, one
 	// column wide.
@@ -31,7 +31,7 @@ type Resolver interface {
 	// Identify names the place behind what the core is holding: an identifier a
 	// person typed, or a worktree the repository has open, which a resolver tells
 	// apart by [worktree.Open.None]. An identifier is read into a place rather than
-	// checked against the system behind it; whether that place exists is
+	// checked against the integration behind it; whether that place exists is
 	// [Resolver.Prepare]'s question. Where both are in hand the identifier is one to
 	// confirm, and confirming it must ask no more than naming the worktree from its
 	// branch alone would.
@@ -59,7 +59,7 @@ type Resolver interface {
 // Action is the far seam: what a worktree that exists is handed to, at either of
 // two moments.
 type Action interface {
-	worktree.System
+	worktree.Named
 
 	// OnCreated tells the action a worktree came into being. Every action is
 	// told, in order, and none is told for a worktree that was already there.
@@ -70,8 +70,8 @@ type Action interface {
 	Open(t worktree.Tree) (worktree.Handoff, error)
 }
 
-// Systems are the implementations behind the seams, in the order they are asked.
-type Systems struct {
+// Seams are the integrations behind the two seams, in the order they are asked.
+type Seams struct {
 	Resolvers []Resolver
 	Actions   []Action
 
@@ -79,15 +79,15 @@ type Systems struct {
 	Handback Action
 }
 
-// Wiring names the systems for a repository once its settings are read.
+// Wiring names the integrations for a repository once its settings are read.
 // checkout is where work was invoked, whose HEAD a new branch forks from; the
 // worktree itself still lands under repo. A front end asks with neither and
-// reads the names and flags alone off what comes back, so a system wired here
-// reaches for nothing until it is asked a question.
-type Wiring func(repo worktree.Repo, checkout worktree.Path, cfg config.Config) Systems
+// reads the names and flags alone off what comes back, so an integration wired
+// here reaches for nothing until it is asked a question.
+type Wiring func(repo worktree.Repo, checkout worktree.Path, cfg config.Config) Seams
 
 // Env is the repository work operates on, the directory it was invoked in, the
-// settings it reads, and the systems behind its seams.
+// settings it reads, and the integrations behind its seams.
 type Env struct {
 	Repo worktree.Repo
 
@@ -95,11 +95,12 @@ type Env struct {
 	// judged against. It is absolute, an empty one standing nowhere.
 	Dir worktree.Path
 
-	Config  config.Config
-	Systems Systems
+	Config config.Config
+	Seams  Seams
 }
 
-// Open finds the repository containing dir and wires the systems cfg asks for.
+// Open finds the repository containing dir and wires the integrations cfg asks
+// for.
 func Open(dir worktree.Path, cfg config.Config, wire Wiring) (Env, error) {
 	repo, err := git.Root(dir)
 	if err != nil {
@@ -111,7 +112,7 @@ func Open(dir worktree.Path, cfg config.Config, wire Wiring) (Env, error) {
 	}
 	here := worktree.Path(abs)
 	sayWhatWorkRead(repo, here, cfg)
-	return Env{Repo: repo, Dir: here, Config: cfg, Systems: wire(repo, dir, cfg)}, nil
+	return Env{Repo: repo, Dir: here, Config: cfg, Seams: wire(repo, dir, cfg)}, nil
 }
 
 func sayWhatWorkRead(repo worktree.Repo, here worktree.Path, cfg config.Config) {
@@ -220,7 +221,8 @@ func (e Env) Resolve(arg worktree.ID) (Candidate, error) {
 	return c, err
 }
 
-// Unanswered reports whether a refusal is an identifier no system answered for.
+// Unanswered reports whether a refusal is an identifier no integration answered
+// for.
 func Unanswered(err error) bool { return errors.Is(err, errUnanswered) }
 
 // Nameable reports whether a name is one a worktree could be made for.
@@ -267,9 +269,9 @@ func answered(r Resolver, c Candidate) Candidate {
 var errUnanswered = errors.New("nothing answers for")
 
 // Chain is what an identifier is put to, in the order they are asked: the
-// systems the settings named, then the core's own.
+// integrations the settings named, then the core's own.
 func (e Env) Chain() []Resolver {
-	return append(slices.Clone(e.Systems.Resolvers), e.gitAlone())
+	return append(slices.Clone(e.Seams.Resolvers), e.gitAlone())
 }
 
 // identify puts what the core is holding to the chain: the first resolver to
@@ -292,9 +294,9 @@ func (e Env) identify(id worktree.ID, o worktree.Open) (Resolver, worktree.Place
 	return nil, worktree.Place{}, fmt.Errorf("nothing answers for the worktree at %s", o.Path)
 }
 
-// Add is the place a worktree is about to be made for: what a system answers for
-// the identifier with, else a name of the user's own. A place that already has a
-// worktree is refused.
+// Add is the place a worktree is about to be made for: what an integration
+// answers for the identifier with, else a name of the user's own. A place that
+// already has a worktree is refused.
 func (e Env) Add(id worktree.ID) (Candidate, error) {
 	open, err := e.Worktrees()
 	if err != nil {

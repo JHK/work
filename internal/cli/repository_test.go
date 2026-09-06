@@ -25,7 +25,7 @@ func bare(t *testing.T, answering ...testenv.Stub) *session {
 func TestOutsideARepositoryTheRefusalIsWorksOwn(t *testing.T) {
 	s := repository(t)
 	s.Dir = t.TempDir()
-	s.settings(systemsOn("beads", "github"))
+	s.settings(integrationsOn("beads", "github"))
 
 	r := s.run("go")
 

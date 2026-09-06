@@ -1,6 +1,6 @@
-// Package worktree holds the vocabulary the core and the systems behind its two
-// seams both speak: the place a resolver makes of an identifier, the worktree an
-// action is handed, and the command it opens on.
+// Package worktree holds the vocabulary the core and the integrations behind
+// its two seams both speak: the place a resolver makes of an identifier, the
+// worktree an action is handed, and the command it opens on.
 package worktree
 
 import (
@@ -17,8 +17,8 @@ import (
 
 // The words the vocabulary is made of, one defined type each.
 type (
-	// SystemName is the name a resolver or an action goes by.
-	SystemName string
+	// IntegrationName is the name a resolver or an action goes by.
+	IntegrationName string
 
 	// ID is what the resolver that owns a place calls it.
 	ID string
@@ -42,14 +42,14 @@ type (
 	ValueName string
 )
 
-// GitSource is what a place no system answered for is sourced to: a name of the
-// user's own, or a worktree described out of git alone.
-const GitSource SystemName = "git"
+// GitSource is what a place no integration answered for is sourced to: a name
+// of the user's own, or a worktree described out of git alone.
+const GitSource IntegrationName = "git"
 
 // Place is one place to work, as the resolver that owns it describes it. The
 // core reads Name and Branch; the rest is for whoever draws it or is handed it.
 type Place struct {
-	Source SystemName // the resolver that answered for it, stamped by the core
+	Source IntegrationName // the resolver that answered for it, stamped by the core
 	ID     ID
 	Name   Name
 	Branch Branch // what its worktree checks out, named by Prepare where creating names it
@@ -85,13 +85,13 @@ type Tree struct {
 
 	// By is the resolver that answered for the place. An action wanting more than a
 	// Place carries declares the interface it needs and asserts this to it.
-	By System
+	By Named
 }
 
-// System is a resolver or an action under the name it goes by, which is the name
-// a [Place] is sourced to.
-type System interface {
-	Name() SystemName
+// Named is a resolver or an action under the name it goes by, which is the
+// name a [Place] is sourced to.
+type Named interface {
+	Name() IntegrationName
 }
 
 // Values are what a command renders with, keyed by the name a template places
@@ -125,11 +125,11 @@ func ValueNames() []ValueName {
 	return []ValueName{SourceValue, IDValue, TitleValue, NameValue, DirValue, SubjectValue}
 }
 
-// Source is a system that knows values the core does not hold, the core's own
-// names winning where both name one. It is asked once, of a worktree that
+// Source is an integration that knows values the core does not hold, the core's
+// own names winning where both name one. It is asked once, of a worktree that
 // exists, and ahead of the assembly, so [Tree.Values] is empty there.
 type Source interface {
-	System
+	Named
 
 	Supply(t Tree) (Values, error)
 }
@@ -137,7 +137,7 @@ type Source interface {
 // ErrUnknown means a resolver does not answer for the identifier or open
 // worktree it was shown, and the next resolver is asked about it. Every other
 // error stops the run.
-var ErrUnknown = errors.New("no system answers for it")
+var ErrUnknown = errors.New("no integration answers for it")
 
 // Handoff is what a worktree opens on: work replaces itself with this command,
 // running inside the worktree. One naming no command is the worktree itself,

@@ -10,7 +10,8 @@ import (
 )
 
 // Claude is the agent's table: which verbs open a session on what they create,
-// and the command it runs, read whether or not the systems list names the agent.
+// and the command it runs, read whether or not the integrations list names the
+// agent.
 type Claude struct {
 	OnCreationVerbs []string `toml:"on-creation"`
 	CommandLine     Command  `toml:"command"`

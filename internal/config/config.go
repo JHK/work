@@ -14,14 +14,14 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Config is every setting work reads: the systems switched on, then one field
-// per table.
+// Config is every setting work reads: the integrations switched on, then one
+// field per table.
 type Config struct {
-	Systems  []string
-	Worktree Worktree
-	Github   Github
-	Beads    Beads
-	Claude   Claude
+	Integrations []string
+	Worktree     Worktree
+	Github       Github
+	Beads        Beads
+	Claude       Claude
 }
 
 type Worktree struct {
@@ -52,8 +52,8 @@ var (
 	defaultBeads  = Beads{BranchPattern: mustPattern(defaultTicket, ticketValues)}
 )
 
-// Default is what an unset key falls back to. The systems list is left empty,
-// which is every system off.
+// Default is what an unset key falls back to. The integrations list is left
+// empty, which is every integration off.
 func Default() Config {
 	return Config{
 		Worktree: Worktree{Directory: defaultDirectory},
@@ -109,7 +109,7 @@ func userFile() string {
 // renamed are the names a table used to go by, each with what a file writes
 // instead: the table it became, or the keys a split one's values went to.
 var renamed = map[string]string{
-	"agent":  "[" + ClaudeSystem + "]",
+	"agent":  "[" + ClaudeIntegration + "]",
 	"branch": githubBranchKey + " and " + beadsBranchKey,
 }
 
@@ -144,10 +144,10 @@ func decode(path string, c *Config) error {
 // validate names the key work cannot use the value of, and why. It also binds
 // each pattern to the values its key has.
 func (c *Config) validate() (string, error) {
-	if err := c.validateSystems(); err != nil {
-		return systemsKey, err
+	if err := c.validateIntegrations(); err != nil {
+		return integrationsKey, err
 	}
-	c.Systems = c.switchedOn()
+	c.Integrations = c.switchedOn()
 	if err := c.Github.BranchPattern.bind(pullRequestValues); err != nil {
 		return githubBranchKey, err
 	}

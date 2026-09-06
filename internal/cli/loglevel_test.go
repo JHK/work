@@ -17,7 +17,7 @@ func picking(t *testing.T) *session {
 	t.Helper()
 	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"},
 		testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
-	s.settings(systemsOn("beads"))
+	s.settings(integrationsOn("beads"))
 	s.opened("scratch")
 	return s
 }
@@ -33,8 +33,9 @@ func (r result) under(message string) map[string]string {
 	return nil
 }
 
-// What each level lets a reader see: what refused a run and what a system came
-// back short of always, what it reached for at info, what it read at debug.
+// What each level lets a reader see: what refused a run and what an integration
+// came back short of always, what it reached for at info, what it read at
+// debug.
 func TestTheLogLevelLetsThrough(t *testing.T) {
 	tests := []struct {
 		name string
@@ -74,7 +75,7 @@ func (r result) levels() []slog.Level {
 // naming the tool and the arguments work put to it, the tool itself unchanged.
 func TestInfoSaysEveryCommandWorkSpawned(t *testing.T) {
 	s := repository(t, testenv.Stub{Name: "bd", Says: "[]"})
-	s.settings(systemsOn("beads"))
+	s.settings(integrationsOn("beads"))
 	wt := s.at("scratch")
 
 	r := s.run("--log-level", "info", "add", "scratch")
@@ -117,7 +118,7 @@ func TestDebugNamesWhatWorkRead(t *testing.T) {
 			require.Equal(t, s.Repo, r.under("work opened a repository")["repository"], "debug named no repository")
 			force := r.under("the settings in force")
 			require.Equal(t, defaultDir, force["worktree.directory"], "debug named no worktree directory")
-			require.Equal(t, `["beads"]`, force["systems"], "debug named no tracker in force")
+			require.Equal(t, `["beads"]`, force["integrations"], "debug named no tracker in force")
 		})
 	}
 }
