@@ -63,15 +63,14 @@ func knownValues(vals worktree.Values) map[string]any {
 	return d
 }
 
-var valueList = "{{." + strings.Join(placed(valueNames), "}}, {{.") + "}}"
+var valueList = "{{." + joined(valueNames, "}}, {{.") + "}}"
 
-// placed is the value names as a template writes them.
-func placed(names []worktree.ValueName) []string {
+func joined[T ~string](names []T, sep string) string {
 	out := make([]string, len(names))
 	for i, name := range names {
 		out[i] = string(name)
 	}
-	return out
+	return strings.Join(out, sep)
 }
 
 // mark is the shortest any real value is, so a command rendering with it renders
@@ -81,12 +80,12 @@ const mark = "x"
 // Crossing the sources in is what reaches an arm naming one, which would
 // otherwise render for the first time at the handoff.
 func probes() []map[string]any {
-	sources := sourceNames()
+	sources := KnownSources()
 	out := make([]map[string]any, 0, 2*len(sources))
 	for _, value := range []string{"", mark} {
 		for _, source := range sources {
 			d := everyValue(value)
-			d[string(worktree.SourceValue)] = source
+			d[string(worktree.SourceValue)] = string(source)
 			out = append(out, d)
 		}
 	}

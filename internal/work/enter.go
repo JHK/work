@@ -32,7 +32,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 	t.Values = e.values(t)
 
 	if t.Created {
-		for _, a := range e.Seams.Actions {
+		for _, a := range e.Integrations.Actions {
 			if err := a.OnCreated(t); err != nil {
 				return worktree.Handoff{}, err
 			}
@@ -123,11 +123,11 @@ func (e Env) openingAction(c Candidate, o Options) (Action, error) {
 	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
 		return e.actionNamed(config.ClaudeIntegration)
 	}
-	return e.Seams.Handback, nil
+	return e.Integrations.Handback, nil
 }
 
 func (e Env) actionNamed(name worktree.IntegrationName) (Action, error) {
-	for _, a := range e.Seams.Actions {
+	for _, a := range e.Integrations.Actions {
 		if a.Name() == name {
 			return a, nil
 		}

@@ -22,7 +22,7 @@ import (
 // Resolver is the near seam: it says which places are its own, offers the picker
 // its candidates, and creates the worktree.
 type Resolver interface {
-	worktree.Named
+	worktree.Integration
 
 	// Icon is the mark a screen draws the rows this resolver answers for, one
 	// column wide.
@@ -59,7 +59,7 @@ type Resolver interface {
 // Action is the far seam: what a worktree that exists is handed to, at either of
 // two moments.
 type Action interface {
-	worktree.Named
+	worktree.Integration
 
 	// OnCreated tells the action a worktree came into being. Every action is
 	// told, in order, and none is told for a worktree that was already there.
@@ -70,8 +70,9 @@ type Action interface {
 	Open(t worktree.Tree) (worktree.Handoff, error)
 }
 
-// Seams are the integrations behind the two seams, in the order they are asked.
-type Seams struct {
+// Integrations are the implementations behind the two seams, in the order they
+// are asked.
+type Integrations struct {
 	Resolvers []Resolver
 	Actions   []Action
 
@@ -84,7 +85,7 @@ type Seams struct {
 // worktree itself still lands under repo. A front end asks with neither and
 // reads the names and flags alone off what comes back, so an integration wired
 // here reaches for nothing until it is asked a question.
-type Wiring func(repo worktree.Repo, checkout worktree.Path, cfg config.Config) Seams
+type Wiring func(repo worktree.Repo, checkout worktree.Path, cfg config.Config) Integrations
 
 // Env is the repository work operates on, the directory it was invoked in, the
 // settings it reads, and the integrations behind its seams.
@@ -95,8 +96,8 @@ type Env struct {
 	// judged against. It is absolute, an empty one standing nowhere.
 	Dir worktree.Path
 
-	Config config.Config
-	Seams  Seams
+	Config       config.Config
+	Integrations Integrations
 }
 
 // Open finds the repository containing dir and wires the integrations cfg asks
@@ -112,7 +113,7 @@ func Open(dir worktree.Path, cfg config.Config, wire Wiring) (Env, error) {
 	}
 	here := worktree.Path(abs)
 	sayWhatWorkRead(repo, here, cfg)
-	return Env{Repo: repo, Dir: here, Config: cfg, Seams: wire(repo, dir, cfg)}, nil
+	return Env{Repo: repo, Dir: here, Config: cfg, Integrations: wire(repo, dir, cfg)}, nil
 }
 
 func sayWhatWorkRead(repo worktree.Repo, here worktree.Path, cfg config.Config) {
@@ -271,7 +272,7 @@ var errUnanswered = errors.New("nothing answers for")
 // Chain is what an identifier is put to, in the order they are asked: the
 // integrations the settings named, then the core's own.
 func (e Env) Chain() []Resolver {
-	return append(slices.Clone(e.Seams.Resolvers), e.gitAlone())
+	return append(slices.Clone(e.Integrations.Resolvers), e.gitAlone())
 }
 
 // identify puts what the core is holding to the chain: the first resolver to
@@ -588,7 +589,7 @@ func (e Env) values(t worktree.Tree) worktree.Values {
 		worktree.NameValue:   string(t.Name),
 		worktree.DirValue:    string(t.Path),
 	}
-	if s, ok := t.By.(worktree.Source); ok {
+	if s, ok := t.By.(worktree.Supplier); ok {
 		if supplied, err := s.Supply(t); err == nil {
 			vals.Merge(supplied)
 		}

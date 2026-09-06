@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -12,43 +11,43 @@ import (
 // also the names the implementations answer with. Nothing in the compiler holds
 // the two spellings together.
 const (
-	GithubIntegration = "github"
-	BeadsIntegration  = "beads"
-	MiseIntegration   = "mise"
-	ClaudeIntegration = "claude"
+	GithubIntegration worktree.IntegrationName = "github"
+	BeadsIntegration  worktree.IntegrationName = "beads"
+	MiseIntegration   worktree.IntegrationName = "mise"
+	ClaudeIntegration worktree.IntegrationName = "claude"
 )
 
-// sourceNames are the resolvers a place can be sourced to, which is not
-// [IntegrationNames]: an action is never one, and git is in no settings list.
-func sourceNames() []string {
-	return []string{GithubIntegration, BeadsIntegration, string(worktree.GitSource)}
+// KnownSources are the resolvers a place can be sourced to, which is not
+// [KnownIntegrations]: an action is never one, and git is in no settings list.
+func KnownSources() []worktree.IntegrationName {
+	return []worktree.IntegrationName{GithubIntegration, BeadsIntegration, worktree.GitSource}
 }
 
 // integrationsKey is the one list that switches integrations on.
 const integrationsKey = "integrations"
 
-// IntegrationNames are the integrations a settings file can name, in the order
+// KnownIntegrations are the integrations a settings file can name, in the order
 // a dump prints them.
-func IntegrationNames() []string {
-	return []string{GithubIntegration, BeadsIntegration, MiseIntegration, ClaudeIntegration}
+func KnownIntegrations() []worktree.IntegrationName {
+	return []worktree.IntegrationName{GithubIntegration, BeadsIntegration, MiseIntegration, ClaudeIntegration}
 }
 
 // On reports whether the settings named that integration. One name carries an
 // integration wherever it appears, so the tracker named once is on at both the
 // seams it fills.
-func (c Config) On(name string) bool { return slices.Contains(c.Integrations, name) }
+func (c Config) On(name worktree.IntegrationName) bool { return slices.Contains(c.Integrations, name) }
 
 // switchedOn are the integrations that switched on, in the compiled-in order
 // and each named once, which is what a loaded Config holds.
-func (c Config) switchedOn() []string {
-	return slices.DeleteFunc(IntegrationNames(), func(name string) bool { return !c.On(name) })
+func (c Config) switchedOn() []worktree.IntegrationName {
+	return slices.DeleteFunc(KnownIntegrations(), func(name worktree.IntegrationName) bool { return !c.On(name) })
 }
 
 func (c Config) validateIntegrations() error {
-	names := IntegrationNames()
+	known := KnownIntegrations()
 	for _, name := range c.Integrations {
-		if !slices.Contains(names, name) {
-			return fmt.Errorf("%q is no integration work has; they are %s", name, strings.Join(names, ", "))
+		if !slices.Contains(known, name) {
+			return fmt.Errorf("%q is no integration work has; they are %s", name, joined(known, ", "))
 		}
 	}
 	return nil

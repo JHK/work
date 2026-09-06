@@ -85,12 +85,12 @@ type Tree struct {
 
 	// By is the resolver that answered for the place. An action wanting more than a
 	// Place carries declares the interface it needs and asserts this to it.
-	By Named
+	By Integration
 }
 
-// Named is a resolver or an action under the name it goes by, which is the
-// name a [Place] is sourced to.
-type Named interface {
+// Integration is a resolver or an action under the name it goes by, which is
+// the name a [Place] is sourced to.
+type Integration interface {
 	Name() IntegrationName
 }
 
@@ -125,11 +125,11 @@ func ValueNames() []ValueName {
 	return []ValueName{SourceValue, IDValue, TitleValue, NameValue, DirValue, SubjectValue}
 }
 
-// Source is an integration that knows values the core does not hold, the core's
-// own names winning where both name one. It is asked once, of a worktree that
-// exists, and ahead of the assembly, so [Tree.Values] is empty there.
-type Source interface {
-	Named
+// Supplier is an integration that knows values the core does not hold, the
+// core's own names winning where both name one. It is asked once, of a worktree
+// that exists, and ahead of the assembly, so [Tree.Values] is empty there.
+type Supplier interface {
+	Integration
 
 	Supply(t Tree) (Values, error)
 }

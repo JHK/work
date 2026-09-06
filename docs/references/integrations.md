@@ -4,7 +4,7 @@ An integration is what `work` reaches for beyond git: a tracker, a forge, a tool
 
 `work` bundles none of them: what an integration needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
 
-Each integration takes part at one or both of [the two seams](../explanation/seam-partition.md).
+Each integration takes part at one or both of [the two seams](../explanation/seam-partition.md). `git` and `shell` stand at those seams as the core's own, and no settings file switches them on: `shell` is what a worktree with nothing else to open on is [handed back](cli.md#handoff) by.
 
 ## Resolvers
 

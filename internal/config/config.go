@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // Config is every setting work reads: the integrations switched on, then one
 // field per table.
 type Config struct {
-	Integrations []string
+	Integrations []worktree.IntegrationName
 	Worktree     Worktree
 	Github       Github
 	Beads        Beads
@@ -109,7 +111,7 @@ func userFile() string {
 // renamed are the names a table used to go by, each with what a file writes
 // instead: the table it became, or the keys a split one's values went to.
 var renamed = map[string]string{
-	"agent":  "[" + ClaudeIntegration + "]",
+	"agent":  "[" + string(ClaudeIntegration) + "]",
 	"branch": githubBranchKey + " and " + beadsBranchKey,
 }
 

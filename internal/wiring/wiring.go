@@ -16,8 +16,8 @@ import (
 
 // Wire names every implementation the settings asked for. An integration the list
 // leaves out is wired nowhere.
-func Wire(repo worktree.Repo, checkout worktree.Path, cfg config.Config) work.Seams {
-	return work.Seams{
+func Wire(repo worktree.Repo, checkout worktree.Path, cfg config.Config) work.Integrations {
+	return work.Integrations{
 		Resolvers: resolving(repo, checkout, cfg),
 		Actions:   acting(repo, cfg),
 		Handback:  shell.Handback{},

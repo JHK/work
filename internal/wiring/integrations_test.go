@@ -15,7 +15,7 @@ import (
 
 func TestMain(m *testing.M) { testenv.Main(m) }
 
-// An integration wired off a name [config.IntegrationNames] leaves out is one
+// An integration wired off a name [config.KnownIntegrations] leaves out is one
 // no settings file reaches. Structural like R3 and R4: no command asserts an
 // "every".
 func TestTheSettingsSpellEveryIntegrationTheWiringHas(t *testing.T) {
@@ -29,11 +29,7 @@ func TestTheSettingsSpellEveryIntegrationTheWiringHas(t *testing.T) {
 
 	// Compacted, the tracker counting once for the two seams it fills.
 	slices.Sort(added)
-	spelled := config.IntegrationNames()
-	want := make([]worktree.IntegrationName, 0, len(spelled))
-	for _, name := range spelled {
-		want = append(want, worktree.IntegrationName(name))
-	}
+	want := config.KnownIntegrations()
 	slices.Sort(want)
 	testenv.Equal(t, want, slices.Compact(added),
 		"an integration the wiring has is one no settings file spells")
@@ -44,7 +40,7 @@ func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	repo := worktree.Repo(t.TempDir())
 
 	// The core's own answer marks rows too, and no settings file names it.
-	chain := work.Env{Seams: Wire(repo, worktree.Path(repo), everyIntegration(t))}.Chain()
+	chain := work.Env{Integrations: Wire(repo, worktree.Path(repo), everyIntegration(t))}.Chain()
 
 	marks := map[string]worktree.IntegrationName{}
 	for _, r := range chain {
@@ -57,12 +53,32 @@ func TestTheResolversMarksAreDistinctAndOneColumnWide(t *testing.T) {
 	}
 }
 
+// A source [config.KnownSources] leaves out is one a command's arm on it renders
+// for the first time at the handoff. Structural like the cases above.
+func TestTheSettingsSpellEverySourceAResolverAnswersWith(t *testing.T) {
+	repo := worktree.Repo(t.TempDir())
+
+	// The core's own answer sources a place too, and no settings file names it.
+	chain := work.Env{Integrations: Wire(repo, worktree.Path(repo), everyIntegration(t))}.Chain()
+
+	answered := names(chain)
+	slices.Sort(answered)
+	want := config.KnownSources()
+	slices.Sort(want)
+
+	testenv.Equal(t, want, answered, "a place is sourced to a name no command is judged against")
+}
+
 // everyIntegration is the settings of a machine that named every integration,
 // read the way work reads them. Nothing holds the name internal/config spells
 // and the name the implementation goes by together, so this names both.
 func everyIntegration(t *testing.T) config.Config {
 	t.Helper()
-	testenv.Settings(t, `integrations = ["`+strings.Join(config.IntegrationNames(), `", "`)+"\"]\n")
+	var quoted []string
+	for _, name := range config.KnownIntegrations() {
+		quoted = append(quoted, `"`+string(name)+`"`)
+	}
+	testenv.Settings(t, "integrations = ["+strings.Join(quoted, ", ")+"]\n")
 	return load(t)
 }
 
@@ -76,12 +92,12 @@ func load(t *testing.T) config.Config {
 }
 
 // wired is every integration a wiring holds, under the names they go by.
-func wired(integrations work.Seams) []worktree.IntegrationName {
+func wired(integrations work.Integrations) []worktree.IntegrationName {
 	return append(slices.Concat(names(integrations.Resolvers), names(integrations.Actions)),
 		integrations.Handback.Name())
 }
 
-func names[T worktree.Named](integrations []T) []worktree.IntegrationName {
+func names[T worktree.Integration](integrations []T) []worktree.IntegrationName {
 	var under []worktree.IntegrationName
 	for _, s := range integrations {
 		under = append(under, s.Name())

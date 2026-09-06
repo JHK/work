@@ -16,9 +16,9 @@ func TestBothOfAnActionsMomentsReadOneSetOfValues(t *testing.T) {
 	by := &supplier{}
 	a := &keeper{}
 	e := Env{
-		Repo:   worktree.Repo(testenv.InitRepo(t)),
-		Config: config.Default(),
-		Seams:  Seams{Actions: []Action{a}, Handback: a},
+		Repo:         worktree.Repo(testenv.InitRepo(t)),
+		Config:       config.Default(),
+		Integrations: Integrations{Actions: []Action{a}, Handback: a},
 	}
 	place := worktree.Place{ID: "bd-1", Name: "bd-1", Label: "a title"}
 
