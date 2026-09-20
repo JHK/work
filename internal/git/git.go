@@ -178,7 +178,7 @@ func MoveWorktree(repo worktree.Repo, from, to worktree.Path) error {
 	if err := Vacant(to); err != nil {
 		return err
 	}
-	if err := mkParent(to); err != nil {
+	if err := os.MkdirAll(filepath.Dir(string(to)), 0o755); err != nil {
 		return err
 	}
 	_, err := inRepo(repo, "worktree", "move", string(from), string(to))
@@ -243,6 +243,22 @@ func RemoveWorktree(repo worktree.Repo, path worktree.Path, force bool) error {
 	return err
 }
 
+// RemoveEmptyParents takes away the directories a worktree left empty above it,
+// stopping at dir and at the first one holding anything else.
+func RemoveEmptyParents(path, dir worktree.Path) {
+	rel, inside := RelativeTo(path, dir)
+	if !inside {
+		return
+	}
+	parent := string(path)
+	for rel = filepath.Dir(rel); rel != "."; rel = filepath.Dir(rel) {
+		parent = filepath.Dir(parent)
+		if os.Remove(parent) != nil {
+			return
+		}
+	}
+}
+
 // DeleteBranch deletes a local branch whether or not its work has landed. git
 // refuses one a worktree still has checked out.
 func DeleteBranch(repo worktree.Repo, branch worktree.Branch) error {
@@ -250,18 +266,11 @@ func DeleteBranch(repo worktree.Repo, branch worktree.Branch) error {
 	return err
 }
 
-// add makes the directory the worktree goes in, then adds it. -q leaves the
+// add adds the worktree, git making the directories above it. -q leaves the
 // progress line off stderr, where a failure's own message is read from.
 func add(dir, path worktree.Path, args ...string) error {
-	if err := mkParent(path); err != nil {
-		return err
-	}
 	_, err := git(dir, append([]string{"worktree", "add", "-q", string(path)}, args...)...)
 	return err
-}
-
-func mkParent(path worktree.Path) error {
-	return os.MkdirAll(filepath.Dir(string(path)), 0o755)
 }
 
 // git asks in English, git translating its refusals and this adapter reading

@@ -33,19 +33,29 @@ func (e Env) Move(c Candidate, dest worktree.Path) (Move, error) {
 	if err != nil {
 		return Move{}, err
 	}
-	if err := git.MoveWorktree(e.Repo, c.path, m.To); err != nil {
-		return Move{}, err
-	}
-	if !m.Renamed() {
-		return m, nil
-	}
-	if err := git.RenameBranch(e.Repo, m.Was, m.Now); err != nil {
-		if back := git.MoveWorktree(e.Repo, m.To, c.path); back != nil {
-			return Move{}, fmt.Errorf("moved worktree to %s, but %w, and it would not move back: %w", m.To, err, back)
+	// The branch goes first: a name git will not take costs nothing here, where a
+	// directory already moved would have to go back.
+	if m.Renamed() {
+		if err := git.RenameBranch(e.Repo, m.Was, m.Now); err != nil {
+			return Move{}, err
 		}
-		return Move{}, err
+	}
+	if err := git.MoveWorktree(e.Repo, c.path, m.To); err != nil {
+		return Move{}, e.putTheBranchBack(m, err)
 	}
 	return m, nil
+}
+
+// putTheBranchBack undoes the rename the directory would not follow, and says so
+// where the branch will not go back either.
+func (e Env) putTheBranchBack(m Move, why error) error {
+	if !m.Renamed() {
+		return why
+	}
+	if back := git.RenameBranch(e.Repo, m.Now, m.Was); back != nil {
+		return fmt.Errorf("renamed branch %s to %s, but %w, and it would not go back: %w", m.Was, m.Now, why, back)
+	}
+	return why
 }
 
 // plan is what the move would come to, and every refusal that costs nothing.
@@ -60,6 +70,11 @@ func (e Env) plan(c Candidate, dest worktree.Path) (Move, error) {
 	// Ahead of the vacancy check, whose way out is to take the directory away.
 	if git.SameDir(to, c.path) {
 		return Move{}, fmt.Errorf("%s is where %s already sits", to, c.Name)
+	}
+	// Ahead of the rename, so a destination already there costs nothing rather than
+	// leaving the branch renamed and the worktree where it was.
+	if err := git.Vacant(to); err != nil {
+		return Move{}, err
 	}
 	m := Move{From: c.path, To: to, Was: c.branch}
 	if c.branch != "" {

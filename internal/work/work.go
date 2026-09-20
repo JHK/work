@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"regexp"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/JHK/work-cli/internal/config"
@@ -127,13 +127,11 @@ func sayWhatWorkRead(repo worktree.Repo, here worktree.Path, cfg config.Config) 
 	slog.LogAttrs(ctx, slog.LevelDebug, "the settings in force", settings...)
 }
 
-// The name becomes a directory of its own and an argument to git, so it may not
-// traverse, and may not open with a dash.
-var worktreeName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-
+// checkName says git's own refusal early: git worktree add reads a leading dash
+// as a switch, and no -- gets past, so git never reaches the name to judge it.
 func checkName(name worktree.Name) error {
-	if !worktreeName.MatchString(string(name)) {
-		return fmt.Errorf("%q is not a usable worktree name", name)
+	if strings.HasPrefix(string(name), "-") {
+		return fmt.Errorf("git will not name a branch %q", name)
 	}
 	return nil
 }
@@ -152,7 +150,7 @@ type Candidate struct {
 }
 
 // Dir is what the worktree's directory is called, empty where the candidate has
-// none. A branch may be spelled with separators in it; a directory never is.
+// none. A name spelled with separators nests, so this is its last element alone.
 func (c Candidate) Dir() worktree.Name {
 	if c.path == "" {
 		return ""
@@ -556,9 +554,12 @@ func (e Env) Addable() ([]Candidate, []error, error) {
 	return slices.DeleteFunc(list, func(c Candidate) bool { return c.Open }), refused, nil
 }
 
+// dir is where this repository's worktrees go.
+func (e Env) dir() worktree.Path { return worktree.Path(e.Config.Worktree.Dir(e.Repo)) }
+
 // path is where a worktree for a place would be created.
 func (e Env) path(name worktree.Name) worktree.Path {
-	return worktree.Path(filepath.Join(e.Config.Worktree.Dir(e.Repo), string(name)))
+	return worktree.Path(filepath.Join(string(e.dir()), string(name)))
 }
 
 // values are what a command for this worktree renders with: the place the core

@@ -16,7 +16,7 @@ None of them is a rule or a default. A tool that picked one would have to refuse
 
 ## The branch is the identity, not the path
 
-Every worktree has exactly one branch checked out, and that branch is what the worktree is. A branch nothing has checked out is outside the remit.
+Every worktree has exactly one branch checked out, and that branch is what the worktree is. A branch nothing has checked out is outside the remit. `git` dictates the rules for branches and worktrees, and `work` follows them.
 
 A path is chosen by whoever made the worktree and changed by any later move, while git reports every worktree with the branch it has out. So an ask after a piece of work finds its checkout wherever it lives.
 

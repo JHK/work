@@ -35,6 +35,26 @@ func TestRemoveADetachedWorktreeTakesNoBranch(t *testing.T) {
 	require.NoDirExists(t, path, "the worktree is still on disk")
 }
 
+// A name carrying a separator nests, so a removal that left its directories
+// behind would leave the worktree directory growing: docs/references/cli.md#remove.
+func TestRemoveDropsTheDirectoriesItEmptied(t *testing.T) {
+	s := repository(t)
+	kept := s.opened("feature/kept")
+	gone := s.opened("feature/gone")
+	nest := filepath.Dir(gone)
+
+	r := s.run("remove", "feature/gone")
+
+	r.came(t, result{Out: "removed worktree " + gone + "\ndeleted branch feature/gone\n"})
+	require.DirExists(t, nest, "the directory the other worktree still sits in went with the removal")
+
+	last := s.run("remove", "feature/kept")
+
+	last.came(t, result{Out: "removed worktree " + kept + "\ndeleted branch feature/kept\n"})
+	require.NoDirExists(t, nest, "the directory the removal emptied was left behind")
+	require.DirExists(t, defaultDir(s.Repo), "the worktree directory went with the last worktree under it")
+}
+
 // Over the worktrees open, and --force is read all the same.
 func TestRemoveWithNoNameTakesThePickersRow(t *testing.T) {
 	tests := []struct {

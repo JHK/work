@@ -34,7 +34,8 @@ work <identifier> is work go <identifier>: work go add reaches the worktree add.
 // is the one verb whose refusal names add.
 func reach(env work.Env, l listing, target string) (worktree.Handoff, error) {
 	c, err := targeted(env, l, target, env.Resolve)
-	// A spelling add would refuse too is advice that goes nowhere.
+	// A spelling work itself would refuse is advice that goes nowhere; one git
+	// refuses git says so, on the run that offers it.
 	if work.Unanswered(err) && work.Nameable(worktree.Name(target)) {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes a worktree of it", err, target)
 	}

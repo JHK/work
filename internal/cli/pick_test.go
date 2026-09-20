@@ -368,7 +368,7 @@ func TestAnOpenRowTakesNoTitleFromAnotherIntegrationsOffer(t *testing.T) {
 // retyped, so it is left off.
 func TestAnOfferNoWorktreeCouldBeMadeForIsLeftOff(t *testing.T) {
 	put := putsUp(t)
-	unusable := with(doable, func(b *ticket) { b.ID = ".." })
+	unusable := with(doable, func(b *ticket) { b.ID = "-x" })
 	s := tracking(t, []ticket{doable, unusable}, []ticket{doable, unusable}, nil, "", put.dismisses())
 
 	r := s.run("add")
@@ -389,6 +389,8 @@ func TestEachRowSaysWhereItsWorktreeSits(t *testing.T) {
 	// A branch spelled with a separator in it: the directory is its last element, so
 	// the row's name and its directory differ.
 	testenv.Git(t, s.Repo, "worktree", "add", "-b", "feature/login", s.at("login"))
+	// A name carrying a separator nests, so the path's tail is the row's name whole.
+	s.opened("wip/nested")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	testenv.Git(t, s.Repo, "worktree", "add", "-b", "scratch", filepath.Join(home, "tmp", "scratch"))
@@ -403,6 +405,7 @@ func TestEachRowSaysWhereItsWorktreeSits(t *testing.T) {
 		"trunk":         "main worktree",
 		"spike":         in,
 		"feature/login": in + "login",
+		"wip/nested":    in,
 		"scratch":       "~/tmp/",
 		"bd-1":          "",
 	}

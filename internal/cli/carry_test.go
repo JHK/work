@@ -159,11 +159,11 @@ func TestCarryNeverResolvesTheName(t *testing.T) {
 }
 
 // Carry reaches the naming rule with no resolver in the way.
-func TestCarryRefusesANameNoWorktreeCouldCarry(t *testing.T) {
+func TestCarryRefusesANameOpeningWithADash(t *testing.T) {
 	s := repository(t)
 	s.dirty()
 
-	r := s.run("carry", "../etc")
+	r := s.run("carry", "--", "-foo")
 
-	r.came(t, result{Code: 1, Errored: []string{`"../etc" is not a usable worktree name`}})
+	r.came(t, result{Code: 1, Errored: []string{`git will not name a branch "-foo"`}})
 }

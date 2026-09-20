@@ -28,6 +28,7 @@ func (e Env) Delete(c Candidate, force bool) (Deletion, error) {
 	if err := git.RemoveWorktree(e.Repo, c.path, force); err != nil {
 		return Deletion{}, err
 	}
+	git.RemoveEmptyParents(c.path, e.dir())
 	if c.branch != "" {
 		if err := git.DeleteBranch(e.Repo, c.branch); err != nil {
 			return Deletion{}, fmt.Errorf("removed worktree %s, but %w", c.path, err)

@@ -83,18 +83,37 @@ func TestAddRefuses(t *testing.T) {
 	}
 }
 
-// The name becomes a directory of its own and an argument to git, so a spelling
-// no worktree could carry is refused: docs/references/cli.md#identifiers.
-func TestAddRefusesANameNoWorktreeCouldCarry(t *testing.T) {
-	for _, id := range []string{"..", "../etc", "a/b", "docs/pull/99-notes.md"} {
-		t.Run(id, func(t *testing.T) {
-			s := repository(t)
+// A name carrying a separator nests, so the path reads like the branch:
+// docs/references/cli.md#identifiers.
+func TestAddNestsANameSpelledWithASeparator(t *testing.T) {
+	s := repository(t)
 
-			r := s.run("add", id)
+	r := s.run("add", "feature/abc-123")
 
-			r.came(t, result{Code: 1, Errored: []string{`"` + id + `" is not a usable worktree name`}})
-		})
-	}
+	r.came(t, result{Answered: s.at("feature/abc-123")})
+	require.True(t, s.hasBranch("feature/abc-123"), "the worktree is not on the branch the name spells")
+}
+
+// git refuses a leading dash too, but never reaches the name to say so, so work
+// says it: R5 of docs/rules/refusals.md.
+func TestAddRefusesANameOpeningWithADash(t *testing.T) {
+	s := repository(t)
+
+	r := s.run("add", "--", "-foo")
+
+	r.came(t, result{Code: 1, Errored: []string{`git will not name a branch "-foo"`}})
+}
+
+// Every other spelling is git's to judge, so one stands for them all: the
+// refusal is git's, naming the command as it was run, and work made nothing
+// ahead of it. docs/rules/refusals.md.
+func TestAddCarriesGitsRefusalOfAName(t *testing.T) {
+	s := repository(t)
+
+	r := s.run("add", "a..b")
+
+	r.refused(t, "git worktree add -q "+s.at("a..b")+" -b a..b", "is not a valid branch name")
+	require.NoDirExists(t, s.at("a..b"), "git was let make a directory for a branch it would not name")
 }
 
 // The command a fresh worktree opens on is rendered from what the resolver that

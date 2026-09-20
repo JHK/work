@@ -140,10 +140,10 @@ func whereabouts(repo worktree.Repo, c work.Candidate) string {
 		return ""
 	}
 	where := writtenPath(repo, c.Path())
-	// The last element is the name the row already carries, so what is left to say
-	// is the directory the worktree sits in.
-	if c.Dir() == c.Name {
-		where = filepath.Dir(where) + string(filepath.Separator)
+	// The tail is the name the row already carries, so what is left to say is the
+	// directory the worktree sits in.
+	if rest, endsWithName := strings.CutSuffix(where, string(filepath.Separator)+string(c.Name)); endsWithName {
+		where = rest + string(filepath.Separator)
 	}
 	return "(" + where + ")"
 }

@@ -48,7 +48,7 @@ func TestMoveReadsTheDestination(t *testing.T) {
 			// A relative destination is read from here, never from the worktree.
 			s.Dir = defaultDir(s.Repo)
 
-			r := s.run("move", "scratch", tt.dest)
+			r := s.run("move", "scratch", "--", tt.dest)
 
 			to := tt.want(s)
 			r.came(t, result{Out: "moved worktree " + from + " to " + to + "\nrenamed branch scratch to " + filepath.Base(to) + "\n"})
@@ -57,8 +57,7 @@ func TestMoveReadsTheDestination(t *testing.T) {
 	}
 }
 
-// A destination occupied, a branch name taken and a name no worktree could be
-// made for are each refused before anything moves: neither half of it lands.
+// Each is refused before anything moves: neither half of it lands.
 func TestMoveRefusesTheDestination(t *testing.T) {
 	tests := []struct {
 		name, dest string
@@ -71,7 +70,10 @@ func TestMoveRefusesTheDestination(t *testing.T) {
 		{"where it already sits", "scratch", func(s *session) string {
 			return s.at("scratch") + " is where scratch already sits"
 		}},
-		{"a name no worktree could be made for", "..", func(*session) string { return `".." is not a usable worktree name` }},
+		// It would reach git branch --move as a switch, never its branch-name check.
+		{"a name opening with a dash", "-foo", func(*session) string {
+			return `git will not name a branch "-foo"`
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,13 +84,26 @@ func TestMoveRefusesTheDestination(t *testing.T) {
 			require.NoError(t, os.Mkdir(s.at("occupied"), 0o755))
 			testenv.Git(t, s.Repo, "branch", "spoken-for")
 
-			r := s.run("move", "scratch", tt.dest)
+			r := s.run("move", "scratch", "--", tt.dest)
 
 			r.came(t, result{Code: 1, Errored: []string{tt.said(s)}})
 			require.DirExists(t, from, "the worktree moved despite the refusal")
 			require.True(t, s.hasBranch("scratch"), "the branch was renamed despite the refusal")
 		})
 	}
+}
+
+// The branch is renamed before the directory moves, so a name only git can
+// refuse costs nothing: neither half lands, and no rollback was needed.
+func TestMoveRefusesANameGitWillNotTakeBeforeAnythingMoves(t *testing.T) {
+	s := repository(t)
+	from := s.opened("scratch")
+
+	r := s.run("move", "scratch", "--", "a b")
+
+	r.refused(t, "git branch --move scratch a b", "is not a valid branch name")
+	require.DirExists(t, from, "the worktree moved despite the refusal")
+	require.True(t, s.hasBranch("scratch"), "the branch was renamed despite the refusal")
 }
 
 // The refusal has to survive being asked for from inside a worktree that sits

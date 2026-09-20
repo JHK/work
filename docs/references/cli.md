@@ -52,7 +52,7 @@ A checkout carrying nothing is refused, in words naming `add`. Changes that do n
 
 ### remove
 
-`work remove [<name>]` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
+`work remove [<name>]` removes the worktree git reports for that [identifier](#identifiers), the directories that leaves empty down to the [worktree directory](configuration.md#worktree-directory), and the branch it had checked out. An identifier with no worktree open is refused.
 
 Only a clean worktree can be removed, an unclean one with `--force`. The main worktree cannot be removed, and neither can the worktree the shell is standing in.
 
@@ -104,7 +104,7 @@ A URL contributes its number, and the number is read against the current reposit
 
 The first row is `work`'s own; every other is one an [integration](integrations.md) adds. A name nothing answers for is refused; [`add`](#add) reads it as a name of your own instead.
 
-Refused, here and wherever else a worktree is named: leading dashes, path separators, `.` and `..`.
+A name is anything git names a branch, and one carrying a separator nests under the [worktree directory](configuration.md#worktree-directory). A name spelled as a command is reached with `work go <name>`, the first word being the command's ([R1](../rules/command-grammar.md)).
 
 The worktree an identifier reaches is the one checked out on its [branch](configuration.md#keys), [wherever git reports it](../explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path).
 

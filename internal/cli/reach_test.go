@@ -100,15 +100,15 @@ func TestGoRefusesWhatNothingInTheChainAnswersFor(t *testing.T) {
 			`nothing answers for "typo"; work add typo makes a worktree of it`,
 		},
 		{
-			// Wired or not, no integration reads a path into a place, and none may: the
-			// name is about to become a directory of its own, so add is not offered.
-			"a name no worktree could carry, the forge wired", integrationsOn("github"), "a/b",
-			`nothing answers for "a/b"`,
+			// A name carrying a separator is a name like any other, and no integration
+			// reads one: add takes it.
+			"a name spelled with a separator, the forge wired", integrationsOn("github"), "a/b",
+			`nothing answers for "a/b"; work add a/b makes a worktree of it`,
 		},
 		{
 			// The spelling the forge would have read, where nothing is wired to read it.
 			"a pull request URL nothing wired answers for", "", "https://host/owner/repo/pull/7",
-			`nothing answers for "https://host/owner/repo/pull/7"`,
+			`nothing answers for "https://host/owner/repo/pull/7"; work add https://host/owner/repo/pull/7 makes a worktree of it`,
 		},
 	}
 	for _, tt := range tests {
