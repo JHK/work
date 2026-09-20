@@ -24,10 +24,10 @@ one carrying a path separator is a path, read from where you are standing.
 
 With no destination you are asked for one, the directory's current name already
 in it; with no name either, choose among the repository's worktrees first, less
-the one you are standing in and the main checkout. Both forms need fzf.
+the one you are standing in and the main worktree. Both forms need fzf.
 
 The worktree you are standing in cannot be moved, and neither can the main
-checkout.`,
+worktree.`,
 		Args:              cobra.MaximumNArgs(2),
 		ValidArgsFunction: suggest(verb.list),
 		RunE: func(cmd *cobra.Command, args []string) error {

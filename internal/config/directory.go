@@ -31,7 +31,7 @@ func (w Worktree) directory() Directory { return w.Directory.or(defaultWorktree.
 // rendered with that repository's path.
 type Directory struct{ tmpl }
 
-// repoValues is the data one render is given: the main checkout's path.
+// repoValues is the data one render is given: the main worktree's path.
 func repoValues(repo string) map[string]any { return map[string]any{"Repo": repo} }
 
 // UnmarshalTOML reads one directory out of a settings file. [Directory.validate]

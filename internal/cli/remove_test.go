@@ -46,7 +46,7 @@ func TestRemoveWithNoNameTakesThePickersRow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// The row index is fzf's answer, and the main checkout is not among the rows.
+			// The row index is fzf's answer, and the main worktree is not among the rows.
 			s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
 			path := s.opened("scratch")
 
@@ -90,14 +90,14 @@ func TestRemoveRefusesAWorktreeCarryingChanges(t *testing.T) {
 	}
 }
 
-// Every worktree sits under the main checkout, so the refusal survives being
+// Every worktree sits under the main worktree, so the refusal survives being
 // typed from inside one.
-func TestRemoveRefusesTheMainCheckout(t *testing.T) {
+func TestRemoveRefusesTheMainWorktree(t *testing.T) {
 	tests := []struct {
 		name    string
 		stoodIn bool
 	}{
-		{"from the main checkout", false},
+		{"from the main worktree", false},
 		{"from a worktree under it", true},
 	}
 	for _, tt := range tests {
@@ -111,10 +111,10 @@ func TestRemoveRefusesTheMainCheckout(t *testing.T) {
 			for _, args := range [][]string{{"remove", "main"}, {"remove", "--force", "main"}} {
 				r := s.run(args...)
 
-				r.came(t, result{Code: 1, Errored: []string{"main is the main checkout; work remove acts on a worktree under it"}})
+				r.came(t, result{Code: 1, Errored: []string{"main is the main worktree; work remove acts on a worktree under it"}})
 			}
-			require.True(t, s.hasWorktree(s.Repo), "the main checkout is no longer a worktree git reports")
-			require.True(t, s.hasBranch("main"), "the refusal cost the main checkout its branch")
+			require.True(t, s.hasWorktree(s.Repo), "the main worktree is no longer a worktree git reports")
+			require.True(t, s.hasBranch("main"), "the refusal cost the main worktree its branch")
 		})
 	}
 }

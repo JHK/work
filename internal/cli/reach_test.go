@@ -12,7 +12,7 @@ import (
 func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 	tests := []struct {
 		name string
-		// dir is the worktree's directory, empty for the main checkout, and branch
+		// dir is the worktree's directory, empty for the main worktree, and branch
 		// what it has checked out.
 		dir, branch string
 		id          string
@@ -20,7 +20,7 @@ func TestGoEntersTheWorktreeAnIdentifierAlreadyHas(t *testing.T) {
 	}{
 		{"a worktree of its own", "scratch", "scratch", "scratch", false},
 		{"a branch spelled with a separator", "login", "feature/x", "feature/x", false},
-		{"the main checkout", "", "main", "main", false},
+		{"the main worktree", "", "main", "main", false},
 		// A verb wins the first position, so this name is only reachable through go:
 		// R1 of docs/rules/command-grammar.md.
 		{"a name a verb wins the first position with", "add", "add", "add", false},
@@ -76,7 +76,7 @@ func TestGoMakesTheWorktreeATicketHasNone(t *testing.T) {
 // the one reached.
 func TestGoWithNoIdentifierTakesThePickersRow(t *testing.T) {
 	// The row index is fzf's answer, and the worktree the shell stands in is not
-	// among the rows: the main checkout is where this one stands.
+	// among the rows: the main worktree is where this one stands.
 	s := repository(t, testenv.Stub{Name: "fzf", Says: "0\tscratch\n"})
 	path := s.opened("scratch")
 

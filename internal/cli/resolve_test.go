@@ -156,7 +156,7 @@ func TestWhichWorktreeATicketReaches(t *testing.T) {
 }
 
 // A ticket's branch forks from the checkout the shell stands in rather than from
-// the main checkout, the tracker taking no fork point of its own.
+// the main worktree, the tracker taking no fork point of its own.
 func TestATicketsBranchForksFromTheCheckoutTheShellStandsIn(t *testing.T) {
 	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "")
 	s.Dir = s.opened("scratch")

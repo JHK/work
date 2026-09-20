@@ -56,7 +56,7 @@ const underTest = "--work-under-test"
 type session struct {
 	t *testing.T
 
-	// Repo is the main checkout, its symlinks resolved: git reports a worktree
+	// Repo is the main worktree, its symlinks resolved: git reports a worktree
 	// resolved, and what work prints of one is git's own answer.
 	Repo string
 
@@ -591,15 +591,20 @@ func (s *screen) rows() []string {
 // plain is a row with the highlight a screen draws an open one in taken off.
 func plain(row string) string { return strings.NewReplacer(highlight, "", reset, "").Replace(row) }
 
-// retyped is what the rows a screen was put up with are retyped as: the mark and
-// the icon ahead of a name are the screen's own, and the title behind it the
-// row's.
+// nameAndWhere takes the parentheses off the directory. The mark and the icon
+// ahead of the name are the screen's own.
+func nameAndWhere(row string) (name, where string) {
+	head, _, _ := strings.Cut(plain(row), "  ·  ")
+	head, where, _ = strings.Cut(head, "(")
+	where, _, _ = strings.Cut(where, ")")
+	fields := strings.Fields(head)
+	return fields[len(fields)-1], where
+}
+
 func retyped(rows []string) []string {
 	out := make([]string, len(rows))
 	for i, row := range rows {
-		name, _, _ := strings.Cut(plain(row), "  ·  ")
-		fields := strings.Fields(name)
-		out[i] = fields[len(fields)-1]
+		out[i], _ = nameAndWhere(row)
 	}
 	return out
 }

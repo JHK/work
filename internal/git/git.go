@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Root reports the main checkout of the repository containing dir, so a call
-// from inside a linked worktree still resolves to the main checkout. A bare
+// Root reports the main worktree of the repository containing dir, so a call
+// from inside a linked worktree still resolves to the main worktree. A bare
 // repository is its own, having no checkout to stand in.
 func Root(dir worktree.Path) (worktree.Repo, error) {
 	out, err := git(dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--is-bare-repository")
@@ -34,7 +35,7 @@ func Root(dir worktree.Path) (worktree.Repo, error) {
 	if bare == "true" {
 		return worktree.Repo(commonDir), nil
 	}
-	// The two differ only inside a linked worktree, where the main checkout is where
+	// The two differ only inside a linked worktree, where the main worktree is where
 	// the common git directory sits.
 	if filepath.Clean(gitDir) != commonDir {
 		if filepath.Base(commonDir) == ".git" {
@@ -42,7 +43,7 @@ func Root(dir worktree.Path) (worktree.Repo, error) {
 		}
 		return worktree.Repo(commonDir), nil
 	}
-	// Asked rather than inferred: a main checkout's git directory need not be the
+	// Asked rather than inferred: a main worktree's git directory need not be the
 	// .git beside it, and only git knows where its working tree is.
 	top, err := git(dir, "rev-parse", "--show-toplevel")
 	return worktree.Repo(top), err
@@ -55,8 +56,18 @@ func SameDir(a, b worktree.Path) bool {
 
 // Inside reports whether path is dir or sits below it.
 func Inside(path, dir worktree.Path) bool {
+	_, ok := RelativeTo(path, dir)
+	return ok
+}
+
+// RelativeTo takes the symlinks of both out, and is false where path sits
+// outside dir. A path that is dir sits at ".".
+func RelativeTo(path, dir worktree.Path) (string, bool) {
 	rel, err := filepath.Rel(realPath(dir), realPath(path))
-	return err == nil && filepath.IsLocal(rel)
+	if err != nil || !filepath.IsLocal(rel) {
+		return "", false
+	}
+	return rel, true
 }
 
 // git reports worktrees with symlinks already resolved, so a path is compared by
@@ -68,15 +79,16 @@ func realPath(path worktree.Path) string {
 	return filepath.Clean(string(path))
 }
 
-// Worktree is one checkout git has registered: where it sits, and what it has
-// checked out there.
+// Worktree is one checkout git has registered.
 type Worktree struct {
 	Path   worktree.Path
 	Branch worktree.Branch // short name; empty when the worktree is detached
 	Bare   bool            // no working tree, as a bare repository reports for itself
+	Main   bool            // the repository's own worktree, rather than one linked to it
 }
 
-// Worktrees lists every worktree the repository has, in git's order.
+// Worktrees lists every worktree the repository has, the repository's own at
+// their head, which is read off the path rather than off the order git reports.
 func Worktrees(repo worktree.Repo) ([]Worktree, error) {
 	out, err := inRepo(repo, "worktree", "list", "--porcelain")
 	if err != nil {
@@ -98,7 +110,19 @@ func Worktrees(repo worktree.Repo) ([]Worktree, error) {
 			at.Bare = true
 		}
 	}
-	return list, nil
+	return mainFirst(repo, list), nil
+}
+
+func mainFirst(repo worktree.Repo, list []Worktree) []Worktree {
+	for i := range list {
+		list[i].Main = SameDir(list[i].Path, worktree.Path(repo))
+	}
+	at := slices.IndexFunc(list, func(w Worktree) bool { return w.Main })
+	if at > 0 {
+		main := list[at]
+		list = slices.Insert(slices.Delete(list, at, at+1), 0, main)
+	}
+	return list
 }
 
 // HasBranch reports whether a local branch of that name exists.
@@ -208,7 +232,7 @@ func stashed(dir worktree.Path) int {
 }
 
 // RemoveWorktree unregisters a worktree and deletes its directory. git refuses
-// one with modified or untracked files unless force, and the main checkout
+// one with modified or untracked files unless force, and the main worktree
 // either way.
 func RemoveWorktree(repo worktree.Repo, path worktree.Path, force bool) error {
 	args := []string{"worktree", "remove", string(path)}
@@ -246,7 +270,7 @@ func git(dir worktree.Path, args ...string) (string, error) {
 	return run.InEnglish(string(dir), "git", args...)
 }
 
-// inRepo runs git in the repository's main checkout.
+// inRepo runs git in the repository's main worktree.
 func inRepo(repo worktree.Repo, args ...string) (string, error) {
 	return git(worktree.Path(repo), args...)
 }

@@ -6,10 +6,9 @@ import (
 	"github.com/JHK/work-cli/internal/testenv"
 )
 
-// What list prints is git's own answer, the main checkout first and a detached
-// worktree under its directory, and no integration is asked for a name or a
-// title.
-func TestListPrintsWhatGitReportsAndAsksNoIntegration(t *testing.T) {
+// What list prints is one name a line, the main worktree first and a detached one
+// under its directory, and no integration is asked for a name or a title.
+func TestListPrintsTheWorktreesAndAsksNoIntegration(t *testing.T) {
 	s := repository(t)
 	// Both integrations on, and every stand-in refuses: one asked would be a line
 	// said.

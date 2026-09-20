@@ -8,7 +8,7 @@ A condition `work` states as its own is refused in work's own words: the refusal
 
 - a directory git reports no repository for
 - a worktree carrying changes, with no `--force` given
-- the main checkout, and the worktree the shell stands in
+- the main worktree, and the worktree the shell stands in
 - a name no worktree could be made for
 - a directory already sitting where a worktree would go
 - a checkout carrying no changes, with `carry` given

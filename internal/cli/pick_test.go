@@ -4,14 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/JHK/work-cli/internal/testenv"
 	"github.com/stretchr/testify/require"
 )
 
-// A row states what to retype and what kind of thing it is, under the mark its
-// resolver draws, and the names line up whether or not a worktree exists.
+// A row states what to retype, where its worktree sits and what kind of thing it
+// is, and the three line up whether or not a worktree exists.
 func TestTheRowsLineUpUnderTheirMarks(t *testing.T) {
 	put := putsUp(t)
 	longer := with(doable, func(b *ticket) { b.ID, b.Title = "bd-longer", "Other" })
@@ -34,12 +35,16 @@ func TestTheRowsLineUpUnderTheirMarks(t *testing.T) {
 	r.came(t, result{Code: 1, Asked: []string{listed, vetted, pullRequests(hosted), putUp}}, atOnce)
 	// git lists a repository's worktrees by directory name, so the rows are review,
 	// spike and worked, then what each resolver offers behind them.
+	in := filepath.Base(s.Repo) + "/" + s.ignores()
+	// The blank a row with no worktree leaves, as wide as the widest directory a
+	// titled row carries.
+	blankWhere := strings.Repeat(" ", len("("+in+"review)"))
 	want := []string{
-		highlight + "⎇ ⇄ pr-7     " + reset + "  ·  Review this",
-		highlight + "⎇ ◇ spike" + reset,
-		highlight + "⎇ ◆ bd-longer" + reset + "  ·  Other",
+		highlight + "⎇ ⇄ pr-7       (" + in + "review)" + reset + "  ·  Review this",
+		highlight + "⎇ ◇ spike      (" + in + ")" + reset,
+		highlight + "⎇ ◆ bd-longer  (" + in + "worked)" + reset + "  ·  Other",
 		"  ⇄ pr-9",
-		"  ◆ bd-1       ·  Do a thing",
+		"  ◆ bd-1       " + blankWhere + "  ·  Do a thing",
 		"  ◆ bd-untitled-and-longest",
 	}
 	testenv.Equal(t, want, put.rows(), "the rows the picker offers are not what a reader lines up")
@@ -48,8 +53,8 @@ func TestTheRowsLineUpUnderTheirMarks(t *testing.T) {
 // A listing left with no rows is refused in one line naming what there is
 // nothing of, rather than an empty screen to dismiss: fzf is never reached.
 func TestAnEmptyListingIsRefusedRatherThanPutUp(t *testing.T) {
-	// The main checkout alone, standing in it: these four leave out what they cannot
-	// act on and are empty, where go has the main checkout to offer.
+	// The main worktree alone, standing in it: these four leave out what they cannot
+	// act on and are empty, where go has the main worktree to offer.
 	for verb, said := range map[string]string{
 		"switch": "no worktree to switch to",
 		"remove": "no worktree to remove",
@@ -210,7 +215,7 @@ func screened(s *session, put *screen) map[string][]string {
 }
 
 // Reaching and entering leave out the worktree stood in, removing and moving
-// the main checkout too.
+// the main worktree too.
 func TestEachVerbOffersWhatItCanActOn(t *testing.T) {
 	tests := []struct {
 		name string
@@ -219,7 +224,7 @@ func TestEachVerbOffersWhatItCanActOn(t *testing.T) {
 		reach, enter, remove []string
 	}{
 		{
-			"the main checkout",
+			"the main worktree",
 			func(s *session, _ string) string { return s.Repo },
 			[]string{"away", "one", "spare", "two"}, []string{"away", "one", "two"}, []string{"away", "one", "two"},
 		},
@@ -255,7 +260,7 @@ func TestEachVerbOffersWhatItCanActOn(t *testing.T) {
 			s.opened("one")
 			s.opened("two")
 			// git reports a worktree outside the repository like any other. Standing in one,
-			// nothing holds the main checkout, so the listing is the only thing leaving it out.
+			// nothing holds the main worktree, so the listing is the only thing leaving it out.
 			away := filepath.Join(t.TempDir(), "away")
 			testenv.Git(t, s.Repo, "worktree", "add", "-b", "away", away)
 			s.Dir = tt.from(s, away)
@@ -291,14 +296,14 @@ func TestTheWorktreeAboveTheOneStoodInIsNeitherOfferedNorRemoved(t *testing.T) {
 	refused.came(t, result{Code: 1, Errored: []string{"one is the worktree you are standing in; run work remove from outside it"}})
 }
 
-// What is worth working on is every worktree git knows, the main checkout at
-// their head, then the offers with none: one place counted once however found.
+// What is worth working on is every worktree git knows, the main one at their
+// head whatever git reports first, then the offers with none, each counted once.
 func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 	put := putsUp(t)
 	other := with(doable, func(b *ticket) { b.ID, b.Title = "bd-2", "Another thing" })
 	s := tracking(t, []ticket{doable, other}, []ticket{doable, other}, nil, "", put.dismisses())
 	// The ticket's own worktree, a worktree no integration answers for, and the
-	// one the shell stands in so that the main checkout is a row.
+	// one the shell stands in so that the main worktree is a row.
 	s.openedOn("worked", "bd-1-do-a-thing")
 	s.opened("loose")
 	s.Dir = s.opened("spike")
@@ -308,7 +313,7 @@ func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 	r.came(t, result{Code: 1, Asked: []string{listed, vetted, putUp}}, atOnce)
 	rows := put.rows()
 	names := retyped(rows)
-	require.Equal(t, "main", names[0], "the first row is not the main checkout git reports first")
+	require.Equal(t, "main", names[0], "the first row is not the main worktree")
 	testenv.Equal(t, []string{"bd-1", "loose", "main"}, slices.Sorted(slices.Values(names[:3])),
 		"the open rows are not what is ahead of what is merely offered")
 	for _, row := range rows[:3] {
@@ -335,7 +340,7 @@ func TestAnOpenRowTakesTheTitleFromItsOffer(t *testing.T) {
 	r.came(t, result{Code: 1, Asked: []string{pullRequests(s.Origin), putUp}}, atOnce)
 	rows := put.rows()
 	testenv.Equal(t, []string{"pr-7"}, retyped(rows), "the pull request was counted other than once, open and offered")
-	require.Regexp(t, `pr-7\s+·\s+Review this`, plain(rows[0]), "the row did not take the title its own offer had")
+	require.Regexp(t, `pr-7\s+\(.+\)\s+·\s+Review this`, plain(rows[0]), "the row did not take the title its own offer had")
 }
 
 // Only the integration that answered for the worktree completes its row:
@@ -370,4 +375,41 @@ func TestAnOfferNoWorktreeCouldBeMadeForIsLeftOff(t *testing.T) {
 
 	r.came(t, result{Code: 1, Asked: []string{listed, vetted, putUp}}, atOnce)
 	testenv.Equal(t, []string{"bd-1"}, retyped(put.rows()), "a name no worktree could be made for was offered")
+}
+
+// Where a worktree sits is read against the repository, its last element dropped
+// where the row's name already carries it; else ~ for $HOME, a word for the main one.
+func TestEachRowSaysWhereItsWorktreeSits(t *testing.T) {
+	put := putsUp(t)
+	s := tracking(t, []ticket{doable}, []ticket{doable}, nil, "", put.dismisses())
+	// The word is not read off the branch, which is what a main worktree on a branch
+	// of its own turns on.
+	testenv.Git(t, s.Repo, "branch", "--move", "trunk")
+	s.opened("spike")
+	// A branch spelled with a separator in it: the directory is its last element, so
+	// the row's name and its directory differ.
+	testenv.Git(t, s.Repo, "worktree", "add", "-b", "feature/login", s.at("login"))
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	testenv.Git(t, s.Repo, "worktree", "add", "-b", "scratch", filepath.Join(home, "tmp", "scratch"))
+	s.Dir = s.opened("stood-in")
+
+	r := s.run("go")
+
+	r.came(t, result{Code: 1, Asked: []string{listed, vetted, putUp}}, atOnce)
+	rows := put.rows()
+	in := filepath.Base(s.Repo) + "/" + s.ignores()
+	want := map[string]string{
+		"trunk":         "main worktree",
+		"spike":         in,
+		"feature/login": in + "login",
+		"scratch":       "~/tmp/",
+		"bd-1":          "",
+	}
+	got := map[string]string{}
+	for _, row := range rows {
+		name, where := nameAndWhere(row)
+		got[name] = where
+	}
+	testenv.Equal(t, want, got, "the rows do not say where their worktrees sit")
 }

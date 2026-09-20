@@ -19,7 +19,7 @@ Only creating a worktree reads `worktree.directory`. An existing one is entered 
 
 ## Worktree directory
 
-`worktree.directory` is a [Go template](https://pkg.go.dev/text/template) over `.Repo`, the main checkout's path. The compiled-in default is `{{.Repo}}/.worktrees`.
+`worktree.directory` is a [Go template](https://pkg.go.dev/text/template) over `.Repo`, the main worktree's path. The compiled-in default is `{{.Repo}}/.worktrees`.
 
 ## Integrations
 

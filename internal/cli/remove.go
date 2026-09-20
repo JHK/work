@@ -20,10 +20,10 @@ func removeCommand(verb offering[removes]) *cobra.Command {
 		Long: `Remove a worktree and delete the branch it had checked out.
 
 Only a clean worktree can be removed, an unclean one with --force. The main
-checkout cannot be removed, and neither can the worktree you are standing in.
+worktree cannot be removed, and neither can the worktree you are standing in.
 
 With no name, choose among the repository's worktrees, less the one you are
-standing in and the main checkout. That form needs fzf.`,
+standing in and the main worktree. That form needs fzf.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: suggest(verb.list),
 		RunE: func(cmd *cobra.Command, args []string) error {

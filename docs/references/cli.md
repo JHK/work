@@ -54,7 +54,7 @@ A checkout carrying nothing is refused, in words naming `add`. Changes that do n
 
 `work remove [<name>]` removes the worktree git reports for that [identifier](#identifiers) and deletes the branch it had checked out. An identifier with no worktree open is refused.
 
-Only a clean worktree can be removed, an unclean one with `--force`. The main checkout cannot be removed, and neither can the worktree the shell is standing in.
+Only a clean worktree can be removed, an unclean one with `--force`. The main worktree cannot be removed, and neither can the worktree the shell is standing in.
 
 ### move
 
@@ -64,11 +64,11 @@ A destination spelled as a bare name lands the worktree beside where it sits; on
 
 Left out together, the name is picked before the destination is asked for.
 
-The main checkout cannot be moved, and neither can the worktree the shell is standing in.
+The main worktree cannot be moved, and neither can the worktree the shell is standing in.
 
 ### list
 
-`work list` prints the worktrees git reports, one per line on stdout: the branch each has checked out, or its directory where it is detached.
+`work list` prints the worktrees git reports, one per line on stdout and the main worktree first: the branch each has checked out, or its directory where it is detached.
 
 ### init
 
@@ -123,12 +123,12 @@ What a verb puts up is what it can act on:
 | [`go`](#go) | every worktree open, and the tickets and pull requests with none | the one you are standing in |
 | [`switch`](#switch) | the worktrees open | the one you are standing in |
 | [`add`](#add) | the tickets and pull requests with no worktree yet | nothing |
-| [`remove`](#remove) | the worktrees open | the one you are standing in, and the main checkout |
-| [`move`](#move) | the worktrees open | the one you are standing in, and the main checkout |
+| [`remove`](#remove) | the worktrees open | the one you are standing in, and the main worktree |
+| [`move`](#move) | the worktrees open | the one you are standing in, and the main worktree |
 
 A listing left with no rows is one line on stderr naming what there is nothing of.
 
-A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [integration](integrations.md) names it.
+A worktree row is one git reports with a working tree to reach, read off its branch, and offered under that branch where no [integration](integrations.md) names it. Beside the branch it carries the directory the worktree sits in, written against the repository; the main worktree leads every listing that offers it and takes a word there in place of a path.
 
 Beside the worktrees, an integration can add rows of its own and the titles on them.
 

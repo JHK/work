@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -55,19 +58,19 @@ func targeted(env work.Env, l listing, target string, resolve func(worktree.ID) 
 		return resolve(worktree.ID(target))
 	}
 	rows, _, err := l.rows(env)
-	return pickFrom(l.saidWhenEmpty, rows, err)
+	return pickFrom(env, l.saidWhenEmpty, rows, err)
 }
 
 // pickFrom puts one listing in front of the picker, refusing one left with no
 // rows in the words its verb has for having none.
-func pickFrom(saidWhenEmpty string, candidates []work.Candidate, err error) (work.Candidate, error) {
+func pickFrom(env work.Env, saidWhenEmpty string, candidates []work.Candidate, err error) (work.Candidate, error) {
 	if err != nil {
 		return work.Candidate{}, err
 	}
 	if len(candidates) == 0 {
 		return work.Candidate{}, errors.New(saidWhenEmpty)
 	}
-	i, err := choose(labels(candidates))
+	i, err := choose(labels(env.Repo, candidates))
 	if err != nil {
 		return work.Candidate{}, err
 	}
@@ -129,45 +132,79 @@ func ask(preset string) (string, error) {
 	return answer, nil
 }
 
-// columnWidth is where the titles line up: behind the widest name that has one. A
-// worktree name is ASCII by construction, so its length is its width.
-func columnWidth(candidates []work.Candidate) int {
-	width := 0
-	for _, c := range candidates {
-		if c.Label != "" {
-			width = max(width, len(c.Name))
-		}
+func whereabouts(repo worktree.Repo, c work.Candidate) string {
+	if c.Main {
+		return "(main worktree)"
 	}
-	return width
+	if c.Path() == "" {
+		return ""
+	}
+	where := writtenPath(repo, c.Path())
+	// The last element is the name the row already carries, so what is left to say
+	// is the directory the worktree sits in.
+	if c.Dir() == c.Name {
+		where = filepath.Dir(where) + string(filepath.Separator)
+	}
+	return "(" + where + ")"
 }
 
-func labels(candidates []work.Candidate) []string {
-	width := columnWidth(candidates)
+// writtenPath is one worktree's path as a reader reads it, $HOME written as ~.
+func writtenPath(repo worktree.Repo, path worktree.Path) string {
+	if rel, ok := git.RelativeTo(path, worktree.Path(repo)); ok {
+		return filepath.Join(filepath.Base(string(repo)), rel)
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		if rel, ok := git.RelativeTo(path, worktree.Path(home)); ok {
+			return filepath.Join("~", rel)
+		}
+	}
+	return string(path)
+}
+
+// columns is where the fields behind the mark start. A field counts a row only
+// where something behind it has to line up.
+type columns struct{ name, where int }
+
+func labels(repo worktree.Repo, candidates []work.Candidate) []string {
+	var width columns
+	where := make([]string, len(candidates))
+	for i, c := range candidates {
+		where[i] = whereabouts(repo, c)
+		if where[i] != "" || c.Label != "" {
+			width.name = max(width.name, utf8.RuneCountInString(string(c.Name)))
+		}
+		if c.Label != "" {
+			width.where = max(width.where, utf8.RuneCountInString(where[i]))
+		}
+	}
 	out := make([]string, len(candidates))
 	for i, c := range candidates {
-		out[i] = label(c, width)
+		out[i] = label(c, where[i], width)
 	}
 	return out
 }
 
 // label renders one candidate, making the ones with a worktree stand out. A row
 // goes untitled where the resolver that answered for it named no title.
-func label(c work.Candidate, width int) string {
+func label(c work.Candidate, where string, width columns) string {
 	mark := " "
 	if c.Open {
 		mark = openMark
 	}
 
-	name, about := string(c.Name), string(c.Label)
-	if about != "" {
-		name = fmt.Sprintf("%-*s", width, name)
+	row := mark + " " + c.Icon + " " + padded(string(c.Name), width.name) + "  " + padded(where, width.where)
+	tail := ""
+	if about := string(c.Label); about != "" {
+		tail = "  ·  " + about
+	} else {
+		row = strings.TrimRight(row, " ")
 	}
-	row := mark + " " + c.Icon + " " + name
 	if c.Open {
 		row = highlight + row + reset
 	}
-	if about != "" {
-		row += "  ·  " + about
-	}
-	return row
+	return row + tail
+}
+
+func padded(text string, width int) string {
+	return text + strings.Repeat(" ", max(0, width-utf8.RuneCountInString(text)))
 }

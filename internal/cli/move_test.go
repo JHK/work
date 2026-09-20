@@ -92,17 +92,17 @@ func TestMoveRefusesTheDestination(t *testing.T) {
 }
 
 // The refusal has to survive being asked for from inside a worktree that sits
-// under the main checkout.
-func TestMoveRefusesTheMainCheckout(t *testing.T) {
+// under the main worktree.
+func TestMoveRefusesTheMainWorktree(t *testing.T) {
 	s := repository(t)
 	testenv.Git(t, s.Repo, "branch", "--move", "trunk")
 	s.Dir = s.opened("scratch")
 
 	r := s.run("move", "trunk", filepath.Join(t.TempDir(), "elsewhere"))
 
-	r.came(t, result{Code: 1, Errored: []string{"trunk is the main checkout; work move acts on a worktree under it"}})
-	require.Equal(t, "trunk", testenv.Git(t, s.Repo, "rev-parse", "--abbrev-ref", "HEAD"), "the main checkout was left off trunk")
-	require.True(t, s.hasWorktree(s.Repo), "the main checkout is no longer a worktree git reports")
+	r.came(t, result{Code: 1, Errored: []string{"trunk is the main worktree; work move acts on a worktree under it"}})
+	require.Equal(t, "trunk", testenv.Git(t, s.Repo, "rev-parse", "--abbrev-ref", "HEAD"), "the main worktree was left off trunk")
+	require.True(t, s.hasWorktree(s.Repo), "the main worktree is no longer a worktree git reports")
 }
 
 func TestMoveADetachedWorktreeTakesNoBranch(t *testing.T) {

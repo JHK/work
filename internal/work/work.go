@@ -143,6 +143,7 @@ func checkName(name worktree.Name) error {
 type Candidate struct {
 	worktree.Place
 	Open bool   // a worktree for it already exists
+	Main bool   // that worktree is the repository's own
 	Icon string // the mark that resolver draws its rows with
 
 	by     Resolver
@@ -159,6 +160,9 @@ func (c Candidate) Dir() worktree.Name {
 	return worktree.Name(filepath.Base(string(c.path)))
 }
 
+// Path is empty where the candidate has no worktree.
+func (c Candidate) Path() worktree.Path { return c.path }
+
 // actionable is why a verb may not act on the worktree a candidate has: there is
 // none, it is the repository itself, or the process stands inside the one git is
 // about to move or take away, which would leave the shell in a directory that is
@@ -167,8 +171,8 @@ func (e Env) actionable(c Candidate, verb string) error {
 	if !c.Open {
 		return fmt.Errorf("%s has no worktree to %s", c.Name, verb)
 	}
-	if e.mainCheckout(c) {
-		return fmt.Errorf("%s is the main checkout; work %s acts on a worktree under it", c.Name, verb)
+	if c.Main {
+		return fmt.Errorf("%s is the main worktree; work %s acts on a worktree under it", c.Name, verb)
 	}
 	if e.holds(c) {
 		return fmt.Errorf("%s is the worktree you are standing in; run work %s from outside it", c.Name, verb)
@@ -176,7 +180,10 @@ func (e Env) actionable(c Candidate, verb string) error {
 	return nil
 }
 
-func (e Env) mainCheckout(c Candidate) bool { return git.SameDir(c.path, worktree.Path(e.Repo)) }
+func opened(c Candidate, w git.Worktree) Candidate {
+	c.Open, c.path, c.branch, c.Main = true, w.Path, w.Branch, w.Main
+	return c
+}
 
 // holds reports whether [Env.Dir] sits within the worktree a candidate has, a
 // worktree nested in that one counting as within it.
@@ -350,8 +357,8 @@ func (e Env) Switchable(c Candidate) error {
 }
 
 // Worktrees is every worktree the repository has with a working tree to reach,
-// in git's order, each under the place the first resolver to answer for it says
-// it stands for.
+// the repository's own at their head, each under the place the first resolver to
+// answer for it says it stands for.
 func (e Env) Worktrees() ([]Candidate, error) {
 	list, err := e.listing()
 	if err != nil {
@@ -359,7 +366,7 @@ func (e Env) Worktrees() ([]Candidate, error) {
 	}
 	out := make([]Candidate, 0, len(list))
 	for _, w := range list {
-		c, err := e.adopt(worktree.Open{Path: w.Path, Branch: w.Branch})
+		c, err := e.adopt(w)
 		if err != nil {
 			return nil, err
 		}
@@ -402,9 +409,9 @@ func (e Env) listing() ([]git.Worktree, error) {
 	return slices.DeleteFunc(list, func(w git.Worktree) bool { return w.Bare }), nil
 }
 
-// Branches is what the repository's worktrees have checked out, in git's order:
-// a detached one under its directory. It asks git and nothing else, so a listing
-// costs no tracker and no forge.
+// Branches is what the repository's worktrees have checked out, the main
+// worktree's first: a detached one under its directory. It asks git and nothing
+// else, so a listing costs no tracker and no forge.
 func (e Env) Branches() ([]worktree.Name, error) {
 	list, err := e.listing()
 	if err != nil {
@@ -419,12 +426,12 @@ func (e Env) Branches() ([]worktree.Name, error) {
 
 // adopt is the place an open worktree stands for, from the first resolver that
 // answers for it.
-func (e Env) adopt(o worktree.Open) (Candidate, error) {
-	r, p, err := e.identify("", o)
+func (e Env) adopt(w git.Worktree) (Candidate, error) {
+	r, p, err := e.identify("", worktree.Open{Path: w.Path, Branch: w.Branch})
 	if err != nil {
 		return Candidate{}, err
 	}
-	return answered(r, Candidate{Place: p, Open: true, path: o.Path, branch: o.Branch}), nil
+	return answered(r, opened(Candidate{Place: p}, w)), nil
 }
 
 // locate is the worktree a resolved place already has: the resolver that named
@@ -442,7 +449,9 @@ func (e Env) locate(r Resolver, p worktree.Place, open []Candidate) (Candidate, 
 		}
 		// The place as the resolver describes it on that worktree, which knows the
 		// branch it found the place by rather than the one it would render today.
-		found = append(found, answered(r, Candidate{Place: its, Open: true, path: c.path, branch: c.branch}))
+		at := c
+		at.Place = its
+		found = append(found, answered(r, at))
 	}
 	if len(found) == 0 {
 		return answered(r, Candidate{Place: p}), nil

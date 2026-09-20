@@ -26,7 +26,7 @@ type (
 	// Label is the title a row carries beside its name.
 	Label string
 
-	// Repo is a repository's main checkout.
+	// Repo is a repository's main worktree.
 	Repo string
 
 	// Path is where a worktree sits.
