@@ -6,13 +6,7 @@ package worktree
 import (
 	"cmp"
 	"errors"
-	"log/slog"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"syscall"
-
-	"github.com/JHK/work-cli/internal/run"
 )
 
 // The words the vocabulary is made of, one defined type each.
@@ -149,20 +143,3 @@ type Handoff struct {
 
 // Directory reports whether the answer is the worktree and nothing to run in it.
 func (h Handoff) Directory() bool { return len(h.Run) == 0 }
-
-// Exec hands the terminal over. It returns only on failure.
-func (h Handoff) Exec() error {
-	if h.Directory() {
-		return errors.New("nothing to run")
-	}
-	slog.Info(run.CommandLine(h.Run[0], h.Run[1:]...))
-	// Resolved before the chdir, so a failure leaves the process where it started.
-	bin, err := exec.LookPath(h.Run[0])
-	if err != nil {
-		return err
-	}
-	if err := os.Chdir(string(h.Dir)); err != nil {
-		return err
-	}
-	return syscall.Exec(bin, h.Run, os.Environ())
-}

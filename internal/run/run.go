@@ -10,18 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 )
-
-// gone are the commands this run has already found missing.
-var gone sync.Map
 
 // Output runs bin in dir and returns its stdout, trimmed of the trailing
 // newline. A failing tool's first line of stderr becomes the message. The
 // command as it was run is said at info, which --log-level=info puts on stderr.
-//
-// A tool the machine does not have is out for the rest of the run: the first
-// question to it fails and every later one fails with it, unasked.
 func Output(dir, bin string, args ...string) (string, error) {
 	return output(dir, false, bin, args...)
 }
@@ -34,11 +27,6 @@ func InEnglish(dir, bin string, args ...string) (string, error) {
 }
 
 func output(dir string, english bool, bin string, args ...string) (string, error) {
-	what := CommandLine(bin, args...)
-	if _, missing := gone.Load(bin); missing {
-		return "", absent(what, bin)
-	}
-
 	cmd := Command(dir, bin, args...)
 	if english {
 		cmd.Env = append(os.Environ(), "LC_ALL=C")
@@ -48,9 +36,9 @@ func output(dir string, english bool, bin string, args ...string) (string, error
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		what := CommandLine(bin, args...)
 		if errors.Is(err, exec.ErrNotFound) {
-			gone.Store(bin, true)
-			return "", absent(what, bin)
+			return "", fmt.Errorf("%s: %s is not on PATH", what, bin)
 		}
 		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
 			return "", fmt.Errorf("%s: %s", what, msg)
@@ -93,12 +81,3 @@ func CommandLine(bin string, args ...string) string {
 	}
 	return bin + " " + strings.Join(args, " ")
 }
-
-// absent is what a tool the machine does not have refuses with.
-func absent(what, bin string) error {
-	return fmt.Errorf("%s: %s is not on PATH", what, bin)
-}
-
-// Forget drops what this run has found missing, so a tool that has since arrived
-// on PATH is asked again. It is for tests, whose machine changes between cases.
-func Forget() { gone.Clear() }

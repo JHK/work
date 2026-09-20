@@ -1,6 +1,6 @@
 // Package config reads the settings behind the choices work makes on a user's
-// behalf: the user's file, over the compiled-in defaults. It also hands that
-// file to an editor, bringing it into being where it is not there yet.
+// behalf: the user's file, over the compiled-in defaults. It also names that
+// file, whether or not it is there.
 package config
 
 import (
@@ -21,60 +21,27 @@ import (
 type Config struct {
 	Integrations []worktree.IntegrationName
 	Worktree     Worktree
-	Github       Github
 	Beads        Beads
 	Claude       Claude
 }
 
-type Worktree struct {
-	Directory string
-}
-
 const (
-	defaultDirectory   = ".worktrees"
-	defaultTicket      = "{{.ID}}{{with .Slug}}-{{.}}{{end}}"
-	defaultPullRequest = "pr-{{.Number}}"
+	defaultTicket = "{{.ID}}{{with .Slug}}-{{.}}{{end}}"
 
-	dirKey          = "worktree.directory"
-	githubBranchKey = "github.branch"
-	beadsBranchKey  = "beads.branch"
+	dirKey         = "worktree.directory"
+	beadsBranchKey = "beads.branch"
 )
 
-// Dir is where a worktree is created, relative to the repository root. An unset
-// Directory is the default, so a Config that never reached Load still names one.
-func (w Worktree) Dir() string {
-	if w.Directory == "" {
-		return defaultDirectory
-	}
-	return w.Directory
-}
-
-var (
-	defaultGithub = Github{BranchPattern: mustPattern(defaultPullRequest, pullRequestValues)}
-	defaultBeads  = Beads{BranchPattern: mustPattern(defaultTicket, ticketValues)}
-)
+var defaultBeads = Beads{BranchPattern: must("pattern", defaultTicket, parsePattern, (*Pattern).compileMatcher)}
 
 // Default is what an unset key falls back to. The integrations list is left
 // empty, which is every integration off.
 func Default() Config {
 	return Config{
-		Worktree: Worktree{Directory: defaultDirectory},
-		Github:   defaultGithub,
+		Worktree: defaultWorktree,
 		Beads:    defaultBeads,
 		Claude:   defaultClaude,
 	}
-}
-
-// mustPattern binds a compiled-in default, which cannot be at fault.
-func mustPattern(text string, v values) Pattern {
-	p, err := parsePattern(text)
-	if err == nil {
-		err = p.bind(v)
-	}
-	if err != nil {
-		panic(fmt.Sprintf("config: default pattern %q %v", text, err))
-	}
-	return p
 }
 
 // Load reads the file over the defaults, key by key. A file that is not there is
@@ -82,7 +49,7 @@ func mustPattern(text string, v values) Pattern {
 // an unusable value, is.
 func Load() (Config, error) {
 	c := Default()
-	path := userFile()
+	path := UserFile()
 	if path != "" {
 		if err := decode(path, &c); err != nil {
 			return Config{}, err
@@ -94,9 +61,9 @@ func Load() (Config, error) {
 	return c, nil
 }
 
-// userFile is the settings file, named whether or not it is there. A machine
+// UserFile is the settings file, named whether or not it is there. A machine
 // with nowhere to keep it has none, and answers with the empty path.
-func userFile() string {
+func UserFile() string {
 	// Not os.UserConfigDir, which reads XDG_CONFIG_HOME on Unix alone.
 	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
 		return filepath.Join(dir, "work", "config.toml")
@@ -106,13 +73,6 @@ func userFile() string {
 		return ""
 	}
 	return filepath.Join(home, ".config", "work", "config.toml")
-}
-
-// renamed are the names a table used to go by, each with what a file writes
-// instead: the table it became, or the keys a split one's values went to.
-var renamed = map[string]string{
-	"agent":  "[" + string(ClaudeIntegration) + "]",
-	"branch": githubBranchKey + " and " + beadsBranchKey,
 }
 
 // decode reads the file over what the defaults left, leaving every key the file
@@ -127,11 +87,7 @@ func decode(path string, c *Config) error {
 	}
 	// A key nothing decoded is a typo of one that would have, not a value to drop.
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
-		key := undecoded[0]
-		if now, ok := renamed[key[0]]; ok {
-			return fmt.Errorf("%s: the [%s] table is now %s", path, key[0], now)
-		}
-		return fmt.Errorf("%s: unknown setting %s", path, key)
+		return fmt.Errorf("%s: unknown setting %s", path, undecoded[0])
 	}
 	// toml matches a key to a field case-insensitively, so two spellings of one
 	// key would race to set it. Only the documented spelling is that key.
@@ -143,39 +99,21 @@ func decode(path string, c *Config) error {
 	return nil
 }
 
-// validate names the key work cannot use the value of, and why. It also binds
-// each pattern to the values its key has.
+// validate names the key work cannot use the value of, and why. It also
+// compiles the matcher of the tracker's pattern.
 func (c *Config) validate() (string, error) {
 	if err := c.validateIntegrations(); err != nil {
 		return integrationsKey, err
 	}
 	c.Integrations = c.switchedOn()
-	if err := c.Github.BranchPattern.bind(pullRequestValues); err != nil {
-		return githubBranchKey, err
-	}
-	if err := c.Beads.BranchPattern.bind(ticketValues); err != nil {
+	if err := c.Beads.BranchPattern.compileMatcher(); err != nil {
 		return beadsBranchKey, err
 	}
-
-	if key, err := c.Claude.validate(); err != nil {
-		return key, err
+	if err := c.Claude.validate(); err != nil {
+		return commandKey, err
 	}
-
 	if err := c.Worktree.validate(); err != nil {
 		return dirKey, err
 	}
 	return "", nil
-}
-
-// validate refuses a directory no worktree may be made in. A worktree needs one
-// of its own inside the repository, so that a single entry ignores them all.
-func (w Worktree) validate() error {
-	dir := w.Directory
-	if !filepath.IsLocal(dir) || filepath.Clean(dir) == "." {
-		return fmt.Errorf("%q is not a directory inside the repository", dir)
-	}
-	if top, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(dir)), "/"); top == ".git" {
-		return fmt.Errorf("%q is inside git's own directory", dir)
-	}
-	return nil
 }

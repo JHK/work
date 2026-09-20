@@ -2,18 +2,11 @@ package cli
 
 import (
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
-	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/testenv"
-	"github.com/stretchr/testify/require"
 )
-
-// creatingVerbs are the verbs that can bring a worktree into being, sorted as a
-// settings file is read against.
-var creatingVerbs = []string{"add", "carry", "go"}
 
 // The root's three and --force on the verb that uses it are the whole of the
 // command line's flags. Nothing spells one on the root beyond those, which the
@@ -62,40 +55,6 @@ func (s *session) prints(args ...string) []string {
 		flags = append(flags, m[1])
 	}
 	return flags
-}
-
-// The verbs claude.on-creation is read against are the verbs the command line
-// carries, and the ones it may name are the ones a worktree comes into being
-// under. Nothing in the compiler holds the two spellings together.
-func TestTheSettingsKnowEveryVerbTheCommandLineCarries(t *testing.T) {
-	s := repository(t)
-
-	// Cobra's own help command is no verb work declares.
-	listed := slices.DeleteFunc(s.available(), func(verb string) bool { return verb == "help" })
-
-	testenv.Equal(t, listed, slices.Sorted(slices.Values(config.Verbs())),
-		"the settings read claude.on-creation against other verbs than work --help lists")
-	testenv.Equal(t, creatingVerbs, slices.Sorted(slices.Values(config.Creating())),
-		"the settings let claude.on-creation name other verbs than the ones that create a worktree")
-}
-
-// available is the verbs work --help lists, which is the one place a reader is
-// given the set.
-func (s *session) available() []string {
-	s.t.Helper()
-	r := s.run("--help")
-	r.came(s.t, result{}, besides("Out"))
-	_, listing, ok := strings.Cut(r.Out, "Available Commands:\n")
-	require.True(s.t, ok, "work --help lists no commands")
-	block, _, _ := strings.Cut(listing, "\n\n")
-
-	var verbs []string
-	for line := range strings.SplitSeq(block, "\n") {
-		if words := strings.Fields(line); len(words) > 0 {
-			verbs = append(verbs, words[0])
-		}
-	}
-	return verbs
 }
 
 // A word the command line does not take is refused rather than read as something

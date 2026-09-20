@@ -6,10 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
-
-	"golang.org/x/term"
 )
 
 // CDFile is the environment variable the shim names its file in.
@@ -26,30 +23,14 @@ var Fish string
 //go:embed work.bash
 var Bash string
 
-// advice is the line a terminal reading the path is given.
-const advice = "the shell integration is not sourced, so your shell stays where it is; see work init --help"
-
 // Answer hands the worktree back: into the file the shim named, else onto
-// stdout, with one warning naming work init where a terminal is reading that
-// path.
-func Answer(dir string, stdout io.Writer) error {
+// stdout, and reports which.
+func Answer(dir string, stdout io.Writer) (bool, error) {
 	if file := os.Getenv(CDFile); file != "" {
-		return os.WriteFile(file, []byte(dir+"\n"), 0o600)
+		return true, os.WriteFile(file, []byte(dir+"\n"), 0o600)
 	}
-	if _, err := fmt.Fprintln(stdout, dir); err != nil {
-		return err
-	}
-	if terminal(stdout) {
-		slog.Warn(advice)
-	}
-	return nil
-}
-
-// terminal reports whether w is the terminal itself rather than a file, a pipe
-// or a device reading the path.
-func terminal(w io.Writer) bool {
-	f, ok := w.(*os.File)
-	return ok && term.IsTerminal(int(f.Fd()))
+	_, err := fmt.Fprintln(stdout, dir)
+	return false, err
 }
 
 // Forget takes the file out of the environment. It names one invocation, so

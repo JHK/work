@@ -23,7 +23,7 @@ func TestAddClaimsTheTicketItMadeAWorktreeFor(t *testing.T) {
 // Over what has no worktree yet: the forge put the row up, and the pull request
 // already worked on is not among the rows.
 func TestAddWithNoIdentifierTakesThePickersRow(t *testing.T) {
-	s := reviewing(t, nil, "",
+	s := reviewing(t, nil,
 		testenv.Stub{Name: "fzf", Says: "0\tpr-7\n"},
 		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"},{"number":8,"title":"Already open"}]`},
@@ -110,7 +110,7 @@ func TestAClaudeSessionIsOpenedOnWhatTheWorktreeWasMadeFor(t *testing.T) {
 
 // An action that throws a refusal away rather than handing it on says it on the
 // log the run carries, which is the only way it reaches the reader. Granting the
-// trust is best effort, so the worktree is still made: internal/action/mise.
+// trust is best effort, so the worktree is still made: internal/integration/mise.
 func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 	s := repository(t)
 	s.settings(integrationsOn("mise"))
@@ -126,7 +126,7 @@ func TestAnActionSaysWhatItThrewAway(t *testing.T) {
 // The claim is the tracker's own places alone: a pull request the forge answered
 // for is another integration's, and bd is left out of it.
 func TestAPlaceAnotherIntegrationAnsweredForIsNotClaimed(t *testing.T) {
-	s := reviewing(t, []string{"beads"}, "", testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
+	s := reviewing(t, []string{"beads"}, testenv.Stub{Name: "bd", Replies: []testenv.Reply{{To: []string{"list"}, Says: "[]"}}})
 
 	r := s.run("add", "7")
 

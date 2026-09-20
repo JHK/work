@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"text/template"
 )
@@ -25,4 +26,25 @@ func (t tmpl) execute(data map[string]any) (string, error) {
 	var b strings.Builder
 	err := t.t.Execute(&b, data)
 	return b.String(), err
+}
+
+// render is what the template comes to, empty where it cannot render.
+func (t tmpl) render(data map[string]any) string {
+	out, err := t.execute(data)
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// must parses a compiled-in default, which cannot be at fault.
+func must[T any](kind, text string, parse func(string) (T, error), check func(*T) error) T {
+	v, err := parse(text)
+	if err == nil {
+		err = check(&v)
+	}
+	if err != nil {
+		panic(fmt.Sprintf("config: default %s %q %v", kind, text, err))
+	}
+	return v
 }

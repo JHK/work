@@ -14,35 +14,39 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this integration goes by, and Binary the CLI it goes through.
-const (
-	Name   = "github"
-	Binary = "gh"
-)
+// binary is the CLI this integration goes through.
+const binary = "gh"
 
 // prURL matches an .../<owner>/<repo>/pull/<n> pull request URL.
 var prURL = regexp.MustCompile(`^(?:[a-z]+://[^/]+/)?[^/\s]+/[^/\s]+/pull/([0-9]+)(?:[/?#].*)?$`)
 
+const branchPrefix = "pr-"
+
+// prBranch matches a branch [branch] names.
+var prBranch = regexp.MustCompile(`^` + regexp.QuoteMeta(branchPrefix) + `([0-9]+)$`)
+
+// branch names the branch a pull request's worktree checks out, which is also
+// the name the pull request is retyped as.
+func branch(number string) worktree.Branch { return worktree.Branch(branchPrefix + number) }
+
 // Resolver answers for the repository's pull requests.
 type Resolver struct {
-	repo     worktree.Repo
-	settings config.Github
+	repo worktree.Repo
 }
 
-// New answers for the repository at repo, naming branches by the forge's own
-// pattern.
-func New(repo worktree.Repo, settings config.Github) Resolver {
-	return Resolver{repo: repo, settings: settings}
+// New answers for the repository at repo.
+func New(repo worktree.Repo) Resolver {
+	return Resolver{repo: repo}
 }
 
-func (Resolver) Name() worktree.IntegrationName { return Name }
+func (Resolver) Name() worktree.IntegrationName { return config.GithubIntegration }
 
 // Icon marks a row that stands for a review.
 func (Resolver) Icon() string { return "⇄" }
 
 // Identify names the pull request behind what the core is holding: an identifier
-// read by [Resolver.read], or a worktree, which is its own only where the branch
-// is one the pattern names itself, so pr-007 does not stand for pr-7's worktree.
+// read by [Resolver.read], or a worktree, which is its own only where [branch]
+// names that branch itself, so pr-007 does not stand for pr-7's worktree.
 func (r Resolver) Identify(id worktree.ID, o worktree.Open) (worktree.Place, error) {
 	if o.None() {
 		return r.read(string(id))
@@ -58,17 +62,17 @@ func notMine(o worktree.Open) error {
 	return fmt.Errorf("%w: no pull request is named by branch %q", worktree.ErrUnknown, o.Branch)
 }
 
-// read makes a place of a bare number, a pull request URL, or a name its own branch
-// pattern could have produced. Anything else is another resolver's.
+// read makes a place of a bare number, a pull request URL, or a name [branch]
+// could have produced. Anything else is another resolver's.
 func (r Resolver) read(arg string) (worktree.Place, error) {
 	n := ""
 	if _, err := strconv.ParseUint(arg, 10, 32); err == nil {
 		n = arg
 	} else if m := prURL.FindStringSubmatch(arg); m != nil {
 		n = m[1]
-	} else if number, ok := r.settings.NumberIn(arg); ok {
+	} else if m := prBranch.FindStringSubmatch(arg); m != nil {
 		// The worktree's own name, so that what the picker shows can be retyped.
-		n = number
+		n = m[1]
 	}
 	if n == "" {
 		return worktree.Place{}, fmt.Errorf("%w: %q is no pull request of ours", worktree.ErrUnknown, arg)
@@ -121,8 +125,8 @@ func (r Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 
 // place names a pull request by the branch its worktree checks out.
 func (r Resolver) place(number, title string) worktree.Place {
-	branch := worktree.Branch(r.settings.Branch(number))
-	return worktree.Place{ID: worktree.ID(number), Name: worktree.Name(branch), Branch: branch, Label: worktree.Label(title)}
+	b := branch(number)
+	return worktree.Place{ID: worktree.ID(number), Name: worktree.Name(b), Branch: b, Label: worktree.Label(title)}
 }
 
 // pull is a pull request as far as work is concerned: the number that names its
@@ -144,6 +148,6 @@ func (r Resolver) pulls() ([]pull, error) {
 	if remote == "" {
 		return nil, nil
 	}
-	return run.JSON[[]pull](string(r.repo), Binary, "pr", "list", "--repo", remote,
+	return run.JSON[[]pull](string(r.repo), binary, "pr", "list", "--repo", remote,
 		"--state", "open", "--limit", prLimit, "--json", "number,title")
 }

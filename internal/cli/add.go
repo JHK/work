@@ -23,17 +23,17 @@ changes along.
 With no identifier, choose among the repository's ready tickets and open pull
 requests that have no worktree yet. That form needs fzf.
 
-The worktree opens on a Claude session where claude.on-creation names add, which
-it does by default. One under a name of your own is handed back, the default
-claude.command naming nothing to run for it.`,
+The worktree opens on a Claude session where the integrations name claude. One
+under a name of your own is handed back, the default claude.command naming
+nothing to run for it.`,
 	}, verb)
 }
 
 // add makes the worktree the identifier asks for and says what it opens on.
-func add(env work.Env, l listing, verb, target string) (worktree.Handoff, error) {
+func add(env work.Env, l listing, target string) (worktree.Handoff, error) {
 	c, err := targeted(env, l, target, env.Add)
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
-	return open(env, verb, c)
+	return env.Enter(c, work.Options{})
 }

@@ -22,26 +22,22 @@ stay put.
 A name that already has a worktree is refused, and so is a checkout carrying
 nothing: work add is what only creates.
 
-The worktree is handed back whatever claude.on-creation names: the default
-claude.command opens no session on a name of your own.`,
+The worktree is handed back: the default claude.command opens no session on a
+name of your own.`,
 		Args: cobra.ExactArgs(1),
 	}, verb)
 }
 
 // carrying puts carry over the repository the shell stands in.
 func (v verbs) carrying() opens {
-	return func(verb, name string) (worktree.Handoff, error) {
-		env, err := v.repository()
-		if err != nil {
-			return worktree.Handoff{}, err
-		}
-		return carry(env, verb, name)
+	return func(name string) (worktree.Handoff, error) {
+		return within(v, func(env work.Env) (worktree.Handoff, error) { return carry(env, name) })
 	}
 }
 
 // carry makes the worktree the name asks for and moves the checkout's working
 // state into it.
-func carry(env work.Env, verb, name string) (worktree.Handoff, error) {
+func carry(env work.Env, name string) (worktree.Handoff, error) {
 	if err := env.Carryable(); err != nil {
 		return worktree.Handoff{}, fmt.Errorf("%w; work add %s makes the worktree and carries nothing", err, name)
 	}
@@ -49,5 +45,5 @@ func carry(env work.Env, verb, name string) (worktree.Handoff, error) {
 	if err != nil {
 		return worktree.Handoff{}, err
 	}
-	return env.Enter(c, work.Options{Verb: verb, Carry: true})
+	return env.Enter(c, work.Options{Carry: true})
 }

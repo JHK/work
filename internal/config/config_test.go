@@ -48,9 +48,8 @@ func TestEveryDeclaredSettingIsDumped(t *testing.T) {
 func TestTheZeroConfigNamesWhatWorkNeeds(t *testing.T) {
 	var c Config
 
-	require.Equal(t, defaultDirectory, c.Worktree.Dir(), "the zero Config puts a worktree in the repository root")
+	require.Equal(t, "/repo/.worktrees", c.Worktree.Dir("/repo"), "the zero Config names no worktree directory")
 	require.Equal(t, "bd-42", c.Beads.Branch("bd-42", ""), "the zero Config names no ticket branch")
-	require.Equal(t, "pr-7", c.Github.Branch("7"), "the zero Config names no pull request branch")
 
 	got, err := c.Claude.Command().Render(worktree.Values{
 		worktree.SourceValue:  "github",

@@ -4,7 +4,7 @@ An integration is what `work` reaches for beyond git: a tracker, a forge, a tool
 
 `work` bundles none of them: what an integration needs, it looks for on `PATH` when it is asked a question. A command that is not there is refused. A refusal reaches stderr once, naming the command that was run and what it answered with.
 
-Each integration takes part at one or both of [the two seams](../explanation/seam-partition.md). `git` and `shell` stand at those seams as the core's own, and no settings file switches them on: `shell` is what a worktree with nothing else to open on is [handed back](cli.md#handoff) by.
+Each integration takes part at one or both of [the two seams](../explanation/seam-partition.md).
 
 ## Resolvers
 
@@ -18,7 +18,17 @@ It also reaches into the action space: creating a ticket's worktree claims that 
 
 #### Vetting
 
-A ticket is vetted before its worktree is created, and one that cannot be worked is refused in a line naming why. `vet` in [internal/resolve/beads/beads.go](../../internal/resolve/beads/beads.go) is what it asks of which type, and the words it refuses in. Workability is [the flow's convention](../explanation/work-loop.md#workability-is-the-trackers-judgement).
+A ticket is vetted before its worktree is created, and one that cannot be worked is refused in a line naming why. Refused, in the order read:
+
+- a ticket already closed
+- a deferred ticket, in words naming `/refine`
+- a ticket in any status but `open` or `in_progress`, named in the refusal
+- a ticket carrying no acceptance criteria, in words naming `/refine`
+- an open ticket the tracker does not list as ready, refused as blocked by an open dependency
+
+An epic is held to the first alone: refining it is what its worktree is for.
+
+Workability is [the flow's convention](../explanation/work-loop.md#workability-is-the-trackers-judgement).
 
 #### Claiming
 
@@ -26,7 +36,7 @@ Creating a ticket's worktree claims it, whatever that worktree opens on.
 
 ### github
 
-The forge, over `gh`, pinned to origin's URL. It reads origin's open pull requests, drafts included, and their titles, for [the picker](cli.md#the-picker) and [the completion](cli.md#completion). A review's worktree checks out the head git fetches from `pull/<n>/head`, so only the listing is `gh`'s. It fills [`.Subject`](#values) with `PR #<n>: <title>`, the number alone where no listing named a title.
+The forge, over `gh`, pinned to origin's URL. It reads origin's open pull requests, drafts included, and their titles, for [the picker](cli.md#the-picker) and [the completion](cli.md#completion). A review's worktree checks out `pr-<n>`, on the head git fetches from `pull/<n>/head`, so only the listing is `gh`'s. It fills [`.Subject`](#values) with `PR #<n>: <title>`, the number alone where no listing named a title.
 
 ## Actions
 
@@ -51,4 +61,6 @@ The tool trust, over `mise`. It runs `mise trust` in a worktree that was just cr
 
 ### claude
 
-The agent, `claude` by default, whatever the [`claude.command`](configuration.md#commands) setting names. A new worktree is handed to it, where [the settings name the verb that created it](configuration.md#opening-on-a-session). It renders that one command over [the values](#values).
+The agent, whatever the [`claude.command`](configuration.md#commands) setting names. It renders that one command over [the values](#values).
+
+A worktree `work` creates is handed to the agent once, as it comes into being. One that was already open is [handed back](cli.md#handoff), and so is one the command renders nothing for.

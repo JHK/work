@@ -1,7 +1,3 @@
-// Package beads resolves the tickets bd knows into places to work: it names the
-// branch a ticket's worktree checks out, says which open worktree is whose,
-// offers the tickets worth starting, refuses one that cannot be worked, and has
-// bd make the worktree. Claiming the ticket is internal/action/beads.
 package beads
 
 import (
@@ -10,13 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/JHK/work-cli/internal/beads"
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/worktree"
 )
-
-// Name is what this integration goes by on both seams.
-const Name = "beads"
 
 // Resolver answers for the repository's beads. It holds the listings it made, so
 // one run asks bd for each of them at most once and the vetting reads the very
@@ -27,23 +20,23 @@ type Resolver struct {
 
 	// allBeads is every bead bd knows, closed ones included; readyBeads is every
 	// bead bd calls unblocked. Each is listed at most once per run.
-	allBeads, readyBeads func() ([]beads.Bead, error)
+	allBeads, readyBeads func() ([]bead, error)
 
-	held sync.Map // worktree.ID -> beads.Bead, the records already in hand
+	held sync.Map // worktree.ID -> bead, the records already in hand
 }
 
-// New answers for the repository at repo, naming branches by the tracker's own
-// pattern.
-func New(repo worktree.Repo, from worktree.Path, settings config.Beads) *Resolver {
+// NewResolver answers for the repository at repo, naming branches by the
+// tracker's own pattern.
+func NewResolver(repo worktree.Repo, from worktree.Path, settings config.Beads) *Resolver {
 	return &Resolver{
 		from:       from,
 		settings:   settings,
-		allBeads:   sync.OnceValues(func() ([]beads.Bead, error) { return beads.All(repo) }),
-		readyBeads: sync.OnceValues(func() ([]beads.Bead, error) { return beads.Ready(repo) }),
+		allBeads:   sync.OnceValues(func() ([]bead, error) { return all(repo) }),
+		readyBeads: sync.OnceValues(func() ([]bead, error) { return ready(repo) }),
 	}
 }
 
-func (r *Resolver) Name() worktree.IntegrationName { return Name }
+func (r *Resolver) Name() worktree.IntegrationName { return config.BeadsIntegration }
 
 // Icon marks a row that stands for a ticket.
 func (r *Resolver) Icon() string { return "◆" }
@@ -72,7 +65,7 @@ func (r *Resolver) byID(id worktree.ID) (worktree.Place, error) {
 }
 
 // place is the bead as a place to work, which its own identifier names.
-func place(b beads.Bead) worktree.Place {
+func place(b bead) worktree.Place {
 	return worktree.Place{ID: b.ID, Name: worktree.Name(b.ID), Label: b.Title}
 }
 
@@ -138,7 +131,8 @@ func (r *Resolver) Prepare(p worktree.Place) (worktree.Place, error) {
 // Create has bd add the worktree, wired to the repository's shared database and
 // forked from what the checkout work was invoked in has at HEAD.
 func (r *Resolver) Create(p worktree.Place, path worktree.Path) error {
-	return beads.CreateWorktree(r.from, path, p.Branch)
+	_, err := run.Output(string(r.from), binary, "worktree", "create", string(path), "--branch", string(p.Branch))
+	return err
 }
 
 // Supply spells out the ticket a worktree was made for.
@@ -151,7 +145,7 @@ func (r *Resolver) Supply(t worktree.Tree) (worktree.Values, error) {
 }
 
 // vet reports why the bead cannot be worked. Only the last rule asks bd anything.
-func (r *Resolver) vet(b beads.Bead) error {
+func (r *Resolver) vet(b bead) error {
 	switch {
 	case b.Status == "closed":
 		return fmt.Errorf("%s is already closed", b.ID)
@@ -190,22 +184,22 @@ func (r *Resolver) workable(id worktree.ID) (bool, error) {
 }
 
 // bead is the record for an id: one already in hand, else the full listing's own.
-func (r *Resolver) bead(id worktree.ID) (beads.Bead, error) {
+func (r *Resolver) bead(id worktree.ID) (bead, error) {
 	if b, ok := r.held.Load(id); ok {
-		return b.(beads.Bead), nil
+		return b.(bead), nil
 	}
 	if b, ok := r.listed(id); ok {
 		return b, nil
 	}
-	return beads.Bead{}, fmt.Errorf("bd names no bead %q", id)
+	return bead{}, fmt.Errorf("bd names no bead %q", id)
 }
 
 // listed is the bead the full listing named, if it named one. A bd that will not
 // list names none.
-func (r *Resolver) listed(id worktree.ID) (beads.Bead, bool) {
+func (r *Resolver) listed(id worktree.ID) (bead, bool) {
 	list, err := r.allBeads()
 	if err != nil {
-		return beads.Bead{}, false
+		return bead{}, false
 	}
 	return find(list, id)
 }
@@ -230,13 +224,13 @@ func (r *Resolver) owner(branch worktree.Branch) worktree.ID {
 	return best
 }
 
-func find(list []beads.Bead, id worktree.ID) (beads.Bead, bool) {
+func find(list []bead, id worktree.ID) (bead, bool) {
 	for _, b := range list {
 		if b.ID == id {
 			return b, true
 		}
 	}
-	return beads.Bead{}, false
+	return bead{}, false
 }
 
 const slugLen = 40

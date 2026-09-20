@@ -7,9 +7,6 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this action goes by, and the table its settings sit in.
-const Name = "claude"
-
 // Session is the agent a worktree opens on.
 type Session struct {
 	command config.Command
@@ -17,7 +14,7 @@ type Session struct {
 
 func New(table config.Claude) Session { return Session{command: table.Command()} }
 
-func (s Session) Name() worktree.IntegrationName { return Name }
+func (s Session) Name() worktree.IntegrationName { return config.ClaudeIntegration }
 
 // OnCreated has nothing to do: the agent is handed a worktree when it opens.
 func (Session) OnCreated(worktree.Tree) error { return nil }

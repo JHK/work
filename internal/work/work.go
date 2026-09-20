@@ -75,9 +75,6 @@ type Action interface {
 type Integrations struct {
 	Resolvers []Resolver
 	Actions   []Action
-
-	// Handback is what a worktree that opens on nothing else is handed back by.
-	Handback Action
 }
 
 // Wiring names the integrations for a repository once its settings are read.
@@ -552,31 +549,7 @@ func (e Env) Addable() ([]Candidate, []error, error) {
 
 // path is where a worktree for a place would be created.
 func (e Env) path(name worktree.Name) worktree.Path {
-	return worktree.Path(filepath.Join(string(e.Repo), e.Config.Worktree.Dir(), string(name)))
-}
-
-// inside refuses a worktree directory leading out of the repository. The setting
-// is read as a path; a symlink standing where it names is not.
-func (e Env) inside() error {
-	dir := e.Config.Worktree.Dir()
-	if contains(string(e.Repo), filepath.Join(string(e.Repo), dir)) {
-		return nil
-	}
-	return fmt.Errorf("%q resolves outside the repository", dir)
-}
-
-// contains reports whether path sits below root once symlinks are resolved. A
-// path not on disk yet cannot lead anywhere, and passes.
-func contains(root, path string) bool {
-	target, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return true
-	}
-	if root, err = filepath.EvalSymlinks(root); err != nil {
-		return true
-	}
-	rel, err := filepath.Rel(root, target)
-	return err == nil && rel != "." && filepath.IsLocal(rel)
+	return worktree.Path(filepath.Join(e.Config.Worktree.Dir(e.Repo), string(name)))
 }
 
 // values are what a command for this worktree renders with: the place the core

@@ -1,4 +1,4 @@
-package work
+package module
 
 import (
 	"slices"
@@ -7,9 +7,6 @@ import (
 
 	"github.com/JHK/work-cli/internal/testenv"
 )
-
-// root is where the module sits, from the directory these tests run in.
-const root = "../.."
 
 // reachable is every package the core may import directly: the vocabulary both
 // sides of the seams speak, git because worktrees are git's, and the settings.
@@ -31,54 +28,55 @@ func TestCoreReachesNothingElse(t *testing.T) {
 	}
 }
 
-// seams are the two trees the implementations live in, as the prefix the
-// packages of each are imported under.
-var seams = []string{
-	testenv.Module + "/internal/action/",
-	testenv.Module + "/internal/resolve/",
+// R8 of docs/rules/package-boundaries.md: every package speaks the vocabulary,
+// so a word reaching one package would carry that package into all of them.
+func TestTheVocabularyReachesNothing(t *testing.T) {
+	for _, path := range testenv.Listed(t, root, "-f", `{{join .Imports "\n"}}`, "./internal/worktree") {
+		if standard(path) {
+			continue
+		}
+		t.Errorf("the vocabulary imports %s; it may reach only the standard library", path)
+	}
 }
+
+// integrations is the tree the integrations live in, as the prefix the packages
+// of each are imported under.
+const integrations = testenv.Module + "/internal/integration/"
 
 // R4 of docs/rules/package-boundaries.md: what one integration does is its own,
 // and an implementation that named another would put the second one's work into
 // the first one's answer.
 func TestNoIntegrationReachesAnother(t *testing.T) {
-	read := map[string]bool{}
-	// Test files are held to the rule too, so all three compilations are read.
+	// The tree is listed rather than the module, so a prefix gone stale is a go list
+	// that fails rather than a rule read over nothing. Test files are held to the
+	// rule too, so all three compilations are read.
 	for _, line := range testenv.Listed(t, root, "-f",
-		`{{.ImportPath}}{{range .Imports}} {{.}}{{end}}{{range .TestImports}} {{.}}{{end}}{{range .XTestImports}} {{.}}{{end}}`, "./...") {
+		`{{.ImportPath}}{{range .Imports}} {{.}}{{end}}{{range .TestImports}} {{.}}{{end}}{{range .XTestImports}} {{.}}{{end}}`,
+		"./internal/integration/...") {
 		paths := strings.Fields(line)
-		seam, from := integration(paths[0])
+		from := integration(paths[0])
 		if from == "" {
 			continue
 		}
-		read[seam] = true
 		for _, imported := range paths[1:] {
-			if _, to := integration(imported); to != "" && to != from {
+			if to := integration(imported); to != "" && to != from {
 				t.Errorf("%s imports %s; an integration reaches no other integration's package", paths[0], imported)
 			}
 		}
 	}
-	// A prefix gone stale matches nothing, which would leave its whole tree
-	// unread and the test passing.
-	for _, seam := range seams {
-		if !read[seam] {
-			t.Errorf("no package sits under %s; the rule was read over nothing there", seam)
-		}
-	}
 }
 
-// integration names the seam an import path sits behind and the integration it
-// belongs to, both empty for a path behind neither. An integration is one
-// directory under a seam, with whatever it holds, so its own packages read as
-// one rather than as peers.
-func integration(path string) (seam, name string) {
-	for _, s := range seams {
-		if rest, ok := strings.CutPrefix(path, s); ok {
-			under, _, _ := strings.Cut(rest, "/")
-			return s, s + under
-		}
+// integration names the integration an import path belongs to, empty for the
+// tree's own root, which is what two or more of them share. An integration is
+// one directory under the tree, with whatever it holds, so its own packages read
+// as one rather than as peers.
+func integration(path string) string {
+	rest, ok := strings.CutPrefix(path, integrations)
+	if !ok {
+		return ""
 	}
-	return "", ""
+	under, _, _ := strings.Cut(rest, "/")
+	return under
 }
 
 // standard reports whether an import path names a standard library package.

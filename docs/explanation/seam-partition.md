@@ -28,14 +28,6 @@ The core is responsible for [that sequence](scope-of-work.md#the-remit-is-the-se
 
 [R3](../rules/package-boundaries.md#r3--the-core-reaches-the-vocabulary-git-and-the-settings) holds the two apart. If the core named one implementation, the two concerns would become one concern. The sequence would then carry a tracker's idea of what a claim is. With the rule in place, you can see the boundary in the imports alone.
 
-## The compiler decided where the shared words go, and the design did not
-
-The core, the two sides of the seams, and the settings share a small vocabulary. It names a place, a worktree that exists, the command that a worktree opens on, and the values that command renders with. A package of its own declares these words. That package imports nothing that imports it.
-
-No part of the partition depends on that position. These words are the core's conditions, and they would sit with the other conditions in the core. But the core imports the settings, and the settings use these words too. They fill a repository's commands with the values that a worktree supplies.
-
-If the core held the words, the core would import a package that imports the core. The compiler refuses this, so the words sit in a leaf package. The position carries no intent.
-
 ## What this does not solve
 
 The design rules out dynamic loading. The compiler resolves the seams, and an integration takes part because the wiring puts it in the binary. An integration also cannot state its position in the chain. The wiring chooses the order, and each integration has to be indifferent to it.

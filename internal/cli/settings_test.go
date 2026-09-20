@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,9 +23,7 @@ func directory(dir string) string {
 var documented = []string{
 	"integrations",
 	"worktree.directory",
-	"github.branch",
 	"beads.branch",
-	"claude.on-creation",
 	"claude.command",
 }
 
@@ -88,8 +85,8 @@ func TestConfigDumpLoadsBack(t *testing.T) {
 		{"the compiled-in defaults", ""},
 		// A quote and a tab survive the printing, the block holding both as written.
 		{"a file naming every key", integrationsOn("claude") + commandBlock("claude", "--name=\"{{.Name}}\"", "a\tb") +
-			"on-creation = [\"carry\"]\n" + directory("trees") +
-			"[github]\nbranch = \"review/{{.Number}}\"\n[beads]\nbranch = \"{{.ID}}\"\n"},
+			directory("{{.Repo}}/trees") +
+			"[beads]\nbranch = \"{{.ID}}\"\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,21 +124,14 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"a value of the wrong type", "[worktree]\ndirectory = 3\n", "directory"},
 		{"a key spelled in another case", "[worktree]\nDirectory = \"trees\"\n", "unknown setting"},
 		{"a table spelled in another case", "[Worktree]\ndirectory = \"trees\"\n", "unknown setting"},
-		{"a directory outside the repository", directory("../trees"), "not a directory inside"},
-		{"an absolute directory", directory("/tmp/trees"), "not a directory inside"},
-		{"the repository root, unnamed", directory(""), "not a directory inside"},
-		{"the repository root, as a dot", directory("."), "not a directory inside"},
-		{"the repository root, with a trailing slash", directory("./"), "not a directory inside"},
-		{"the repository root, by traversal", directory("trees/.."), "not a directory inside"},
-		{"git's own directory", directory(".git"), "git's own directory"},
-		{"a directory under git's own", directory(".git/worktrees"), "git's own directory"},
+		{"a directory that does not parse", directory("{{.Repo"), "worktree.directory"},
+		{"a value the directory does not have", directory("{{.Root}}/trees"), "{{.Repo}}"},
 		{"a pattern that does not parse", "[beads]\nbranch = \"{{.ID\"\n", "beads.branch"},
 		{"a pattern that is not a string", "[beads]\nbranch = 3\n", "branch"},
 		{"a ticket pattern without its id", "[beads]\nbranch = \"feature/{{.Slug}}\"\n", "places no {{.ID}}"},
 		// The pattern places the id, but only where a ticket with no slug would not
 		// reach, and that ticket's branch would then stand for every ticket.
 		{"an id only some tickets reach", "[beads]\nbranch = \"{{with .Slug}}{{$.ID}}-{{.}}{{end}}\"\n", "places no {{.ID}}"},
-		{"a pull request pattern without its number", "[github]\nbranch = \"pr-{{.ID}}\"\n", "{{.Number}}"},
 		{"a branch opening with a dash", "[beads]\nbranch = \"-{{.ID}}\"\n", "dash"},
 		// An integration is switched on by the one integrations list, which is the
 		// only key that names one.
@@ -149,22 +139,6 @@ func TestASettingsFileWorkWillNotRead(t *testing.T) {
 		{"an integration named in another case", "integrations = [\"Beads\"]\n", "is no integration work has"},
 		{"integrations that are not a list", "integrations = \"beads\"\n", "integrations"},
 		{"an integration that is not a string", "integrations = [3]\n", "integrations"},
-		// A file written before a rename is told the new spelling rather than that
-		// what it names is unknown.
-		{"a table under the name it used to go by", "[agent]\ncommand = [\"claude\"]\n", "the [agent] table is now [claude]"},
-		// A branch is named by the integration whose target it is, so a file holding
-		// both under one table is told the two keys they sit under.
-		{"branches in a table of their own", "[branch]\nticket = \"{{.ID}}\"\n",
-			"the [branch] table is now github.branch and beads.branch"},
-		// claude.on-creation names verbs a worktree can come into being under:
-		// docs/references/configuration.md#opening-on-a-session.
-		{"a verb that creates no worktree", agentOn + "on-creation = [\"switch\"]\n", `"switch" creates no worktree`},
-		{"a word no verb goes by", agentOn + "on-creation = [\"launch\"]\n", `"launch" is not a verb`},
-		{"a verb in another case", agentOn + "on-creation = [\"Add\"]\n", `"Add" is not a verb`},
-		{"a verb spelled as its flag", agentOn + "on-creation = [\"--add\"]\n", `"--add" is not a verb`},
-		{"a verb naming the agent rather than a verb", agentOn + "on-creation = [\"claude\"]\n", `"claude" is not a verb`},
-		{"verbs that are not a list", agentOn + "on-creation = \"add\"\n", "claude.on-creation"},
-		{"a verb that is not a string", agentOn + "on-creation = [3]\n", "claude.on-creation"},
 		{"a key the agent's table does not have", "[claude]\nstart = [\"claude\"]\n", "unknown setting"},
 		{"a command written as a list", "[claude]\ncommand = [\"claude\"]\n", "claude.command"},
 		{"a command that is not text", "[claude]\ncommand = 3\n", "claude.command"},
@@ -218,27 +192,30 @@ func TestASettingsFileWorkWillNotReadStopsEveryVerb(t *testing.T) {
 	}
 }
 
-// The containment check is not lexical, and belongs to no one directory: a
-// repository is cloned with its symlinks whatever the settings say, and a
-// worktree may not land outside it.
-func TestAWorktreeDirectorySymlinkedOutOfTheRepositoryIsRefused(t *testing.T) {
-	tests := []struct{ name, dir, body string }{
-		{"the compiled-in default", defaultDir, ""},
-		{"a directory the file names", "trees", directory("trees")},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestAWorktreeLandsWhereASymlinkedDirectoryLeads(t *testing.T) {
+	s := repository(t)
+	elsewhere := t.TempDir()
+	require.NoError(t, os.Symlink(elsewhere, defaultDir(s.Repo)), "symlink the worktree directory")
+
+	r := s.run("add", "scratch")
+
+	r.came(t, result{Answered: filepath.Join(resolved(t, elsewhere), "scratch")})
+	require.DirExists(t, filepath.Join(elsewhere, "scratch"), "the worktree is not where the symlink leads")
+}
+
+// Creation answers git's own path, as every other verb does, so one worktree is
+// one place however it was reached:
+// docs/explanation/worktree-identity.md#the-branch-is-the-identity-not-the-path.
+func TestCreatingAWorktreeAnswersThePathEnteringItDoes(t *testing.T) {
+	for _, verb := range []string{"add", "go"} {
+		t.Run(verb, func(t *testing.T) {
 			s := repository(t)
-			outside := t.TempDir()
-			require.NoError(t, os.Symlink(outside, filepath.Join(s.Repo, tt.dir)))
-			if tt.body != "" {
-				s.settings(tt.body)
-			}
+			require.NoError(t, os.Symlink(t.TempDir(), defaultDir(s.Repo)), "symlink the worktree directory")
 
-			r := s.run("add", "scratch")
+			made := s.run(verb, "scratch")
+			entered := s.run("switch", "scratch")
 
-			r.refused(t, "resolves outside")
-			require.NoDirExists(t, filepath.Join(outside, "scratch"), "work wrote outside the repository")
+			require.Equal(t, entered.Answered, made.Answered, "work %s answers what work switch does not", verb)
 		})
 	}
 }
@@ -266,9 +243,9 @@ func TestEachIntegrationIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 		{"the forge lists the pull requests", integrationsOn("github"), []string{pullRequests(hosted), putUp}, nil},
 		{"the tracker lists the tickets", integrationsOn("beads"), []string{listed, vetted, putUp}, []string{listed}},
 		{"the runner trusts a fresh worktree", integrationsOn("mise"), []string{putUp}, []string{"mise trust"}},
-		// Told to open no creation on a session, so what the agent is asked here is what
-		// it is asked at a seam, which is nothing.
-		{"the agent fills neither seam", agentOn + "on-creation = []\n", []string{putUp}, nil},
+		// The default command renders nothing for a name of the user's own, so what the
+		// agent is asked here is what it is asked at a seam, which is nothing.
+		{"the agent fills neither seam", integrationsOn("claude"), []string{putUp}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -288,21 +265,29 @@ func TestEachIntegrationIsReachedOnlyWhereTheListNamesIt(t *testing.T) {
 	}
 }
 
-// The directory the file names, and the compiled-in default where it names none.
+// The directory the file names, wherever on disk it leads.
 func TestWhereAWorktreeLands(t *testing.T) {
-	for _, tt := range []struct{ name, dir string }{
-		{"no file at all", ""},
-		{"the file", "mine"},
-	} {
+	tests := []struct {
+		name  string
+		lands func(s *session) (dir, at string)
+	}{
+		{"a directory under the repository", func(s *session) (string, string) {
+			return "{{.Repo}}/mine", filepath.Join(s.Repo, "mine", "scratch")
+		}},
+		{"a directory outside the repository", func(s *session) (string, string) {
+			outside := s.t.TempDir()
+			return filepath.Join(outside, "trees"), filepath.Join(outside, "trees", "scratch")
+		}},
+	}
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := repository(t)
-			if tt.dir != "" {
-				s.settings(directory(tt.dir))
-			}
+			dir, at := tt.lands(s)
+			s.settings(directory(dir))
 
 			r := s.run("add", "scratch")
 
-			r.came(t, result{Answered: filepath.Join(s.Repo, cmp.Or(tt.dir, defaultDir), "scratch")})
+			r.came(t, result{Answered: at})
 		})
 	}
 }

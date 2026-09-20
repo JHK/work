@@ -3,13 +3,11 @@
 package wiring
 
 import (
-	actionbeads "github.com/JHK/work-cli/internal/action/beads"
-	"github.com/JHK/work-cli/internal/action/claude"
-	"github.com/JHK/work-cli/internal/action/mise"
-	"github.com/JHK/work-cli/internal/action/shell"
 	"github.com/JHK/work-cli/internal/config"
-	resolvebeads "github.com/JHK/work-cli/internal/resolve/beads"
-	"github.com/JHK/work-cli/internal/resolve/github"
+	"github.com/JHK/work-cli/internal/integration/beads"
+	"github.com/JHK/work-cli/internal/integration/claude"
+	"github.com/JHK/work-cli/internal/integration/github"
+	"github.com/JHK/work-cli/internal/integration/mise"
 	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
 )
@@ -20,7 +18,6 @@ func Wire(repo worktree.Repo, checkout worktree.Path, cfg config.Config) work.In
 	return work.Integrations{
 		Resolvers: resolving(repo, checkout, cfg),
 		Actions:   acting(repo, cfg),
-		Handback:  shell.Handback{},
 	}
 }
 
@@ -31,10 +28,10 @@ func resolving(repo worktree.Repo, checkout worktree.Path, cfg config.Config) []
 	// A bare number is a pull request and every other name is a possible ticket id,
 	// so the forge is asked ahead of the tracker.
 	if cfg.On(config.GithubIntegration) {
-		chain = append(chain, github.New(repo, cfg.Github))
+		chain = append(chain, github.New(repo))
 	}
 	if cfg.On(config.BeadsIntegration) {
-		chain = append(chain, resolvebeads.New(repo, checkout, cfg.Beads))
+		chain = append(chain, beads.NewResolver(repo, checkout, cfg.Beads))
 	}
 	return chain
 }
@@ -46,7 +43,7 @@ func acting(repo worktree.Repo, cfg config.Config) []work.Action {
 	var run []work.Action
 
 	if cfg.On(config.BeadsIntegration) {
-		run = append(run, actionbeads.New(repo))
+		run = append(run, beads.NewClaim(repo))
 	}
 	if cfg.On(config.MiseIntegration) {
 		run = append(run, mise.Trust{})

@@ -8,32 +8,15 @@ import (
 	"strings"
 )
 
-// Github is the forge's table: how a pull request's branch is named.
-type Github struct {
-	BranchPattern Pattern `toml:"branch"`
-}
-
 // Beads is the tracker's table: how a ticket's branch is named.
 type Beads struct {
 	BranchPattern Pattern `toml:"branch"`
 }
 
-// Branch names the branch a pull request's worktree checks out, which is also
-// the name the pull request is retyped as.
-func (g Github) Branch(number string) string {
-	return g.pattern().render(pullRequestValues.with(number, ""))
-}
-
-// NumberIn reads the pull request a branch is named for. The digits are what the
-// branch spells; canonicalising them is the caller's.
-func (g Github) NumberIn(branch string) (string, bool) {
-	return g.pattern().capture(branch)
-}
-
 // Branch names the branch a ticket's worktree checks out. slug is the title
 // slugged, empty for a title that slugs to nothing.
 func (b Beads) Branch(id, slug string) string {
-	return b.pattern().render(ticketValues.with(id, slug))
+	return b.pattern().tmpl.render(ticketValues(id, slug))
 }
 
 // Owns reports whether a branch is the one a ticket with this id checks out,
@@ -44,55 +27,34 @@ func (b Beads) Owns(id, branch string) bool {
 
 // An unset pattern is the compiled-in one, so a Config that never reached Load
 // still names a branch.
-func (g Github) pattern() Pattern { return g.BranchPattern.or(defaultGithub.BranchPattern) }
-func (b Beads) pattern() Pattern  { return b.BranchPattern.or(defaultBeads.BranchPattern) }
+func (b Beads) pattern() Pattern { return b.BranchPattern.or(defaultBeads.BranchPattern) }
 
-// Pattern is a [text/template] naming a branch. Rendered with a target's values
-// it names that target's branch; matched against a branch with the identifier
+// Pattern is a [text/template] naming a branch. Rendered with a ticket's id and
+// slug it names that ticket's branch; matched against a branch with the id
 // filled in and the rest wildcarded, it says whether that branch is that
-// target's.
+// ticket's.
 type Pattern struct {
 	tmpl tmpl
 
-	// matcher is the rendered pattern, every literal quoted, the identifier a mark,
-	// one alternative per state of the optional value; numberIn compiles it for digits.
-	matcher  string
-	numberIn *regexp.Regexp
+	// matcher is the rendered pattern, every literal quoted, the id a mark, one
+	// alternative per state of the slug.
+	matcher string
 }
 
-// values are what one key's pattern renders with: the value naming the target,
-// which the pattern has to place, and the one a target may not have.
-type values struct {
-	idName       string
-	optionalName string // empty where the key has none
-	numbered     bool   // the identifier is digits, and reads back out of a branch
-	list         string // how the values read in a refusal
-}
+// ticketValues is the data one render is given: the id, which the pattern has to
+// place, and the slug, which a ticket may not have.
+func ticketValues(id, slug string) map[string]any { return map[string]any{"ID": id, "Slug": slug} }
 
-var (
-	ticketValues      = values{idName: "ID", optionalName: "Slug", list: "{{.ID}} and {{.Slug}}"}
-	pullRequestValues = values{idName: "Number", numbered: true, list: "{{.Number}}"}
-)
-
-// with is the data one render is given.
-func (v values) with(id, optional string) map[string]any {
-	data := map[string]any{v.idName: id}
-	if v.optionalName != "" {
-		data[v.optionalName] = optional
-	}
-	return data
-}
-
-// The marks stand for a value inside a rendered arm: the identifier, and
-// anything else. Branch names carry neither, and [regexp.QuoteMeta] leaves both
-// alone, so what surrounds a mark is literal.
+// The marks stand for a value inside a rendered arm: the id, and anything else.
+// Branch names carry neither, and [regexp.QuoteMeta] leaves both alone, so what
+// surrounds a mark is literal.
 const (
 	idMark  = "\x00"
 	anyMark = "\x01"
 )
 
-// UnmarshalText reads one pattern out of a settings file. bind judges the values
-// later.
+// UnmarshalText reads one pattern out of a settings file. compileMatcher judges
+// the values later.
 func (p *Pattern) UnmarshalText(text []byte) error {
 	q, err := parsePattern(string(text))
 	*p = q
@@ -111,51 +73,36 @@ func parsePattern(text string) (Pattern, error) {
 	return Pattern{tmpl: t}, nil
 }
 
-// bind ties the pattern to the values its key renders with and settles what it
-// matches as, or reports why it cannot name a branch.
-func (p *Pattern) bind(v values) error {
-	alts, err := p.alternatives(v)
+// compileMatcher settles what the pattern matches as, or reports why it cannot
+// name a branch.
+func (p *Pattern) compileMatcher() error {
+	alts, err := p.arms()
 	if err != nil {
 		return err
 	}
 	p.matcher = `\A(?:` + strings.Join(alts, "|") + `)\z`
-
-	// Nothing but the identifier varies from one match to the next, so a matcher
-	// compiling here compiles at every one of them.
-	numbers, err := regexp.Compile(strings.ReplaceAll(p.matcher, idMark, `([0-9]+)`))
-	if err != nil {
-		return err
-	}
-	if v.numbered {
-		p.numberIn = numbers
-	}
 	return nil
 }
 
-// alternatives is one arm per state of the optional value, every literal quoted
-// and each value left as its mark, or why the pattern names no branch at all.
-func (p Pattern) alternatives(v values) ([]string, error) {
-	// A target without the optional value renders a branch of its own.
-	states := []string{""}
-	if v.optionalName != "" {
-		states = []string{anyMark, ""}
-	}
-
+// arms is one quoted arm per state of the slug, or why the pattern names no
+// branch at all.
+func (p Pattern) arms() ([]string, error) {
 	var alts []string
-	for _, optional := range states {
-		arm, err := p.tmpl.execute(v.with(idMark, optional))
+	// A ticket without a slug renders a branch of its own.
+	for _, slug := range []string{anyMark, ""} {
+		arm, err := p.tmpl.execute(ticketValues(idMark, slug))
 		if err != nil {
-			return nil, fmt.Errorf("%w; the values here are %s", err, v.list)
+			return nil, fmt.Errorf("%w; the values here are {{.ID}} and {{.Slug}}", err)
 		}
-		// A branch is found again by matching it against the pattern with the
-		// identifier filled in, so an arm without one would stand for every target.
+		// A branch is found again by matching it against the pattern with the id
+		// filled in, so an arm without one would stand for every ticket.
 		if !strings.Contains(arm, idMark) {
-			return nil, fmt.Errorf("places no {{.%s}}, so no worktree could be found by it", v.idName)
+			return nil, errors.New("places no {{.ID}}, so no worktree could be found by it")
 		}
 		if strings.HasPrefix(arm, "-") {
 			return nil, errors.New("names a branch opening with a dash, which git reads as a flag")
 		}
-		// A pattern placing no optional value renders the same arm either way.
+		// A pattern placing no slug renders the same arm either way.
 		if alt := strings.ReplaceAll(regexp.QuoteMeta(arm), anyMark, ".+"); !slices.Contains(alts, alt) {
 			alts = append(alts, alt)
 		}
@@ -171,14 +118,6 @@ func (p Pattern) or(def Pattern) Pattern {
 	return p
 }
 
-func (p Pattern) render(data map[string]any) string {
-	branch, err := p.tmpl.execute(data)
-	if err != nil {
-		return ""
-	}
-	return branch
-}
-
 func (p Pattern) owns(id, branch string) bool {
 	// Every branch the pattern names for id spells it out, so most of them are
 	// ruled out without a regexp at all.
@@ -187,15 +126,4 @@ func (p Pattern) owns(id, branch string) bool {
 	}
 	re, err := regexp.Compile(strings.ReplaceAll(p.matcher, idMark, regexp.QuoteMeta(id)))
 	return err == nil && re.MatchString(branch)
-}
-
-func (p Pattern) capture(branch string) (string, bool) {
-	if p.numberIn == nil {
-		return "", false
-	}
-	m := p.numberIn.FindStringSubmatch(branch)
-	if m == nil {
-		return "", false
-	}
-	return m[1], true
 }

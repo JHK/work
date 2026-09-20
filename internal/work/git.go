@@ -2,6 +2,7 @@ package work
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/JHK/work-cli/internal/git"
 	"github.com/JHK/work-cli/internal/worktree"
@@ -53,4 +54,21 @@ func (r gitAlone) Prepare(p worktree.Place) (worktree.Place, error) {
 
 func (r gitAlone) Create(p worktree.Place, path worktree.Path) error {
 	return git.NewWorktree(r.from, path, p.Branch)
+}
+
+// handback is the far-seam action for a worktree that opens on nothing else: it
+// hands the worktree itself back.
+type handback struct{}
+
+func (handback) Name() worktree.IntegrationName { return worktree.GitSource }
+
+func (handback) OnCreated(worktree.Tree) error { return nil }
+
+func (handback) Open(t worktree.Tree) (worktree.Handoff, error) {
+	// Nothing runs in the directory to fail on it, so a worktree git lists but
+	// nobody can enter is refused here or nowhere.
+	if _, err := os.Stat(string(t.Path)); err != nil {
+		return worktree.Handoff{}, err
+	}
+	return worktree.Handoff{Dir: t.Path}, nil
 }

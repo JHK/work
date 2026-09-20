@@ -325,7 +325,7 @@ func TestTheRowsAreTheWorktreesThenWhatHasNoneYet(t *testing.T) {
 // completes the row.
 func TestAnOpenRowTakesTheTitleFromItsOffer(t *testing.T) {
 	put := putsUp(t)
-	s := reviewing(t, nil, "", put.dismisses(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
+	s := reviewing(t, nil, put.dismisses(), testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 		{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"}]`},
 	}})
 	s.openedOn("review", "pr-7")

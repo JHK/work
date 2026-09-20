@@ -9,32 +9,18 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Claude is the agent's table: which verbs open a session on what they create,
-// and the command it runs, read whether or not the integrations list names the
-// agent.
+// Claude is the agent's table: the command it runs, read whether or not the
+// integrations list names the agent.
 type Claude struct {
-	OnCreationVerbs []string `toml:"on-creation"`
-	CommandLine     Command  `toml:"command"`
+	CommandLine Command `toml:"command"`
 }
 
-const (
-	onCreationKey = "claude.on-creation"
-	commandKey    = "claude.command"
-)
+const commandKey = "claude.command"
 
 // Command is the command a fresh worktree opens on.
 func (c Claude) Command() Command { return c.CommandLine.or(defaultClaude.CommandLine) }
 
-// validate names the key work cannot use the value of.
-func (c *Claude) validate() (string, error) {
-	if err := c.validateOnCreation(); err != nil {
-		return onCreationKey, err
-	}
-	if err := c.Command().validate(); err != nil {
-		return commandKey, err
-	}
-	return "", nil
-}
+func (c Claude) validate() error { return c.Command().validate() }
 
 const defaultCommand = `{{if .Subject}}
 claude
@@ -44,7 +30,7 @@ claude
 {{end}}
 `
 
-var defaultClaude = Claude{CommandLine: mustCommand(defaultCommand)}
+var defaultClaude = Claude{CommandLine: must("command", defaultCommand, parseCommand, (*Command).validate)}
 
 // Command is a whole command line: one [text/template] rendered over
 // [worktree.ValueNames], then read a line at a time.
@@ -125,17 +111,6 @@ func shellQuote(s string) string {
 func parseCommand(text string) (Command, error) {
 	t, err := parseTmpl("command", text, commandFuncs)
 	return Command{tmpl: t}, err
-}
-
-func mustCommand(text string) Command {
-	c, err := parseCommand(text)
-	if err == nil {
-		err = c.validate()
-	}
-	if err != nil {
-		panic(fmt.Sprintf("config: default command %q %v", text, err))
-	}
-	return c
 }
 
 // validate renders the block over every value both set and unset, so one that

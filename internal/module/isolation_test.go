@@ -1,4 +1,4 @@
-package testenv_test
+package module
 
 import (
 	"slices"
@@ -7,9 +7,6 @@ import (
 
 	"github.com/JHK/work-cli/internal/testenv"
 )
-
-// root is where the module sits, from the directory a test runs in.
-const root = "../.."
 
 // isolation is the package whose initialisation isolates a process, and so the
 // one a test binary reaching a door has to pull in.
@@ -21,7 +18,7 @@ const isolation = testenv.Module + "/internal/testenv"
 var doors = []string{
 	testenv.Module + "/internal/git",
 	testenv.Module + "/internal/config",
-	testenv.Module + "/internal/action/claude",
+	testenv.Module + "/internal/integration/claude",
 }
 
 // Every package whose test binary reaches a door pulls in testenv, whose

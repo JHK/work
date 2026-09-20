@@ -188,11 +188,11 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 		{"a URL without its host", "o/r/pull/7", "", ""},
 		{"a URL of a page under it", "https://github.com/o/r/pull/7/files", "", ""},
 		{"another pull request's number", "70", "", "pr-70 has no worktree open; work add pr-70 makes one"},
-		// A branch the pattern would have spelled otherwise is nobody's but the
+		// A branch the forge would have spelled otherwise is nobody's but the
 		// worktree's own, so 7 does not reach it.
-		{"a branch the pattern spells otherwise", "7", "pr-007", "pr-7 has no worktree open; work add pr-7 makes one"},
+		{"a branch the forge spells otherwise", "7", "pr-007", "pr-7 has no worktree open; work add pr-7 makes one"},
 		{"a zero", "0", "", `"0" is not a pull request number`},
-		{"a zero under the branch pattern", "pr-0", "", `"pr-0" is not a pull request number`},
+		{"a zero as a branch", "pr-0", "", `"pr-0" is not a pull request number`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,7 +216,7 @@ func TestAPullRequestIsReachedHoweverItIsSpelled(t *testing.T) {
 func TestTheForgeIsAskedAheadOfTheTracker(t *testing.T) {
 	// A ticket the tracker calls 7, which is the spelling the forge reads as its own.
 	numbered := with(doable, func(b *ticket) { b.ID = "7" })
-	s := reviewing(t, []string{"beads"}, "", tracker(tickets(numbered), "[]"))
+	s := reviewing(t, []string{"beads"}, tracker(tickets(numbered), "[]"))
 
 	r := s.run("add", "7")
 
@@ -243,7 +243,7 @@ func TestTheLastResolverMarksTheWorktreeNoIntegrationRecognises(t *testing.T) {
 // A pull request's worktree checks out the head git fetches for it, which is the
 // one question about it the forge is not asked.
 func TestAPullRequestsWorktreeChecksOutTheHeadItFetches(t *testing.T) {
-	s := reviewing(t, nil, "")
+	s := reviewing(t, nil)
 
 	r := s.run("add", "https://github.com/o/r/pull/7")
 
@@ -278,27 +278,12 @@ func TestAPullRequestWithNothingToCheckOutIsRefused(t *testing.T) {
 	require.NoDirExists(t, s.at("pr-7"), "the worktree was made despite the refusal")
 }
 
-// A configured pattern names the branch a pull request's worktree checks out,
-// which is also the name that pull request is retyped as.
-func TestAConfiguredPatternNamesAPullRequestsBranch(t *testing.T) {
-	s := reviewing(t, nil, "[github]\nbranch = \"review-{{.Number}}\"\n")
-
-	made := s.run("add", "7")
-
-	made.came(t, result{Answered: s.at("review-7")})
-	require.True(t, s.hasBranch("review-7"), "the configured pattern did not name the branch on disk")
-
-	again := s.run("switch", "review-7")
-
-	again.came(t, result{Answered: made.Answered})
-}
-
 // The command a fresh worktree opens on is rendered from what the resolver that
 // answered supplied, which for a pull request is its number and title. Nothing
 // of the tracker's own reaches it: the arms naming beads all render to nothing.
 func TestAClaudeSessionIsOpenedOnThePullRequestItWasMadeFor(t *testing.T) {
 	put := putsUp(t)
-	s := reviewing(t, []string{"claude"}, "",
+	s := reviewing(t, []string{"claude"},
 		testenv.Stub{Name: "gh", Replies: []testenv.Reply{
 			{To: []string{"list"}, Says: `[{"number":7,"title":"Review this"}]`},
 		}},
@@ -312,7 +297,7 @@ func TestAClaudeSessionIsOpenedOnThePullRequestItWasMadeFor(t *testing.T) {
 // A pull request the forge was never asked to list carries no title, and the
 // session is named by its number alone.
 func TestAPullRequestWithNoTitleIsNamedByItsNumber(t *testing.T) {
-	s := reviewing(t, []string{"claude"}, "", testenv.Stub{Name: "claude"})
+	s := reviewing(t, []string{"claude"}, testenv.Stub{Name: "claude"})
 
 	r := s.hands("add", "7")
 

@@ -15,13 +15,13 @@ The toolchain versions pinned in `[tools]` are what a fresh checkout resolves to
 
 ## What the coverage total counts
 
-`cover` runs the whole suite, and counts only the packages `go list -deps ./cmd/work` names inside this module. `internal/testenv` is imported by tests alone, so it falls out of that list and out of the total.
+`cover` runs the whole suite, and counts only the packages `go list -deps ./cmd/work` names inside this module. A package imported by tests alone falls out of that list, and out of the total.
 
 The total reads below what the suite reaches, for the reasons in [tests](../gotchas/tests.md#coverage-lost-to-the-handoff-and-the-stand-ins).
 
 ## Version stamping
 
-`build` and `install` share the `[vars]` entry `ldflags`, which stamps `main.version` with `git describe --tags --always --dirty` for [`work --version`](cli.md#commands) to report.
+`build` and `install` share the `[vars]` entry `ldflags`, which stamps the version with `git describe --tags --always --dirty` for [`work --version`](cli.md#commands) to report.
 
 The value is read where the task runs: building inside a worktree describes that worktree.
 

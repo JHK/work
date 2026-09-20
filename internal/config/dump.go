@@ -48,10 +48,8 @@ type key struct {
 func (c Config) keys() []key {
 	return []key{
 		{integrationsKey, c.Integrations},
-		{dirKey, c.Worktree.Dir()},
-		{githubBranchKey, c.Github.pattern().tmpl.text},
+		{dirKey, c.Worktree.directory().text},
 		{beadsBranchKey, c.Beads.pattern().tmpl.text},
-		{onCreationKey, c.Claude.OnCreation()},
 		{commandKey, block(c.Claude.Command().text)},
 	}
 }

@@ -7,9 +7,8 @@ import (
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// These are the names a settings file switches an integration on under, and
-// also the names the implementations answer with. Nothing in the compiler holds
-// the two spellings together.
+// These are the names a settings file switches an integration on under, and the
+// names the implementations answer with.
 const (
 	GithubIntegration worktree.IntegrationName = "github"
 	BeadsIntegration  worktree.IntegrationName = "beads"

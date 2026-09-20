@@ -23,7 +23,7 @@ var errCancelled = errors.New("cancelled")
 // The shape each verb takes once the words are read: an opening verb hands a
 // worktree over, the two that act on one hand back what they did.
 type (
-	opens   = func(verb, target string) (worktree.Handoff, error)
+	opens   = func(target string) (worktree.Handoff, error)
 	removes = func(force bool, target string) (work.Deletion, error)
 	moves   = func(target, dest string) (work.Move, error)
 )
@@ -64,17 +64,33 @@ func (v verbs) repository() (work.Env, error) {
 	return work.Open(".", v.cfg, v.wire)
 }
 
-// performs puts a verb over the repository the shell stands in, and puts the
-// listing it was wired with up for the shell.
-func performs[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B) (R, error)) offering[func(A, B) (R, error)] {
+// within puts one call on the repository the shell stands in, refusing with what
+// the settings or the repository said.
+func within[R any](v verbs, do func(work.Env) (R, error)) (R, error) {
+	env, err := v.repository()
+	if err != nil {
+		var none R
+		return none, err
+	}
+	return do(env)
+}
+
+// performs puts a verb given one word over that repository, and puts the listing
+// it was wired with up for the shell.
+func performs[A, R any](v verbs, l listing, verb func(work.Env, listing, A) (R, error)) offering[func(A) (R, error)] {
+	return offering[func(A) (R, error)]{
+		run: func(a A) (R, error) {
+			return within(v, func(env work.Env) (R, error) { return verb(env, warning(l), a) })
+		},
+		list: v.offers(l),
+	}
+}
+
+// performsBoth is [performs] for a verb given two words.
+func performsBoth[A, B, R any](v verbs, l listing, verb func(work.Env, listing, A, B) (R, error)) offering[func(A, B) (R, error)] {
 	return offering[func(A, B) (R, error)]{
 		run: func(a A, b B) (R, error) {
-			env, err := v.repository()
-			if err != nil {
-				var none R
-				return none, err
-			}
-			return verb(env, warning(l), a, b)
+			return within(v, func(env work.Env) (R, error) { return verb(env, warning(l), a, b) })
 		},
 		list: v.offers(l),
 	}
@@ -101,8 +117,8 @@ func fronting(v verbs) front {
 		enter:    performs(v, enterable, enter),
 		add:      performs(v, addable, add),
 		carry:    v.carrying(),
-		remove:   performs(v, removable, remove),
-		move:     performs(v, movable, move),
+		remove:   performsBoth(v, removable, remove),
+		move:     performsBoth(v, movable, move),
 		dump:     v.dumping,
 		edit:     edit,
 		branches: v.branches,
@@ -181,12 +197,10 @@ func opening(cmd *cobra.Command, offer offering[opens]) *cobra.Command {
 	return handing(cmd, offer.run)
 }
 
-// handing wires the one handoff a verb that opens something ends on. The verb is
-// read off the command that ran, which is what settles what a creation opens on.
+// handing wires the one handoff a verb that opens something ends on.
 func handing(cmd *cobra.Command, run opens) *cobra.Command {
-	// Cobra runs RunE with the command it hangs on, so the one name serves both.
 	cmd.RunE = func(_ *cobra.Command, args []string) error {
-		h, err := run(cmd.Name(), arg(args, 0))
+		h, err := run(arg(args, 0))
 		if err != nil {
 			return err
 		}

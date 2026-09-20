@@ -46,7 +46,7 @@ func TestMoveReadsTheDestination(t *testing.T) {
 			s := repository(t)
 			from := s.opened("scratch")
 			// A relative destination is read from here, never from the worktree.
-			s.Dir = filepath.Join(s.Repo, defaultDir)
+			s.Dir = defaultDir(s.Repo)
 
 			r := s.run("move", "scratch", tt.dest)
 

@@ -99,6 +99,10 @@ func tools(said []string) []string {
 	return out
 }
 
+// defaultDirSetting is the compiled-in worktree.directory as a settings file
+// spells it, which no case may derive from the code.
+const defaultDirSetting = "{{.Repo}}/.worktrees"
+
 // What a reader would otherwise guess at rides the debug record as values rather
 // than being written into its sentence, spelled as work config dump spells them.
 func TestDebugNamesWhatWorkRead(t *testing.T) {
@@ -117,7 +121,7 @@ func TestDebugNamesWhatWorkRead(t *testing.T) {
 
 			require.Equal(t, s.Repo, r.under("work opened a repository")["repository"], "debug named no repository")
 			force := r.under("the settings in force")
-			require.Equal(t, defaultDir, force["worktree.directory"], "debug named no worktree directory")
+			require.Equal(t, defaultDirSetting, force["worktree.directory"], "debug named no worktree directory")
 			require.Equal(t, `["beads"]`, force["integrations"], "debug named no tracker in force")
 		})
 	}

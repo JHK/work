@@ -80,7 +80,7 @@ The main checkout cannot be moved, and neither can the worktree the shell is sta
 
 ### config
 
-`work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back. [Patterns and commands](configuration.md#branch-patterns) print as they are written, rendering one needing a target.
+`work config dump` prints what the [settings](configuration.md) resolved to, as TOML work loads back. A template prints as it is written, rendering one needing a repository or a target.
 
 A configuration work would refuse to load is refused here too, with nothing printed.
 
@@ -97,7 +97,7 @@ Where neither variable names an editor, the invocation is refused before anythin
 | `feature/x` | the worktree already open under that name, ahead of everything below |
 | `bd-42` | that bead, for an id [the tracker](integrations.md#beads) lists |
 | `7`, `007` | pull request 7 |
-| [`pr-7`](configuration.md) | pull request 7, so a worktree name can be retyped |
+| [`pr-7`](integrations.md#github) | pull request 7, so a worktree name can be retyped |
 | `https://host/owner/repo/pull/7`, with any trailing path | pull request 7 |
 
 A URL contributes its number, and the number is read against the current repository.
@@ -151,15 +151,13 @@ In bash the completion needs the `bash-completion` package sourced, cobra's scri
 
 ## Handoff
 
-`work` changes into the worktree and execs [the command it opens on](configuration.md#opening-on-a-session), so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
+`work` changes into the worktree and execs [the command it opens on](configuration.md#commands), so the calling shell keeps its own directory. [`config edit`](#config) hands over the same way, into the directory its file sits in.
 
 Every other worktree is handed back: the path goes into the file [the function](#the-function) named, or onto stdout where nothing named one. A terminal reading that path is told on stderr, in one line naming [`work init`](#init), that [the function](#the-function) is not sourced; the invocation still exits 0.
 
 A dismissed list exits 1 silently.
 
 [`remove`](#remove), [`move`](#move), [`list`](#list) and [`config dump`](#config) hand over to nothing: what went, what moved and what its branch became, what is open, and the configuration are printed on stdout.
-
-Which command each path runs is the actions under `internal/action/`, `config edit` naming its own in `internal/config/`; replacing the process with it is `internal/worktree/`, and the function and the file it names are `internal/shim/`.
 
 ### The function
 

@@ -12,8 +12,7 @@ import (
 // Options are the choices a front end makes on the way in, beyond the place
 // itself.
 type Options struct {
-	Verb  string // the verb typed, which is what settles what a creation opens on
-	Carry bool   // the invoking checkout's working state moves into a worktree just made
+	Carry bool // the invoking checkout's working state moves into a worktree just made
 }
 
 // Enter takes a place to work through to the handoff, preparing, creating and
@@ -47,11 +46,7 @@ func (e Env) Enter(c Candidate, o Options) (worktree.Handoff, error) {
 		}
 	}
 
-	action, err := e.openingAction(c, o)
-	if err != nil {
-		return worktree.Handoff{}, err
-	}
-	return action.Open(t)
+	return e.openingAction(c).Open(t)
 }
 
 // create is the worktree a candidate has, made where it has none, and whether
@@ -70,9 +65,6 @@ func (e Env) create(c Candidate, carry bool) (worktree.Tree, bool, error) {
 	if err := checkName(t.Name); err != nil {
 		return worktree.Tree{}, false, err
 	}
-	if err := e.inside(); err != nil {
-		return worktree.Tree{}, false, err
-	}
 	t.Path, t.Created = e.path(t.Name), true
 	if err := git.Vacant(t.Path); err != nil {
 		return worktree.Tree{}, false, err
@@ -83,7 +75,25 @@ func (e Env) create(c Candidate, carry bool) (worktree.Tree, bool, error) {
 	if err := c.by.Create(t.Place, t.Path); err != nil {
 		return worktree.Tree{}, false, err
 	}
+	if t.Path, err = e.made(t.Path); err != nil {
+		return worktree.Tree{}, false, err
+	}
 	return t, carrying, nil
+}
+
+// made is what git reports for the worktree just created at path, which is what
+// every other verb answers with.
+func (e Env) made(path worktree.Path) (worktree.Path, error) {
+	list, err := e.listing()
+	if err != nil {
+		return "", err
+	}
+	for _, w := range list {
+		if git.SameDir(w.Path, path) {
+			return w.Path, nil
+		}
+	}
+	return "", fmt.Errorf("git lists no worktree at %s", path)
 }
 
 // Carryable is why the checkout work was invoked in has nothing to hand over: it
@@ -117,20 +127,23 @@ func (e Env) carry(to worktree.Path) error {
 	return nil
 }
 
-// openingAction is what the run opens on. The settings send a creation to the
-// agent only where the agent is wired, so the lookup answers.
-func (e Env) openingAction(c Candidate, o Options) (Action, error) {
-	if !c.Open && e.Config.OpensOnCreation(o.Verb) {
-		return e.actionNamed(config.ClaudeIntegration)
-	}
-	return e.Integrations.Handback, nil
-}
-
-func (e Env) actionNamed(name worktree.IntegrationName) (Action, error) {
-	for _, a := range e.Integrations.Actions {
-		if a.Name() == name {
-			return a, nil
+// openingAction is what the run opens on.
+func (e Env) openingAction(c Candidate) Action {
+	if !c.Open {
+		if a, wired := e.actionNamed(config.ClaudeIntegration); wired {
+			return a
 		}
 	}
-	return nil, fmt.Errorf("nothing here goes by the action %q", name)
+	return handback{}
+}
+
+// actionNamed is the action that goes by that name, and whether the wiring holds
+// one at all.
+func (e Env) actionNamed(name worktree.IntegrationName) (Action, bool) {
+	for _, a := range e.Integrations.Actions {
+		if a.Name() == name {
+			return a, true
+		}
+	}
+	return nil, false
 }

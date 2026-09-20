@@ -70,8 +70,7 @@ func TestTheSettingsSpellEverySourceAResolverAnswersWith(t *testing.T) {
 }
 
 // everyIntegration is the settings of a machine that named every integration,
-// read the way work reads them. Nothing holds the name internal/config spells
-// and the name the implementation goes by together, so this names both.
+// read the way work reads them.
 func everyIntegration(t *testing.T) config.Config {
 	t.Helper()
 	var quoted []string
@@ -93,8 +92,7 @@ func load(t *testing.T) config.Config {
 
 // wired is every integration a wiring holds, under the names they go by.
 func wired(integrations work.Integrations) []worktree.IntegrationName {
-	return append(slices.Concat(names(integrations.Resolvers), names(integrations.Actions)),
-		integrations.Handback.Name())
+	return slices.Concat(names(integrations.Resolvers), names(integrations.Actions))
 }
 
 func names[T worktree.Integration](integrations []T) []worktree.IntegrationName {

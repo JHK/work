@@ -5,17 +5,15 @@ package mise
 import (
 	"log/slog"
 
+	"github.com/JHK/work-cli/internal/config"
 	"github.com/JHK/work-cli/internal/run"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
-// Name is what this action goes by.
-const Name = "mise"
-
 // Trust marks a fresh worktree's mise configs as trusted.
 type Trust struct{}
 
-func (Trust) Name() worktree.IntegrationName { return Name }
+func (Trust) Name() worktree.IntegrationName { return config.MiseIntegration }
 
 // OnCreated lets mise find the configs itself. Best effort: a grant that fails
 // only means the session prompts, never the worktree just made.

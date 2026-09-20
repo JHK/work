@@ -56,10 +56,6 @@ type Reply struct {
 // naming a Shell needs anything else on PATH.
 func Stubs(t *testing.T, stubs ...Stub) func() []string {
 	t.Helper()
-	// A tool an earlier case found missing is out for the rest of the process, which
-	// would leave the stand-ins put here unasked.
-	run.Forget()
-	t.Cleanup(run.Forget)
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatalf("find the test binary: %v", err)

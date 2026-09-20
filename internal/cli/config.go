@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/JHK/work-cli/internal/config"
+	"github.com/JHK/work-cli/internal/worktree"
 )
 
 // configCommand is the verb that answers for the settings. It runs nothing
@@ -70,12 +75,43 @@ anything is created.`,
 	}
 }
 
-// edit opens the settings file in the editor the environment names. It asks git
-// nothing.
+// edit opens the settings file in an editor, $VISUAL else $EDITOR, creating the
+// file and its directory. Every refusal comes first. It asks git nothing.
 func edit(stdout io.Writer) error {
-	h, err := config.Edit()
+	editor, err := namedEditor()
 	if err != nil {
 		return err
 	}
-	return hand(h, stdout)
+	path := config.UserFile()
+	if path == "" {
+		return errors.New("this machine names neither $XDG_CONFIG_HOME nor a home directory, so there is nowhere to keep your settings")
+	}
+	if err := ensureSettingsFile(path); err != nil {
+		return err
+	}
+	return hand(worktree.Handoff{Dir: worktree.Path(filepath.Dir(path)), Run: append(editor, path)}, stdout)
+}
+
+// namedEditor is the editor the environment names, with the flags it carries.
+func namedEditor() ([]string, error) {
+	editor := strings.Fields(os.Getenv("VISUAL"))
+	if len(editor) == 0 {
+		editor = strings.Fields(os.Getenv("EDITOR"))
+	}
+	if len(editor) == 0 {
+		return nil, errors.New("neither $VISUAL nor $EDITOR names an editor to open your settings in")
+	}
+	return editor, nil
+}
+
+// ensureSettingsFile brings an empty settings file into being.
+func ensureSettingsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }

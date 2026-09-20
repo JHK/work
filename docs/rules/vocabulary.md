@@ -1,6 +1,6 @@
 # The vocabulary
 
-What holds the shared words apart. What each word means is its doc comment in [`internal/worktree/`](../../internal/worktree/), and why they sit in a package of their own is [the partition behind the seams](../explanation/seam-partition.md#the-compiler-decided-where-the-shared-words-go-and-the-design-did-not).
+What holds the shared words apart. What each word means is its doc comment in [`internal/worktree/`](../../internal/worktree/).
 
 ## R7 — A word of the vocabulary cannot stand in for another
 

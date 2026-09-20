@@ -14,12 +14,10 @@ import (
 // stderr landing in the completions it is drawing.
 func (v verbs) offers(l listing) func() ([]work.Candidate, error) {
 	return func() ([]work.Candidate, error) {
-		env, err := v.repository()
-		if err != nil {
-			return nil, err
-		}
-		rows, _, err := l.rows(env)
-		return rows, err
+		return within(v, func(env work.Env) ([]work.Candidate, error) {
+			rows, _, err := l.rows(env)
+			return rows, err
+		})
 	}
 }
 

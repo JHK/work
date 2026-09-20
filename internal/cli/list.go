@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JHK/work-cli/internal/work"
 	"github.com/JHK/work-cli/internal/worktree"
 )
 
@@ -32,9 +33,5 @@ out, or its directory where it has none.`,
 }
 
 func (v verbs) branches() ([]worktree.Name, error) {
-	env, err := v.repository()
-	if err != nil {
-		return nil, err
-	}
-	return env.Branches()
+	return within(v, work.Env.Branches)
 }

@@ -43,8 +43,8 @@ const stubVersion = "v0.0.0-test"
 // tree it builds are compiled by the one toolchain.
 var versionLine = "work version " + stubVersion + " (" + runtime.Version() + ")\n"
 
-// defaultDir is where worktrees go with nothing configured.
-var defaultDir = config.Default().Worktree.Dir()
+// defaultDir is where that repository's worktrees go with nothing configured.
+func defaultDir(repo string) string { return config.Default().Worktree.Dir(worktree.Repo(repo)) }
 
 // underTest is the first word a child of the test binary runs work under. It
 // sits in the argument list rather than the environment, which whatever the
@@ -383,18 +383,12 @@ func integrationsOn(integrations ...string) string {
 	return "integrations = [\"" + strings.Join(integrations, "\", \"") + "\"]\n"
 }
 
-// claudeTable opens the agent's table, so the keys a case writes beside it land
-// in [claude]. agentOn is the agent in force with that table open.
-const claudeTable = "[claude]\n"
-
-var agentOn = integrationsOn("claude") + claudeTable
-
 // quotes open and close the TOML multiline literal string a command is written
 // as, and commandBlock is one, the lines given as they stand between them.
 const quotes = "'''"
 
 func commandBlock(lines ...string) string {
-	return claudeTable + "command = " + quotes + "\n" + strings.Join(lines, "\n") + "\n" + quotes + "\n"
+	return "[claude]\ncommand = " + quotes + "\n" + strings.Join(lines, "\n") + "\n" + quotes + "\n"
 }
 
 // ticketSessionOn is the compiled-in claude.command as a stand-in records it for
@@ -462,22 +456,21 @@ const reviewHead = "the pull request's head"
 
 // reviewing stands a shell in a repository whose forge is on and whose origin
 // holds the head of pull request 7, which is what its worktree checks out. also
-// are the integrations a case asks for besides the forge, and body the tables it
-// writes.
-func reviewing(t *testing.T, also []string, body string, answering ...testenv.Stub) *session {
+// are the integrations a case asks for besides the forge.
+func reviewing(t *testing.T, also []string, answering ...testenv.Stub) *session {
 	t.Helper()
 	s := repository(t, answering...)
 	s.Origin = testenv.InitRepo(t)
 	testenv.Git(t, s.Origin, "commit", "--allow-empty", "-m", reviewHead)
 	testenv.Git(t, s.Origin, "update-ref", "refs/pull/7/head", "HEAD")
 	testenv.Git(t, s.Repo, "remote", "add", "origin", s.Origin)
-	s.settings(integrationsOn(append([]string{"github"}, also...)...) + body)
+	s.settings(integrationsOn(append([]string{"github"}, also...)...))
 	return s
 }
 
 // at is where a worktree of that name lands, which is what a case reads what a
 // run answered against.
-func (s *session) at(name string) string { return filepath.Join(s.Repo, defaultDir, name) }
+func (s *session) at(name string) string { return filepath.Join(defaultDir(s.Repo), name) }
 
 // opened puts a worktree in the session's repository, on a branch spelled as its
 // name.
@@ -509,13 +502,22 @@ func (s *session) settings(body string) string {
 	return testenv.Settings(s.t, body)
 }
 
+// ignores is the worktree directory as a .gitignore entry, which is a path
+// relative to the repository.
+func (s *session) ignores() string {
+	s.t.Helper()
+	rel, err := filepath.Rel(s.Repo, defaultDir(s.Repo))
+	require.NoError(s.t, err, "the worktree directory is not under the repository")
+	return rel + "/"
+}
+
 // dirty puts one of each sort of change in the checkout the shell stands in:
 // staged, unstaged, untracked and ignored. The worktree directory is ignored, as
 // a repository does.
 func (s *session) dirty() {
 	s.t.Helper()
 	testenv.Write(s.t, filepath.Join(s.Dir, "tracked"), "as committed")
-	testenv.Write(s.t, filepath.Join(s.Dir, ".gitignore"), "ignored\n"+defaultDir+"/\n")
+	testenv.Write(s.t, filepath.Join(s.Dir, ".gitignore"), "ignored\n"+s.ignores())
 	testenv.Git(s.t, s.Dir, "add", "tracked", ".gitignore")
 	testenv.Git(s.t, s.Dir, "commit", "-m", "a file to change")
 
