@@ -19,3 +19,5 @@ The binaries are static (`CGO_ENABLED=0`) and stripped.
 ## Pins
 
 The workflow follows the latest release within a major version: each action by its major tag, goreleaser by `~> v2`. To hold back a release that breaks, pin its exact version. Go comes from `[tools]` in [mise.toml](../../mise.toml), and `work --version` reports that toolchain.
+
+Renovate keeps the pins current, configured in [renovate.json](../../renovate.json). Once a week it opens one PR per group: Go, the Go modules, the actions, and the other tools in `[tools]`. The Go PR moves `mise.toml` and the `go` line of `go.mod` together.
