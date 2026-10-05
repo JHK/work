@@ -1,0 +1,24 @@
+# Release archives for a v* tag; .github/workflows/release.yml runs it.
+version: 2
+
+project_name: work
+
+builds:
+  - main: ./cmd/work
+    binary: work
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: darwin
+        goarch: amd64
+    # The tag, leading v kept, is what git describe gives mise run build at that tag.
+    ldflags:
+      - -s -w -X main.version={{.Tag}}
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  name_template: checksums.txt

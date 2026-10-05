@@ -25,7 +25,7 @@ The total reads below what the suite reaches, for the reasons in [tests](../gotc
 
 The value is read where the task runs: building inside a worktree describes that worktree.
 
-Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails.
+A [release](releases.md) stamps the tag itself, the same string `build` stamps at that tag. Any other route to a binary, `go build ./cmd/work` among them, leaves the compiled-in default `dev`, and so does a build where `git describe` fails.
 
 The Go toolchain in that line is not stamped: `work` reports the one that compiled it.
 

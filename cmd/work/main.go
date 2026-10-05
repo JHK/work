@@ -10,7 +10,7 @@ import (
 	"github.com/JHK/work-cli/internal/wiring"
 )
 
-// version is stamped by the mise build tasks; a plain go build keeps the default.
+// version is stamped by the mise build tasks and the release build; a plain go build keeps the default.
 var version = "dev"
 
 func main() {
