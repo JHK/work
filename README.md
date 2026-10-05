@@ -9,21 +9,35 @@ Navigation is the whole remit. `work` provisions the worktree and hands it to wh
 
 ## Install
 
-Build it from source. There is no package yet.
+`git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/integrations.md) is reached for as needed.
+
+### With mise
+
+The latest release through [mise](https://mise.jdx.dev), on Linux or Apple silicon:
+
+```
+mise use -g github:JHK/work
+```
+
+### From source
+
+In a clone, with mise:
 
 ```
 mise run install
 ```
 
-Then one line in your shell's startup file:
+Every build and install task: [mise tasks](docs/references/mise-tasks.md).
+
+### Shell integration
+
+One line in your shell's startup file:
 
 ```
 source <(work init bash)    # .bashrc
 work init fish | source     # config.fish
 source <(work init zsh)     # .zshrc, below compinit
 ```
-
-`git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/integrations.md) is reached for as needed. Every build and install task: [mise tasks](docs/references/mise-tasks.md).
 
 ## Use
 
