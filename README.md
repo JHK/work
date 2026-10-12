@@ -19,8 +19,6 @@ On macOS or Linux, building from source:
 brew install JHK/tap/work
 ```
 
-fish picks up the shell integration with no further step.
-
 ### With mise
 
 The latest release through [mise](https://mise.jdx.dev), on Linux or Apple silicon:
