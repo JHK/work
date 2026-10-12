@@ -8,6 +8,10 @@ Pushing a `v*` tag to GitHub publishes a release with no further step. [release.
 - Each archive holds the `work` binary, `LICENSE` and `README.md`.
 - `checksums.txt`, the SHA-256 of each archive.
 
+## Homebrew
+
+The formula in [JHK/homebrew-tap](https://github.com/JHK/homebrew-tap) builds from one tag's source tarball, pinned by URL and SHA-256. A release reaches `brew` only once the formula names its tag.
+
 ## Pins
 
 The release builds with the Go pinned in `[tools]` of [mise.toml](../../mise.toml).

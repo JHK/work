@@ -11,6 +11,16 @@ Navigation is the whole remit. `work` provisions the worktree and hands it to wh
 
 `git` is the only dependency, and `fzf` is recommended for the chooser. Other [tooling](docs/references/integrations.md) is reached for as needed.
 
+### With Homebrew
+
+On macOS or Linux, building from source:
+
+```
+brew install JHK/tap/work
+```
+
+fish picks up the shell integration with no further step.
+
 ### With mise
 
 The latest release through [mise](https://mise.jdx.dev), on Linux or Apple silicon:
